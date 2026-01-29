@@ -320,7 +320,7 @@ interface LevelData {
 
 ## Section 8: Copilot CLI Integration
 
-### 8.1 Command Surface
+### 8.1 Command Surface (CLI - `cli/`)
 
 ```bash
 # Map operations
@@ -343,19 +343,49 @@ prairiebob import <file> --license cc0 --tags "tileset,interior"
 prairiebob pack --output atlas.png --input ./tiles/
 ```
 
-### 8.2 Copilot Integration Points
+**Status:** Go CLI scaffold exists at `cli/`. Basic command structure implemented. Needs wiring to map files.
 
+### 8.2 Embedded Agent (SDK - `src/lib/agent-service.ts`)
+
+- [x] **AgentPanel component** - Chat + Terminal tabs in editor bottom panel
+- [x] **Copilot SDK integration** - Node.js SDK wired with streaming responses
+- [x] **Custom tools** exposed to agent:
+  - `paint_tiles` - Paint tiles on any layer
+  - `fill_layer` - Fill layer/region with tile
+  - `place_entity` - Add entities (door, npc, spawn_point, trigger, prop)
+  - `export_map` - Export to kimbar/tiled/json
+  - `get_map_info` - Query current map state
+  - `list_tiles` - List available tiles
+- [x] **Terminal ↔ Agent bridge** - `pb ask` and natural language routes to SDK
 - [ ] Command history panel
 - [ ] "Generate CLI command" from current selection
 - [ ] Undo/redo via CLI
 - [ ] Scriptable macros
 
-### 8.3 Batch Operations
+### 8.3 Multi-SDK Architecture
+
+All four Copilot SDKs installed for different use cases:
+
+| SDK | Location | Status | Purpose |
+|-----|----------|--------|---------|
+| Node.js | `package.json` | ✅ Wired | Editor UI agent |
+| Go | `cli/` | ✅ Scaffold | Standalone CLI |
+| Python | Global | ✅ Installed | Scripts/automation |
+| .NET | `CopilotApp/` | ✅ Installed | Future Unity tooling |
+
+### 8.4 Batch Operations
 
 - [ ] Process multiple maps with single command
 - [ ] Regex-based tile replacement
 - [ ] Bulk entity property updates
 - [ ] Migration scripts
+
+### 8.5 Future: Go CLI ↔ Map Files
+
+- [ ] Wire `pb list maps` to scan prairiebob.config.json paths
+- [ ] Wire `pb export` to read/write actual map JSON
+- [ ] Wire `pb paint/fill` to modify maps headlessly
+- [ ] Python scripts for batch migrations
 
 ---
 
@@ -480,7 +510,12 @@ Full editing workflow.
 
 AI-assisted content creation.
 
-- [ ] Section 8: Full Copilot CLI integration
+- [x] Section 8.2: Embedded Copilot agent in editor (AgentPanel, agent-service.ts)
+- [x] Section 8.2: Custom tools (paint_tiles, fill_layer, place_entity, export_map)
+- [x] Section 8.2: Terminal ↔ Agent bridge (`pb ask`, natural language)
+- [x] Section 8.3: Multi-SDK setup (Node, Go, Python, .NET)
+- [ ] Section 8.1: Go CLI wired to map files
+- [ ] Section 8.4: Batch operations
 - [ ] Section 1.4: BobTile integration
 - [ ] Section 7.1: Multiple export formats
 - [ ] Section 9: Polished UI/UX
