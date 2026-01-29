@@ -46,7 +46,8 @@ const fs = __importStar(require("fs"));
 electron_1.app.name = 'PrairieBob';
 electron_1.app.setAppUserModelId('com.prairiebob.tileeditor');
 // Development vs production paths
-const isDev = !electron_1.app.isPackaged;
+// Use dev server only if VITE_DEV_SERVER_URL is explicitly set
+const isDev = !!process.env.VITE_DEV_SERVER_URL;
 const VITE_DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5173';
 // Icon path - use the icon pack
 const iconPath = path.join(__dirname, '../pbob_icon_pack/prairiebob.ico');

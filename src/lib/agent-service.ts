@@ -33,83 +33,83 @@ const createPrairieBobTools = (handlers: {
   getMapInfo: () => { width: number; height: number; layers: string[]; entities: string[] };
   listTiles: (tileset?: string) => Array<{ id: number; name: string }>;
 }) => [
-  defineTool('paint_tiles', {
-    description: 'Paint tiles on a specific layer of the map. Use this to place individual tiles or patterns.',
-    parameters: z.object({
-      layer: z.string().describe('Layer name (e.g., "Floor", "Walls", "Trim")'),
-      tiles: z.array(z.object({
-        x: z.number().describe('X coordinate in tiles'),
-        y: z.number().describe('Y coordinate in tiles'),
-        tileId: z.number().describe('Tile ID to paint'),
-      })).describe('Array of tiles to paint'),
+    defineTool('paint_tiles', {
+      description: 'Paint tiles on a specific layer of the map. Use this to place individual tiles or patterns.',
+      parameters: z.object({
+        layer: z.string().describe('Layer name (e.g., "Floor", "Walls", "Trim")'),
+        tiles: z.array(z.object({
+          x: z.number().describe('X coordinate in tiles'),
+          y: z.number().describe('Y coordinate in tiles'),
+          tileId: z.number().describe('Tile ID to paint'),
+        })).describe('Array of tiles to paint'),
+      }),
+      handler: async ({ layer, tiles }) => {
+        handlers.paintTiles(layer, tiles);
+        return { success: true, painted: tiles.length };
+      },
     }),
-    handler: async ({ layer, tiles }) => {
-      handlers.paintTiles(layer, tiles);
-      return { success: true, painted: tiles.length };
-    },
-  }),
 
-  defineTool('fill_layer', {
-    description: 'Fill an entire layer or region with a specific tile. Great for floors or backgrounds.',
-    parameters: z.object({
-      layer: z.string().describe('Layer name to fill'),
-      tileId: z.number().describe('Tile ID to fill with'),
-      region: z.object({
-        x: z.number(),
-        y: z.number(),
-        width: z.number(),
-        height: z.number(),
-      }).optional().describe('Optional region to fill. If not provided, fills entire layer.'),
+    defineTool('fill_layer', {
+      description: 'Fill an entire layer or region with a specific tile. Great for floors or backgrounds.',
+      parameters: z.object({
+        layer: z.string().describe('Layer name to fill'),
+        tileId: z.number().describe('Tile ID to fill with'),
+        region: z.object({
+          x: z.number(),
+          y: z.number(),
+          width: z.number(),
+          height: z.number(),
+        }).optional().describe('Optional region to fill. If not provided, fills entire layer.'),
+      }),
+      handler: async ({ layer, tileId, region }) => {
+        handlers.fillLayer(layer, tileId, region);
+        return { success: true, layer, tileId, region: region || 'entire layer' };
+      },
     }),
-    handler: async ({ layer, tileId, region }) => {
-      handlers.fillLayer(layer, tileId, region);
-      return { success: true, layer, tileId, region: region || 'entire layer' };
-    },
-  }),
 
-  defineTool('place_entity', {
-    description: 'Place an entity (spawn point, door, NPC, trigger, prop) on the map.',
-    parameters: z.object({
-      type: z.enum(['spawn_point', 'door', 'npc', 'trigger', 'prop']).describe('Entity type'),
-      x: z.number().describe('X position in pixels'),
-      y: z.number().describe('Y position in pixels'),
-      properties: z.record(z.unknown()).optional().describe('Entity properties (e.g., targetRoom for doors)'),
+    defineTool('place_entity', {
+      description: 'Place an entity (spawn point, door, NPC, trigger, prop) on the map.',
+      parameters: z.object({
+        type: z.enum(['spawn_point', 'door', 'npc', 'trigger', 'prop']).describe('Entity type'),
+        x: z.number().describe('X position in pixels'),
+        y: z.number().describe('Y position in pixels'),
+        properties: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).optional().describe('Entity properties (e.g., targetRoom for doors)'),
+      }),
+      handler: async ({ type, x, y, properties }) => {
+        handlers.placeEntity(type, x, y, properties);
+        return { success: true, type, position: { x, y } };
+      },
     }),
-    handler: async ({ type, x, y, properties }) => {
-      handlers.placeEntity(type, x, y, properties);
-      return { success: true, type, position: { x, y } };
-    },
-  }),
 
-  defineTool('export_map', {
-    description: 'Export the current map to a file format.',
-    parameters: z.object({
-      format: z.enum(['kimbar', 'tiled', 'json']).describe('Export format'),
+    defineTool('export_map', {
+      description: 'Export the current map to a file format.',
+      parameters: z.object({
+        format: z.enum(['kimbar', 'tiled', 'json']).describe('Export format'),
+      }),
+      handler: async ({ format }) => {
+        const path = await handlers.exportMap(format);
+        return { success: true, format, path };
+      },
     }),
-    handler: async ({ format }) => {
-      const path = await handlers.exportMap(format);
-      return { success: true, format, path };
-    },
-  }),
 
-  defineTool('get_map_info', {
-    description: 'Get information about the current map including dimensions, layers, and entities.',
-    parameters: z.object({}),
-    handler: async () => {
-      return handlers.getMapInfo();
-    },
-  }),
-
-  defineTool('list_tiles', {
-    description: 'List available tiles from the loaded tilesets.',
-    parameters: z.object({
-      tileset: z.string().optional().describe('Filter by tileset name'),
+    defineTool('get_map_info', {
+      description: 'Get information about the current map including dimensions, layers, and entities.',
+      parameters: z.object({}),
+      handler: async () => {
+        return handlers.getMapInfo();
+      },
     }),
-    handler: async ({ tileset }) => {
-      return handlers.listTiles(tileset);
-    },
-  }),
-];
+
+    defineTool('list_tiles', {
+      description: 'List available tiles from the loaded tilesets.',
+      parameters: z.object({
+        tileset: z.string().optional().describe('Filter by tileset name'),
+      }),
+      handler: async ({ tileset }) => {
+        return handlers.listTiles(tileset);
+      },
+    }),
+  ];
 
 export class AgentService {
   private client: CopilotClient | null = null;
@@ -189,19 +189,10 @@ Be concise and action-oriented. Execute commands rather than just explaining how
 
         case 'tool.execution_start':
           this.config.onStateChange?.('executing');
-          this.config.onToolCall?.(event.data.toolName, event.data.arguments);
+          this.config.onToolCall?.(event.data.toolName, event.data.arguments as Record<string, unknown>);
           this.config.onMessage?.({
             role: 'tool',
             content: `Executing: ${event.data.toolName}`,
-            timestamp: new Date(),
-            toolName: event.data.toolName,
-          });
-          break;
-
-        case 'tool.execution_end':
-          this.config.onMessage?.({
-            role: 'tool',
-            content: `✓ ${event.data.toolName} completed`,
             timestamp: new Date(),
             toolName: event.data.toolName,
           });
@@ -211,8 +202,8 @@ Be concise and action-oriented. Execute commands rather than just explaining how
           this.config.onStateChange?.('idle');
           break;
 
-        case 'error':
-          this.config.onError?.(new Error(event.data.message));
+        case 'session.error':
+          this.config.onError?.(new Error(String((event.data as { message?: string }).message || 'Unknown error')));
           break;
       }
     });

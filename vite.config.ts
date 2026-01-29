@@ -21,10 +21,21 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
+    rollupOptions: {
+      // Externalize Node.js modules used by copilot-sdk (runs in Electron main process)
+      external: ['@github/copilot-sdk'],
+    }
   },
   server: {
     port: 5173,
     // Don't auto-open browser when running with Electron
     open: false
+  },
+  optimizeDeps: {
+    include: ['react-resizable-panels'],
+    exclude: ['@github/copilot-sdk'],
+    esbuildOptions: {
+      target: 'esnext'
+    }
   }
 });

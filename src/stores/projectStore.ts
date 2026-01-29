@@ -8,11 +8,11 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { immer } from 'zustand/middleware/immer'
-import { 
-  LevelData, 
-  Layer, 
-  EntityData, 
-  LoadedTileset, 
+import {
+  LevelData,
+  Layer,
+  EntityData,
+  LoadedTileset,
   TilesetConfig,
   DEBUG_TILESET_ID,
 } from '@/lib/types'
@@ -59,15 +59,15 @@ interface ProjectState {
   mapData: LevelData
   currentRoomPath: string | null
   hasUnsavedChanges: boolean
-  
+
   // History (undo/redo)
   past: HistoryEntry[]
   future: HistoryEntry[]
-  
+
   // Tilesets
   tilesets: LoadedTileset[]
   isLoadingTileset: boolean
-  
+
   // Computed
   canUndo: boolean
   canRedo: boolean
@@ -78,18 +78,18 @@ interface ProjectActions {
   setMapData: (data: LevelData, recordHistory?: boolean, description?: string) => void
   setCurrentRoomPath: (path: string | null) => void
   setHasUnsavedChanges: (value: boolean) => void
-  
+
   // History
   undo: () => void
   redo: () => void
   clearHistory: () => void
-  
+
   // Tile painting
   paintTile: (layerIndex: number, x: number, y: number, tileId: number) => void
   paintTiles: (layerIndex: number, tiles: Array<{ x: number; y: number; tileId: number }>) => void
   eraseTile: (layerIndex: number, x: number, y: number) => void
   fillArea: (layerIndex: number, startX: number, startY: number, tileId: number) => void
-  
+
   // Layer operations
   toggleLayerVisible: (index: number) => void
   toggleLayerLocked: (index: number) => void
@@ -98,13 +98,13 @@ interface ProjectActions {
   addLayer: (name: string, type: 'tilelayer' | 'objectgroup') => void
   deleteLayer: (index: number) => void
   renameLayer: (index: number, name: string) => void
-  
+
   // Entity operations
   placeEntity: (entity: EntityData) => void
   updateEntity: (id: string, updates: Partial<EntityData>) => void
   moveEntity: (id: string, x: number, y: number) => void
   deleteEntity: (id: string) => void
-  
+
   // Tileset operations
   initTilesets: () => Promise<void>
   addTileset: (config: { name: string; sourcePath: string; tileSize: number }) => Promise<void>
@@ -125,7 +125,7 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
       isLoadingTileset: false,
       canUndo: false,
       canRedo: false,
-      
+
       // Map operations
       setMapData: (data, recordHistory = true, description = 'Edit') => {
         set((state) => {
@@ -144,15 +144,15 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
           state.canRedo = state.future.length > 0
         })
       },
-      
+
       setCurrentRoomPath: (path) => set({ currentRoomPath: path }),
       setHasUnsavedChanges: (value) => set({ hasUnsavedChanges: value }),
-      
+
       // History
       undo: () => {
         set((state) => {
           if (state.past.length === 0) return
-          
+
           const entry = state.past.pop()!
           state.future.unshift({ mapData: state.mapData, description: 'Undo' })
           state.mapData = entry.mapData
@@ -160,11 +160,11 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
           state.canRedo = state.future.length > 0
         })
       },
-      
+
       redo: () => {
         set((state) => {
           if (state.future.length === 0) return
-          
+
           const entry = state.future.shift()!
           state.past.push({ mapData: state.mapData, description: 'Redo' })
           state.mapData = entry.mapData
@@ -172,9 +172,9 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
           state.canRedo = state.future.length > 0
         })
       },
-      
+
       clearHistory: () => set({ past: [], future: [], canUndo: false, canRedo: false }),
-      
+
       // Tile painting
       paintTile: (layerIndex, x, y, tileId) => {
         set((state) => {
@@ -186,7 +186,7 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
               state.past.push({ mapData: JSON.parse(JSON.stringify(state.mapData)), description: 'Paint' })
               if (state.past.length > MAX_HISTORY) state.past.shift()
               state.future = []
-              
+
               layer.data[index] = tileId
               state.hasUnsavedChanges = true
               state.canUndo = true
@@ -195,7 +195,7 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
           }
         })
       },
-      
+
       paintTiles: (layerIndex, tiles) => {
         set((state) => {
           const layer = state.mapData.layers[layerIndex]
@@ -204,7 +204,7 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
             state.past.push({ mapData: JSON.parse(JSON.stringify(state.mapData)), description: 'Paint batch' })
             if (state.past.length > MAX_HISTORY) state.past.shift()
             state.future = []
-            
+
             for (const { x, y, tileId } of tiles) {
               const index = y * state.mapData.width + x
               if (index >= 0 && index < layer.data.length) {
@@ -217,54 +217,54 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
           }
         })
       },
-      
+
       eraseTile: (layerIndex, x, y) => {
         get().paintTile(layerIndex, x, y, 0)
       },
-      
+
       fillArea: (layerIndex, startX, startY, tileId) => {
         set((state) => {
           const layer = state.mapData.layers[layerIndex]
           if (layer?.type !== 'tilelayer' || !layer.data) return
-          
+
           const { width, height } = state.mapData
           const startIndex = startY * width + startX
           const targetTileId = layer.data[startIndex]
-          
+
           if (targetTileId === tileId) return // Already filled
-          
+
           // Record history
           state.past.push({ mapData: JSON.parse(JSON.stringify(state.mapData)), description: 'Fill' })
           if (state.past.length > MAX_HISTORY) state.past.shift()
           state.future = []
-          
+
           // Flood fill algorithm
           const visited = new Set<number>()
           const stack = [{ x: startX, y: startY }]
-          
+
           while (stack.length > 0) {
             const { x, y } = stack.pop()!
             const index = y * width + x
-            
+
             if (x < 0 || x >= width || y < 0 || y >= height) continue
             if (visited.has(index)) continue
             if (layer.data![index] !== targetTileId) continue
-            
+
             visited.add(index)
             layer.data![index] = tileId
-            
+
             stack.push({ x: x + 1, y })
             stack.push({ x: x - 1, y })
             stack.push({ x, y: y + 1 })
             stack.push({ x, y: y - 1 })
           }
-          
+
           state.hasUnsavedChanges = true
           state.canUndo = true
           state.canRedo = false
         })
       },
-      
+
       // Layer operations
       toggleLayerVisible: (index) => {
         set((state) => {
@@ -273,7 +273,7 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
           }
         })
       },
-      
+
       toggleLayerLocked: (index) => {
         set((state) => {
           if (state.mapData.layers[index]) {
@@ -281,7 +281,7 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
           }
         })
       },
-      
+
       setLayerOpacity: (index, opacity) => {
         set((state) => {
           if (state.mapData.layers[index]) {
@@ -289,7 +289,7 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
           }
         })
       },
-      
+
       reorderLayers: (fromIndex, toIndex) => {
         set((state) => {
           const layers = state.mapData.layers
@@ -297,7 +297,7 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
           layers.splice(toIndex, 0, removed)
         })
       },
-      
+
       addLayer: (name, type) => {
         set((state) => {
           const { width, height } = state.mapData
@@ -307,7 +307,7 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
             visible: true,
             locked: false,
             opacity: 1,
-            ...(type === 'tilelayer' 
+            ...(type === 'tilelayer'
               ? { data: new Array(width * height).fill(0) }
               : { objects: [] }
             ),
@@ -316,7 +316,7 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
           state.hasUnsavedChanges = true
         })
       },
-      
+
       deleteLayer: (index) => {
         set((state) => {
           if (state.mapData.layers.length > 1) {
@@ -325,7 +325,7 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
           }
         })
       },
-      
+
       renameLayer: (index, name) => {
         set((state) => {
           if (state.mapData.layers[index]) {
@@ -334,7 +334,7 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
           }
         })
       },
-      
+
       // Entity operations
       placeEntity: (entity) => {
         set((state) => {
@@ -346,7 +346,7 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
           }
         })
       },
-      
+
       updateEntity: (id, updates) => {
         set((state) => {
           const entityLayer = state.mapData.layers.find(l => l.type === 'objectgroup')
@@ -359,11 +359,11 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
           }
         })
       },
-      
+
       moveEntity: (id, x, y) => {
         get().updateEntity(id, { x, y })
       },
-      
+
       deleteEntity: (id) => {
         set((state) => {
           const entityLayer = state.mapData.layers.find(l => l.type === 'objectgroup')
@@ -373,23 +373,23 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
           }
         })
       },
-      
+
       // Tileset operations
       initTilesets: async () => {
         const debugTileset = createDebugTileset()
         let loadedTilesets: LoadedTileset[] = [debugTileset]
-        
+
         try {
           if (window.electron) {
             const configExists = await window.electron.fs.exists(CONFIG_PATH)
             if (configExists) {
               const configContent = await window.electron.fs.readFile(CONFIG_PATH)
               const config = JSON.parse(configContent)
-              
+
               if (config.tilesets && Array.isArray(config.tilesets)) {
                 for (const tilesetConfig of config.tilesets as TilesetConfig[]) {
                   if (tilesetConfig.id === DEBUG_TILESET_ID) continue
-                  
+
                   try {
                     const loaded = await loadTilesetFromPath(
                       tilesetConfig,
@@ -417,22 +417,22 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
         } catch (err) {
           console.warn('Failed to load tileset config:', err)
         }
-        
+
         set({ tilesets: loadedTilesets })
       },
-      
+
       addTileset: async (config) => {
         if (!window.electron) {
           toast.error('Tileset import requires Electron')
           return
         }
-        
+
         set({ isLoadingTileset: true })
-        
+
         try {
           const { tilesets } = get()
           const nextFirstGid = getNextFirstGid(tilesets)
-          
+
           const newTileset = await loadTilesetFromPath(
             {
               id: `tileset_${Date.now()}`,
@@ -443,11 +443,10 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
             },
             window.electron.fs.readFileBase64
           )
-          
-          set((state) => {
-            state.tilesets.push(newTileset)
-          })
-          
+
+          // Bypass Immer for DOM elements (canvas) - use direct state update
+          set({ tilesets: [...get().tilesets, newTileset] })
+
           await get().saveTilesetsToConfig()
           toast.success(`Loaded tileset: ${newTileset.name} (${newTileset.totalTiles} tiles)`)
         } catch (err) {
@@ -457,40 +456,40 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
           set({ isLoadingTileset: false })
         }
       },
-      
+
       removeTileset: async (id) => {
         if (id === DEBUG_TILESET_ID) {
           toast.error('Cannot remove the Debug tileset')
           return
         }
-        
+
         set((state) => {
           state.tilesets = state.tilesets.filter(ts => ts.id !== id)
         })
-        
+
         await get().saveTilesetsToConfig()
         toast.success('Tileset removed')
       },
-      
+
       saveTilesetsToConfig: async () => {
         if (!window.electron) return
-        
+
         try {
           const { tilesets } = get()
           let config: Record<string, unknown> = {}
-          
+
           const configExists = await window.electron.fs.exists(CONFIG_PATH)
           if (configExists) {
             const content = await window.electron.fs.readFile(CONFIG_PATH)
             config = JSON.parse(content)
           }
-          
+
           const tilesetConfigs = tilesets
             .filter(ts => ts.id !== DEBUG_TILESET_ID && ts.status === 'ready')
             .map(ts => tilesetToConfig(ts))
-          
+
           config.tilesets = tilesetConfigs
-          
+
           await window.electron.fs.writeFile(CONFIG_PATH, JSON.stringify(config, null, 4))
           console.log('Saved tilesets to config')
         } catch (err) {

@@ -17,7 +17,7 @@ export function AgentPanel() {
   const [isLoading, setIsLoading] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
-  
+
   const terminalRef = useRef<HTMLDivElement>(null);
   const terminalInstance = useRef<Terminal | null>(null);
   const fitAddon = useRef<FitAddon | null>(null);
@@ -32,7 +32,7 @@ export function AgentPanel() {
     if (agentRef.current?.isConnected()) return;
 
     setIsLoading(true);
-    
+
     try {
       const agent = new AgentService({
         model: 'gpt-5',
@@ -84,7 +84,7 @@ export function AgentPanel() {
             y,
             width: type === 'door' ? 32 : 16,
             height: 16,
-            properties: properties || {},
+            properties: (properties || {}) as Record<string, string | number | boolean>,
           });
         },
         exportMap: async (format: string) => {
@@ -98,12 +98,12 @@ export function AgentPanel() {
           entities: mapData?.layers.find(l => l.name === 'Entities')?.objects?.map(o => o.id) ?? [],
         }),
         listTiles: (tileset?: string) => {
-          const ts = tileset 
+          const ts = tileset
             ? tilesets.find(t => t.name === tileset)
             : tilesets[0];
           if (!ts) return [];
           const tiles: Array<{ id: number; name: string }> = [];
-          for (let i = 0; i < ts.tileCount; i++) {
+          for (let i = 0; i < ts.totalTiles; i++) {
             tiles.push({ id: ts.firstGid + i, name: `${ts.name}_${i}` });
           }
           return tiles.slice(0, 20); // Limit for brevity
@@ -113,7 +113,7 @@ export function AgentPanel() {
       await agent.start(toolHandlers);
       agentRef.current = agent;
       setIsConnected(true);
-      
+
     } catch (error) {
       console.error('Failed to connect agent:', error);
       setMessages(prev => [...prev, {
@@ -217,18 +217,18 @@ export function AgentPanel() {
       }
 
       term.writeln('\x1b[1;35m[Agent]\x1b[0m');
-      
+
       // Temporarily override handlers to write to terminal
       let responseContent = '';
       const cfg = agentRef.current as unknown as { config: { onDelta?: (d: string) => void; onMessage?: (m: AgentMessage) => void } };
       const originalOnDelta = cfg.config.onDelta;
       const originalOnMessage = cfg.config.onMessage;
-      
+
       cfg.config.onDelta = (delta: string) => {
         responseContent += delta;
         term.write(delta.replace(/\n/g, '\r\n'));
       };
-      
+
       cfg.config.onMessage = (msg: AgentMessage) => {
         if (msg.role === 'assistant' && !responseContent) {
           term.writeln(msg.content.replace(/\n/g, '\r\n'));
@@ -251,7 +251,7 @@ export function AgentPanel() {
 
     if (cmd === 'prairiebob' || cmd === 'pb') {
       const subCmd = parts[1];
-      
+
       switch (subCmd) {
         case '--help':
         case 'help':
@@ -266,7 +266,7 @@ export function AgentPanel() {
           term.writeln('');
           term.writeln('  Or just type naturally - it goes to the agent!');
           break;
-        
+
         case 'list': {
           const resource = parts[2] || 'info';
           if (resource === 'layers') {
@@ -277,7 +277,7 @@ export function AgentPanel() {
           } else if (resource === 'tilesets') {
             term.writeln('\x1b[1;33mTilesets:\x1b[0m');
             tilesets.forEach(ts => {
-              term.writeln(`  • ${ts.name} (${ts.tileCount} tiles)`);
+              term.writeln(`  • ${ts.name} (${ts.totalTiles} tiles)`);
             });
           } else if (resource === 'entities') {
             const entities = mapData?.layers.find(l => l.name === 'Entities')?.objects || [];
@@ -289,7 +289,7 @@ export function AgentPanel() {
           }
           break;
         }
-        
+
         case 'ask': {
           const question = parts.slice(2).join(' ');
           if (question) {
@@ -299,7 +299,7 @@ export function AgentPanel() {
           }
           break;
         }
-        
+
         case 'fill': {
           const layerIdx = parts.indexOf('--layer');
           const tileIdx = parts.indexOf('--tile');
@@ -309,7 +309,7 @@ export function AgentPanel() {
           await askAgent(`Fill the ${layer} layer with tile ID ${tile}`);
           break;
         }
-        
+
         case 'paint': {
           const layerIdx = parts.indexOf('--layer');
           const tileIdx = parts.indexOf('--tile');
@@ -321,7 +321,7 @@ export function AgentPanel() {
           await askAgent(`Paint tile ${tile} on ${layer} at ${at}`);
           break;
         }
-        
+
         case 'spawn': {
           const entityIdx = parts.indexOf('--entity');
           const atIdx = parts.indexOf('--at');
@@ -331,14 +331,14 @@ export function AgentPanel() {
           await askAgent(`Place a ${entity} at pixel position ${at}`);
           break;
         }
-        
+
         case 'export': {
           const formatIdx = parts.indexOf('--format');
           const format = formatIdx !== -1 ? parts[formatIdx + 1] : 'kimbar';
           await askAgent(`Export the map as ${format}`);
           break;
         }
-        
+
         default:
           if (subCmd) {
             await askAgent(parts.slice(1).join(' '));
@@ -436,15 +436,14 @@ export function AgentPanel() {
               {messages.map((msg, i) => (
                 <div
                   key={i}
-                  className={`rounded-lg p-3 text-sm ${
-                    msg.role === 'user'
+                  className={`rounded-lg p-3 text-sm ${msg.role === 'user'
                       ? 'bg-[#f97316] text-white ml-8'
                       : msg.role === 'assistant'
-                      ? 'bg-[#2a2a4a] text-gray-100 mr-8'
-                      : msg.role === 'tool'
-                      ? 'bg-[#1f2f1f] text-green-300 text-xs mr-8 font-mono'
-                      : 'bg-[#1f1f3a] text-gray-400 text-xs italic'
-                  }`}
+                        ? 'bg-[#2a2a4a] text-gray-100 mr-8'
+                        : msg.role === 'tool'
+                          ? 'bg-[#1f2f1f] text-green-300 text-xs mr-8 font-mono'
+                          : 'bg-[#1f1f3a] text-gray-400 text-xs italic'
+                    }`}
                 >
                   {msg.role === 'tool' && msg.toolName && (
                     <span className="text-green-500 font-bold">⚙ </span>

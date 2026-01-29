@@ -548,16 +548,16 @@ function App() {
       />
 
       {/* Main Content - Resizable Panels (Tiled-style) */}
-      <PanelGroup direction="vertical" className="flex-1">
+      <PanelGroup orientation="vertical" className="flex-1">
         <Panel defaultSize={75} minSize={40}>
-          <PanelGroup direction="horizontal" className="h-full">
+          <PanelGroup orientation="horizontal" className="h-full">
             {/* Left Panel - Tilesets */}
             <Panel
               defaultSize={panels.left.size}
               minSize={panels.left.minSize}
               maxSize={panels.left.maxSize}
               collapsible
-              onResize={(size) => setPanelSize('left', size)}
+              onResize={(size) => setPanelSize('left', size.asPercentage)}
               className="bg-card"
             >
               <div className="h-full overflow-y-auto p-4">
@@ -620,7 +620,7 @@ function App() {
               minSize={panels.right.minSize}
               maxSize={panels.right.maxSize}
               collapsible
-              onResize={(size) => setPanelSize('right', size)}
+              onResize={(size) => setPanelSize('right', size.asPercentage)}
               className="bg-card"
             >
               <div className="h-full overflow-y-auto p-4 space-y-4">

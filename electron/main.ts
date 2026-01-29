@@ -14,7 +14,8 @@ app.name = 'PrairieBob';
 app.setAppUserModelId('com.prairiebob.tileeditor');
 
 // Development vs production paths
-const isDev = !app.isPackaged;
+// Use dev server only if VITE_DEV_SERVER_URL is explicitly set
+const isDev = !!process.env.VITE_DEV_SERVER_URL;
 const VITE_DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5173';
 
 // Icon path - use the icon pack
