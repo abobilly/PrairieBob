@@ -70,24 +70,31 @@ const PROJECT_TEMPLATES: TemplateConfig[] = [
         mapHeight: 18,
         layers: ['Floor', 'Walls', 'Objects', 'Collision', 'Entities'],
         tileset: {
-            id: 'kenney_tiny_dungeon',
-            file: 'tilesets/tilemap_packed.png',
-            sourcePath: 'kenney_tiny-dungeon/Tilemap/tilemap_packed.png',
+            id: 'bob_sample_rpg_16',
+            file: 'tilesets/bob-sample_rpg_16x16.png',
+            sourcePath: 'bob-sample_rpg_16x16.png',
             tileSize: 16,
-            columns: 12,
-            tileCount: 132,
+            columns: 16,
+            tileCount: 1232,
         },
     },
     {
         id: 'platformer',
         name: 'Platformer',
-        description: '64×64 tiles, side-scrolling action',
+        description: '32×32 tiles, side-scrolling action',
         icon: <Gamepad2 className="h-6 w-6" />,
-        tileSize: 64,
-        mapWidth: 40,
+        tileSize: 32,
+        mapWidth: 30,
         mapHeight: 12,
         layers: ['Background', 'Platforms', 'Decorations', 'Hazards', 'Entities'],
-        tileset: null, // Will use kim_leaf for now until platformer is packed
+        tileset: {
+            id: 'kenney_platformer_32',
+            file: 'tilesets/kenney-sample_platformer_32x32.png',
+            sourcePath: 'kenney-sample_platformer_32x32.png',
+            tileSize: 32,
+            columns: 18,
+            tileCount: 324,
+        },
     },
     {
         id: 'blank',
@@ -215,11 +222,10 @@ export function NewProjectWizard() {
                                     key={template.id}
                                     type="button"
                                     onClick={() => handleTemplateSelect(template.id)}
-                                    className={`p-3 rounded-lg border-2 transition-all text-left ${
-                                        settings.template === template.id
-                                            ? 'border-[#f97316] bg-[#f97316]/10'
-                                            : 'border-[#2a2a4a] bg-[#12121f] hover:border-[#3a3a5a]'
-                                    }`}
+                                    className={`p-3 rounded-lg border-2 transition-all text-left ${settings.template === template.id
+                                        ? 'border-[#f97316] bg-[#f97316]/10'
+                                        : 'border-[#2a2a4a] bg-[#12121f] hover:border-[#3a3a5a]'
+                                        }`}
                                 >
                                     <div className={`mb-2 ${settings.template === template.id ? 'text-[#f97316]' : 'text-gray-400'}`}>
                                         {template.icon}
