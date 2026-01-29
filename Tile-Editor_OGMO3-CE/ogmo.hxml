@@ -1,7 +1,0 @@
--lib electron
--lib jQueryExtern
--lib haxe-loader
--cp src
--dce full
--js bin/ogmo.js
--main Ogmo

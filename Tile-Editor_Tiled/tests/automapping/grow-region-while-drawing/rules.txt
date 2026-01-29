@@ -1,2 +1,0 @@
-./rules1.tmx
-./rules2.tmx
