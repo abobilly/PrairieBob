@@ -1,0 +1,72 @@
+{
+    "$schema": "./schemas/prairiebob.config.schema.json",
+    "linkedProjects": [
+        {
+            "name": "kimbar",
+            "rootPath": "C:/Users/andre/lawchuck/badgey.org/kimbar",
+            "contentPath": "public/content",
+            "generatedPath": "public/generated",
+            "specsPath": "specs",
+            "schemasPath": "schemas",
+            "exportFormat": "kimbar-leveldata",
+            "tileSize": 16,
+            "paths": {
+                "tilesets": "public/assets/tilesets",
+                "tiledRooms": "public/content/tiled/rooms",
+                "tiledWorlds": "public/content/tiled/worlds",
+                "characters": "specs/characters",
+                "roomEntries": "specs/room_entries",
+                "roomSpecs": "specs/rooms",
+                "worldGraph": "specs/world_graph.json"
+            },
+            "validation": {
+                "command": "npm run validate:tiled",
+                "runOnExport": true
+            }
+        }
+    ],
+    "defaultProject": "kimbar",
+    "copilotCli": {
+        "enabled": true,
+        "allowedPaths": [
+            "C:/Users/andre/lawchuck/artbob/PrairieBob",
+            "C:/Users/andre/lawchuck/badgey.org/kimbar/public/content",
+            "C:/Users/andre/lawchuck/badgey.org/kimbar/specs"
+        ]
+    },
+    "bobTile": {
+        "path": "../BobTile",
+        "enabled": true
+    },
+    "assets": {
+        "libraryPath": "./assets",
+        "licenseFolders": {
+            "cc0": "Public Domain - no attribution required",
+            "cc-by": "Attribution required",
+            "cc-by-sa": "Attribution + ShareAlike",
+            "ogl": "Open Gaming License",
+            "custom": "Project-specific, not redistributable"
+        }
+    },
+    "editor": {
+        "theme": "dark",
+        "gridVisible": true,
+        "snapToGrid": true,
+        "defaultZoom": 1,
+        "recentMaps": [],
+        "layerTemplates": {
+            "standardRoom": [
+                "Floor",
+                "Walls",
+                "Trim",
+                "Overlays",
+                "Collision",
+                "Entities"
+            ]
+        }
+    },
+    "interactions": {
+        "definitions": "./interactions",
+        "previewAnimations": true
+    }
+}
