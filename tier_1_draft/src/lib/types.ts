@@ -22,7 +22,7 @@ export interface Character {
   name: string
 }
 
-export type Tool = 'brush' | 'fill' | 'rectangle' | 'eraser' | 'select'
+export type Tool = 'brush' | 'fill' | 'rectangle' | 'eraser' | 'select' | 'eyedropper'
 
 export type EntityType = 'spawn_point' | 'door' | 'npc' | 'trigger' | 'prop'
 

@@ -1,4 +1,4 @@
-import { Pencil, PaintBucket, Rectangle, Eraser, CursorClick } from '@phosphor-icons/react'
+import { Pencil, PaintBucket, Rectangle, Eraser, CursorClick, Eyedropper, ArrowUUpLeft, ArrowUUpRight, MagnifyingGlassMinus, MagnifyingGlassPlus } from '@phosphor-icons/react'
 import { Tool } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
@@ -10,6 +10,13 @@ interface ToolbarProps {
   gridVisible: boolean
   onGridToggle: () => void
   zoom: number
+  onZoomIn: () => void
+  onZoomOut: () => void
+  onZoomReset: () => void
+  canUndo: boolean
+  canRedo: boolean
+  onUndo: () => void
+  onRedo: () => void
   onExport: () => void
   onSave: () => void
 }
@@ -20,6 +27,13 @@ export function Toolbar({
   gridVisible,
   onGridToggle,
   zoom,
+  onZoomIn,
+  onZoomOut,
+  onZoomReset,
+  canUndo,
+  canRedo,
+  onUndo,
+  onRedo,
   onExport,
   onSave,
 }: ToolbarProps) {
@@ -29,14 +43,50 @@ export function Toolbar({
     { id: 'rectangle', icon: <Rectangle size={20} />, label: 'Rectangle', shortcut: 'R' },
     { id: 'eraser', icon: <Eraser size={20} />, label: 'Eraser', shortcut: 'E' },
     { id: 'select', icon: <CursorClick size={20} />, label: 'Select', shortcut: 'S' },
+    { id: 'eyedropper', icon: <Eyedropper size={20} />, label: 'Eyedropper', shortcut: 'I' },
   ]
 
   return (
     <div className="flex items-center gap-2 p-2 bg-primary border-b border-border">
       <h1 className="text-xl font-bold px-2">PrairieBob</h1>
-      
+
       <Separator orientation="vertical" className="h-8" />
-      
+
+      {/* Undo/Redo */}
+      <TooltipProvider>
+        <div className="flex gap-1">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={onUndo}
+                disabled={!canUndo}
+              >
+                <ArrowUUpLeft size={20} />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Undo (Ctrl+Z)</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={onRedo}
+                disabled={!canRedo}
+              >
+                <ArrowUUpRight size={20} />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Redo (Ctrl+Y)</TooltipContent>
+          </Tooltip>
+        </div>
+      </TooltipProvider>
+
+      <Separator orientation="vertical" className="h-8" />
+
+      {/* Drawing Tools */}
       <TooltipProvider>
         <div className="flex gap-1">
           {tools.map(tool => (
@@ -65,10 +115,44 @@ export function Toolbar({
         Grid {gridVisible ? 'On' : 'Off'} (G)
       </Button>
 
+      <Separator orientation="vertical" className="h-8" />
+
+      {/* Zoom Controls */}
+      <TooltipProvider>
+        <div className="flex gap-1 items-center">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" onClick={onZoomOut}>
+                <MagnifyingGlassMinus size={20} />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Zoom Out (Ctrl+-)</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onZoomReset}
+                className="min-w-[60px] font-mono"
+              >
+                {Math.round(zoom * 100)}%
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Reset Zoom (Ctrl+0)</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" onClick={onZoomIn}>
+                <MagnifyingGlassPlus size={20} />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Zoom In (Ctrl+=)</TooltipContent>
+          </Tooltip>
+        </div>
+      </TooltipProvider>
+
       <div className="ml-auto flex gap-2">
-        <span className="text-sm text-muted-foreground px-2 py-1">
-          Zoom: {Math.round(zoom * 100)}%
-        </span>
         <Button variant="secondary" size="sm" onClick={onSave}>
           Save (Ctrl+S)
         </Button>

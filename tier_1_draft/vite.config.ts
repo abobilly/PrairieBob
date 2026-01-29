@@ -16,8 +16,15 @@ export default defineConfig({
       '@': resolve(projectRoot, 'src')
     }
   },
+  // Electron needs this for proper asset resolution
+  base: './',
+  build: {
+    outDir: 'dist',
+    emptyOutDir: true,
+  },
   server: {
     port: 5173,
-    open: true
+    // Don't auto-open browser when running with Electron
+    open: false
   }
 });

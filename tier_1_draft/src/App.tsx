@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { LevelData, Tool, EntityType, EntityData } from '@/lib/types'
 import { createTilesetCanvas } from '@/lib/tileset'
 import { Toolbar } from '@/components/Toolbar'
@@ -7,6 +7,8 @@ import { LayerPanel } from '@/components/LayerPanel'
 import { TilesetPanel } from '@/components/TilesetPanel'
 import { EntityPalette } from '@/components/EntityPalette'
 import { PropertiesPanel } from '@/components/PropertiesPanel'
+import { useHistory } from '@/hooks/useHistory'
+import { getFileSystemAdapter } from '@/lib/fs-adapter'
 import { Toaster, toast } from 'sonner'
 
 const DEFAULT_MAP: LevelData = {
@@ -29,21 +31,24 @@ const DEFAULT_MAP: LevelData = {
   },
 }
 
+// Zoom constraints (borrowed from Tiled's defaults)
+const MIN_ZOOM = 0.25
+const MAX_ZOOM = 4
+const ZOOM_STEP = 0.25
+
 function App() {
-  const [mapData, setMapData] = useState<LevelData>(() => {
-    // Load from localStorage if available
-    const saved = localStorage.getItem('prairiebob-map')
-    if (saved) {
-      try { return JSON.parse(saved) } catch { /* ignore */ }
-    }
-    return DEFAULT_MAP
-  })
+  // Use history hook for undo/redo
+  const {
+    state: mapData,
+    setState: setMapData,
+    undo,
+    redo,
+    canUndo,
+    canRedo
+  } = useHistory<LevelData>(DEFAULT_MAP)
 
-  // Persist to localStorage on change
-  useEffect(() => {
-    localStorage.setItem('prairiebob-map', JSON.stringify(mapData))
-  }, [mapData])
-
+  const [currentRoomPath, setCurrentRoomPath] = useState<string | null>(null)
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [tileset, setTileset] = useState<HTMLCanvasElement | null>(null)
   const [currentTool, setCurrentTool] = useState<Tool>('brush')
   const [selectedTileId, setSelectedTileId] = useState(1)
@@ -54,24 +59,159 @@ function App() {
   const [gridVisible, setGridVisible] = useState(true)
   const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null)
 
+  const fsAdapter = getFileSystemAdapter()
+
+  // Mark unsaved changes when map data changes
+  useEffect(() => {
+    if (hasUnsavedChanges) {
+      fsAdapter.setUnsavedChanges(true)
+    }
+  }, [hasUnsavedChanges, fsAdapter])
+
   useEffect(() => {
     const tilesetCanvas = createTilesetCanvas()
     setTileset(tilesetCanvas)
   }, [])
 
+  // ============== Zoom Controls ==============
+  const handleZoomIn = useCallback(() => {
+    setZoom(z => Math.min(z + ZOOM_STEP, MAX_ZOOM))
+  }, [])
+
+  const handleZoomOut = useCallback(() => {
+    setZoom(z => Math.max(z - ZOOM_STEP, MIN_ZOOM))
+  }, [])
+
+  const handleZoomReset = useCallback(() => {
+    setZoom(1)
+  }, [])
+
+  // ============== Save/Export ==============
+  const handleSave = useCallback(async () => {
+    if (!mapData) return
+
+    const updatedMap = {
+      ...mapData,
+      metadata: {
+        ...mapData.metadata,
+        editedAt: new Date().toISOString(),
+      },
+    }
+
+    if (currentRoomPath) {
+      await fsAdapter.saveRoom(currentRoomPath, updatedMap)
+      setHasUnsavedChanges(false)
+      toast.success('Room saved!')
+    } else {
+      // No path yet, trigger Save As
+      const path = await fsAdapter.saveRoomAs(updatedMap)
+      if (path) {
+        setCurrentRoomPath(path)
+        setHasUnsavedChanges(false)
+        toast.success('Room saved!')
+      }
+    }
+  }, [mapData, currentRoomPath, fsAdapter])
+
+  const handleExport = useCallback(() => {
+    if (!mapData) return
+
+    const json = JSON.stringify(mapData, null, 2)
+    const blob = new Blob([json], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${mapData.id}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+
+    toast.success('Map exported!')
+  }, [mapData])
+
+  // ============== Electron Menu Events ==============
+  useEffect(() => {
+    if (!window.electron) return
+
+    const cleanups = [
+      window.electron.onMenuSave(() => handleSave()),
+      window.electron.onMenuUndo(() => undo()),
+      window.electron.onMenuRedo(() => redo()),
+      window.electron.onMenuToggleGrid(() => setGridVisible(v => !v)),
+      window.electron.onMenuZoomIn(() => handleZoomIn()),
+      window.electron.onMenuZoomOut(() => handleZoomOut()),
+      window.electron.onMenuZoomReset(() => handleZoomReset()),
+      window.electron.onMenuExport(() => handleExport()),
+      window.electron.onRoomOpened(({ path, content }) => {
+        try {
+          const data = JSON.parse(content) as LevelData
+          setMapData(data, false) // Don't record in history
+          setCurrentRoomPath(path)
+          setHasUnsavedChanges(false)
+          toast.success(`Opened ${path.split(/[/\\]/).pop()}`)
+        } catch (err) {
+          toast.error('Failed to parse room file')
+        }
+      }),
+      window.electron.onRoomSaveAs(async (path) => {
+        if (mapData) {
+          await fsAdapter.saveRoom(path, mapData)
+          setCurrentRoomPath(path)
+          setHasUnsavedChanges(false)
+          toast.success('Room saved!')
+        }
+      }),
+    ]
+
+    return () => cleanups.forEach(cleanup => cleanup())
+  }, [handleSave, handleExport, handleZoomIn, handleZoomOut, handleZoomReset, undo, redo, mapData, fsAdapter, setMapData])
+
+  // ============== Keyboard Shortcuts ==============
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl/Cmd shortcuts
       if (e.ctrlKey || e.metaKey) {
-        if (e.key === 's') {
-          e.preventDefault()
-          handleSave()
-        } else if (e.key === 'e') {
-          e.preventDefault()
-          handleExport()
+        switch (e.key.toLowerCase()) {
+          case 's':
+            e.preventDefault()
+            handleSave()
+            break
+          case 'e':
+            e.preventDefault()
+            handleExport()
+            break
+          case 'z':
+            e.preventDefault()
+            if (e.shiftKey) {
+              redo()
+              toast.info('Redo')
+            } else {
+              undo()
+              toast.info('Undo')
+            }
+            break
+          case 'y':
+            e.preventDefault()
+            redo()
+            toast.info('Redo')
+            break
+          case '=':
+          case '+':
+            e.preventDefault()
+            handleZoomIn()
+            break
+          case '-':
+            e.preventDefault()
+            handleZoomOut()
+            break
+          case '0':
+            e.preventDefault()
+            handleZoomReset()
+            break
         }
         return
       }
 
+      // Tool shortcuts (single keys)
       switch (e.key.toLowerCase()) {
         case 'b':
           setCurrentTool('brush')
@@ -88,10 +228,15 @@ function App() {
         case 's':
           setCurrentTool('select')
           break
+        case 'i':
+          // Eyedropper - sample tile under cursor (TODO: implement in MapCanvas)
+          setCurrentTool('eyedropper' as Tool)
+          break
         case 'g':
           setGridVisible(prev => !prev)
           break
         case 'delete':
+        case 'backspace':
           if (selectedEntityId) {
             handleEntityDelete(selectedEntityId)
           }
@@ -99,11 +244,29 @@ function App() {
       }
     }
 
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [selectedEntityId])
+    // Mouse wheel zoom
+    const handleWheel = (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault()
+        if (e.deltaY < 0) {
+          handleZoomIn()
+        } else {
+          handleZoomOut()
+        }
+      }
+    }
 
+    window.addEventListener('keydown', handleKeyDown)
+    window.addEventListener('wheel', handleWheel, { passive: false })
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('wheel', handleWheel)
+    }
+  }, [selectedEntityId, handleSave, handleExport, undo, redo, handleZoomIn, handleZoomOut, handleZoomReset])
+
+  // ============== Paint Operations ==============
   const handlePaint = (layerIndex: number, x: number, y: number, tileId: number) => {
+    setHasUnsavedChanges(true)
     setMapData(current => {
       if (!current) return {
         id: 'test_room',
@@ -284,46 +447,6 @@ function App() {
     })
   }
 
-  const handleSave = () => {
-    if (!mapData) return
-
-    setMapData(current => {
-      if (!current) return {
-        id: 'test_room',
-        width: 30,
-        height: 20,
-        tileSize: 16,
-        layers: [],
-        metadata: { editedAt: new Date().toISOString(), exportedFrom: 'prairiebob', version: '1.0.0' }
-      }
-
-      return {
-        ...current,
-        metadata: {
-          ...current.metadata,
-          editedAt: new Date().toISOString(),
-        },
-      }
-    })
-
-    toast.success('Map saved!')
-  }
-
-  const handleExport = () => {
-    if (!mapData) return
-
-    const json = JSON.stringify(mapData, null, 2)
-    const blob = new Blob([json], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${mapData.id}.json`
-    a.click()
-    URL.revokeObjectURL(url)
-
-    toast.success('Map exported!')
-  }
-
   const selectedEntity = mapData?.layers
     .find(l => l.name === 'Entities')
     ?.objects?.find(o => o.id === selectedEntityId) || null
@@ -340,6 +463,13 @@ function App() {
         gridVisible={gridVisible}
         onGridToggle={() => setGridVisible(prev => !prev)}
         zoom={zoom}
+        onZoomIn={handleZoomIn}
+        onZoomOut={handleZoomOut}
+        onZoomReset={handleZoomReset}
+        canUndo={canUndo}
+        canRedo={canRedo}
+        onUndo={undo}
+        onRedo={redo}
         onExport={handleExport}
         onSave={handleSave}
       />
