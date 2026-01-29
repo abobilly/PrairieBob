@@ -16,3 +16,6 @@ release/win-unpacked/
 .vs/
 *.suo
 *.user
+
+# Large reference editor folders
+Tile-Editor_*
