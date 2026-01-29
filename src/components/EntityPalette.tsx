@@ -12,6 +12,9 @@ export function EntityPalette({ onEntityTypeSelect }: EntityPaletteProps) {
   const entityTypes: { type: EntityType; icon: React.ReactNode; label: string }[] = [
     { type: 'spawn_point', icon: <MapPin size={20} />, label: 'Spawn Point' },
     { type: 'door', icon: <DoorOpen size={20} />, label: 'Door' },
+    { type: 'portal', icon: <span className="text-lg">🌀</span>, label: 'Portal' },
+    { type: 'stairs', icon: <span className="text-lg">⬆️</span>, label: 'Stairs' },
+    { type: 'ladder', icon: <span className="text-lg">🪜</span>, label: 'Ladder' },
     { type: 'npc', icon: <User size={20} />, label: 'NPC' },
     { type: 'trigger', icon: <Lightning size={20} />, label: 'Trigger' },
     { type: 'prop', icon: <Package size={20} />, label: 'Prop' },

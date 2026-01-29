@@ -72,6 +72,8 @@ export function MapCanvas({
   const [selectionStart, setSelectionStart] = useState<{ x: number; y: number } | null>(null)
   const [selectionEnd, setSelectionEnd] = useState<{ x: number; y: number } | null>(null)
 
+  const tileSize = Math.max(1, Math.round(mapData.tileSize))
+
   // Bresenham's line algorithm for pixel-perfect lines (from Tiled)
   const getLinePoints = useCallback((x0: number, y0: number, x1: number, y1: number): Array<{ x: number; y: number }> => {
     const points: Array<{ x: number; y: number }> = []
@@ -142,18 +144,28 @@ export function MapCanvas({
     }
   }
 
-  useEffect(() => {
-    renderCanvas()
-  }, [mapData, tilesets, zoom, panX, panY, gridVisible, selectedEntityId, cursorPos, rectangleStart, rectangleEnd, lineStart, lineEnd, selection, selectionStart, selectionEnd, selectedTileId, currentTool, stamp])
-
-  const renderCanvas = () => {
+  const renderCanvas = useCallback(() => {
     const canvas = canvasRef.current
     if (!canvas || tilesets.length === 0) return
+
+    const rect = canvas.getBoundingClientRect()
+    const dpr = window.devicePixelRatio || 1
+    const displayWidth = Math.max(1, Math.floor(rect.width))
+    const displayHeight = Math.max(1, Math.floor(rect.height))
+    const pixelWidth = Math.max(1, Math.floor(displayWidth * dpr))
+    const pixelHeight = Math.max(1, Math.floor(displayHeight * dpr))
+
+    if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
+      canvas.width = pixelWidth
+      canvas.height = pixelHeight
+    }
 
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
     ctx.clearRect(0, 0, canvas.width, canvas.height)
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
     ctx.save()
     ctx.translate(panX, panY)
     ctx.scale(zoom, zoom)
@@ -161,7 +173,7 @@ export function MapCanvas({
     // Disable image smoothing for pixel-perfect rendering
     ctx.imageSmoothingEnabled = false
 
-    const tileSize = mapData.tileSize
+    // tileSize already normalized above
 
     for (const layer of mapData.layers) {
       if (!layer.visible) continue
@@ -353,7 +365,23 @@ export function MapCanvas({
     }
 
     ctx.restore()
-  }
+  }, [mapData, tilesets, zoom, panX, panY, gridVisible, selectedEntityId, cursorPos, rectangleStart, rectangleEnd, lineStart, lineEnd, selection, selectionStart, selectionEnd, selectedTileId, currentTool, stamp, tileSize])
+
+  useEffect(() => {
+    renderCanvas()
+  }, [renderCanvas])
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas || typeof ResizeObserver === 'undefined') return
+
+    const observer = new ResizeObserver(() => {
+      renderCanvas()
+    })
+
+    observer.observe(canvas)
+    return () => observer.disconnect()
+  }, [renderCanvas])
 
   const screenToWorld = (screenX: number, screenY: number) => {
     const canvas = canvasRef.current
@@ -368,8 +396,8 @@ export function MapCanvas({
 
   const worldToTile = (worldX: number, worldY: number) => {
     return {
-      x: Math.floor(worldX / mapData.tileSize),
-      y: Math.floor(worldY / mapData.tileSize),
+      x: Math.floor(worldX / tileSize),
+      y: Math.floor(worldY / tileSize),
     }
   }
 
@@ -672,24 +700,29 @@ export function MapCanvas({
     }
   }, [mapData, activeLayerIndex, onTileSelect])
 
-  // Wheel zoom with zoom-to-cursor (stolen from Tiled/Figma)
+  // Wheel zoom with zoom-to-cursor (Ctrl/⌘ + wheel). Plain wheel pans.
   const handleWheel = useCallback((e: React.WheelEvent) => {
-    e.preventDefault()
-
     const canvas = canvasRef.current
     if (!canvas) return
 
-    const rect = canvas.getBoundingClientRect()
-    const screenX = e.clientX - rect.left
-    const screenY = e.clientY - rect.top
+    // Ctrl/⌘ + wheel => zoom
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault()
 
-    // Calculate zoom factor
-    const delta = e.deltaY > 0 ? 0.9 : 1.1
-    const newZoom = Math.max(0.25, Math.min(4, zoom * delta))
+      const rect = canvas.getBoundingClientRect()
+      const screenX = e.clientX - rect.left
+      const screenY = e.clientY - rect.top
 
-    // Zoom to cursor position (keeps the point under cursor stationary)
-    onZoomToPoint(newZoom, screenX, screenY)
-  }, [zoom, onZoomToPoint])
+      const delta = e.deltaY > 0 ? 0.9 : 1.1
+      const newZoom = Math.max(0.25, Math.min(4, zoom * delta))
+      onZoomToPoint(newZoom, screenX, screenY)
+      return
+    }
+
+    // Plain wheel => pan
+    e.preventDefault()
+    onPanChange(panX - e.deltaX, panY - e.deltaY)
+  }, [zoom, onZoomToPoint, onPanChange, panX, panY])
 
   // Notify parent of cursor position changes
   useEffect(() => {

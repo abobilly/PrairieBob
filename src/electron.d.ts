@@ -3,14 +3,36 @@
  * These types match the API exposed in electron/preload.ts
  */
 
+export interface DirEntry {
+    name: string;
+    isDirectory: boolean;
+}
+
+export interface AgentMessage {
+    role: string;
+    content: string;
+    timestamp: string;
+    toolName?: string;
+}
+
+export interface AgentResult {
+    success: boolean;
+    error?: string;
+    alreadyStarted?: boolean;
+}
+
 export interface ElectronAPI {
     fs: {
         readFile: (path: string) => Promise<string>;
         readFileBase64: (path: string) => Promise<string>;
+        writeFileBase64: (path: string, base64: string) => Promise<boolean>;
         writeFile: (path: string, content: string) => Promise<void>;
         exists: (path: string) => Promise<boolean>;
-        readDir: (path: string) => Promise<string[]>;
+        readDir: (path: string) => Promise<DirEntry[]>;
         mkdir: (path: string) => Promise<boolean>;
+    };
+    app: {
+        getPaths: () => Promise<{ appPath: string; resourcesPath: string; isPackaged: boolean }>;
     };
     dialog: {
         openFile: (options: { title?: string; filters?: { name: string; extensions: string[] }[] }) => Promise<{ canceled: boolean; filePath?: string; content?: string }>;
@@ -20,6 +42,14 @@ export interface ElectronAPI {
     editor: {
         setUnsaved: (unsaved: boolean) => void;
         launchBobTile: () => Promise<boolean>;
+    };
+    // Agent API for Copilot SDK communication
+    agent: {
+        start: () => Promise<AgentResult>;
+        send: (prompt: string) => Promise<AgentResult>;
+        abort: () => Promise<AgentResult>;
+        stop: () => Promise<AgentResult>;
+        isConnected: () => Promise<boolean>;
     };
     // Menu event listeners - return unsubscribe function
     onMenuSave: (callback: () => void) => () => void;
@@ -32,6 +62,12 @@ export interface ElectronAPI {
     onMenuExport: (callback: () => void) => () => void;
     onRoomOpened: (callback: (data: { path: string; content: string }) => void) => () => void;
     onRoomSaveAs: (callback: (path: string) => void) => () => void;
+    // Agent event listeners
+    onAgentMessage: (callback: (message: AgentMessage) => void) => () => void;
+    onAgentDelta: (callback: (delta: string) => void) => () => void;
+    onAgentState: (callback: (state: 'idle' | 'thinking' | 'executing') => void) => () => void;
+    onAgentError: (callback: (error: string) => void) => () => void;
+    onAgentTool: (callback: (toolName: string, args: Record<string, unknown>) => void) => () => void;
 }
 
 declare global {

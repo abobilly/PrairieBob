@@ -13,10 +13,14 @@ electron_1.contextBridge.exposeInMainWorld('electron', {
     fs: {
         readFile: (filePath) => electron_1.ipcRenderer.invoke('fs:readFile', filePath),
         readFileBase64: (filePath) => electron_1.ipcRenderer.invoke('fs:readFileBase64', filePath),
+        writeFileBase64: (filePath, base64) => electron_1.ipcRenderer.invoke('fs:writeFileBase64', filePath, base64),
         writeFile: (filePath, content) => electron_1.ipcRenderer.invoke('fs:writeFile', filePath, content),
         exists: (filePath) => electron_1.ipcRenderer.invoke('fs:exists', filePath),
         readDir: (dirPath) => electron_1.ipcRenderer.invoke('fs:readDir', dirPath),
         mkdir: (dirPath) => electron_1.ipcRenderer.invoke('fs:mkdir', dirPath),
+    },
+    app: {
+        getPaths: () => electron_1.ipcRenderer.invoke('app:getPaths'),
     },
     // ============== Dialogs ==============
     dialog: {
@@ -98,5 +102,38 @@ electron_1.contextBridge.exposeInMainWorld('electron', {
     onRoomSaveAs: (callback) => {
         electron_1.ipcRenderer.on('room:saveAs', (_, path) => callback(path));
         return () => electron_1.ipcRenderer.removeAllListeners('room:saveAs');
+    },
+    // ============== Agent IPC ==============
+    agent: {
+        start: () => electron_1.ipcRenderer.invoke('agent:start'),
+        send: (prompt) => electron_1.ipcRenderer.invoke('agent:send', prompt),
+        abort: () => electron_1.ipcRenderer.invoke('agent:abort'),
+        stop: () => electron_1.ipcRenderer.invoke('agent:stop'),
+        isConnected: () => electron_1.ipcRenderer.invoke('agent:isConnected'),
+    },
+    onAgentMessage: (callback) => {
+        const handler = (_, message) => callback(message);
+        electron_1.ipcRenderer.on('agent:message', handler);
+        return () => electron_1.ipcRenderer.removeListener('agent:message', handler);
+    },
+    onAgentDelta: (callback) => {
+        const handler = (_, delta) => callback(delta);
+        electron_1.ipcRenderer.on('agent:delta', handler);
+        return () => electron_1.ipcRenderer.removeListener('agent:delta', handler);
+    },
+    onAgentState: (callback) => {
+        const handler = (_, state) => callback(state);
+        electron_1.ipcRenderer.on('agent:state', handler);
+        return () => electron_1.ipcRenderer.removeListener('agent:state', handler);
+    },
+    onAgentError: (callback) => {
+        const handler = (_, error) => callback(error);
+        electron_1.ipcRenderer.on('agent:error', handler);
+        return () => electron_1.ipcRenderer.removeListener('agent:error', handler);
+    },
+    onAgentTool: (callback) => {
+        const handler = (_, toolName, args) => callback(toolName, args);
+        electron_1.ipcRenderer.on('agent:tool', handler);
+        return () => electron_1.ipcRenderer.removeListener('agent:tool', handler);
     },
 });

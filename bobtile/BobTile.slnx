@@ -1,0 +1,7 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/BobTile.Core/BobTile.Core.csproj" />
+    <Project Path="src/BobTile/BobTile.csproj" />
+    <Project Path="src/BobTile.Cli/BobTile.Cli.csproj" />
+  </Folder>
+</Solution>

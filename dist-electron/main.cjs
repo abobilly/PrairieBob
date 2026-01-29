@@ -42,6 +42,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const electron_1 = require("electron");
 const path = __importStar(require("path"));
 const fs = __importStar(require("fs"));
+// Use require for agent-main since we rename .js to .cjs after compilation
+const { registerAgentIPC } = require('./agent-main.cjs');
 // Set unique app name to avoid conflicts with other Electron apps
 electron_1.app.name = 'PrairieBob';
 electron_1.app.setAppUserModelId('com.prairiebob.tileeditor');
@@ -314,6 +316,11 @@ electron_1.ipcMain.handle('fs:readFileBase64', async (_, filePath) => {
     const buffer = fs.readFileSync(filePath);
     return buffer.toString('base64');
 });
+electron_1.ipcMain.handle('fs:writeFileBase64', async (_, filePath, base64) => {
+    const buffer = Buffer.from(base64, 'base64');
+    fs.writeFileSync(filePath, buffer);
+    return true;
+});
 electron_1.ipcMain.handle('fs:writeFile', async (_, filePath, content) => {
     fs.writeFileSync(filePath, content, 'utf-8');
     return true;
@@ -331,6 +338,14 @@ electron_1.ipcMain.handle('fs:mkdir', async (_, dirPath) => {
     fs.mkdirSync(dirPath, { recursive: true });
     return true;
 });
+// App paths for renderer (sample/resources)
+electron_1.ipcMain.handle('app:getPaths', async () => {
+    return {
+        appPath: electron_1.app.getAppPath(),
+        resourcesPath: process.resourcesPath,
+        isPackaged: electron_1.app.isPackaged,
+    };
+});
 electron_1.ipcMain.handle('dialog:openFile', async (_, options) => {
     return electron_1.dialog.showOpenDialog(mainWindow, options);
 });
@@ -346,7 +361,11 @@ electron_1.ipcMain.on('editor:setUnsaved', (_, unsaved) => {
     updateWindowTitle();
 });
 // ============== App Lifecycle ==============
-electron_1.app.whenReady().then(createWindow);
+electron_1.app.whenReady().then(() => {
+    // Register agent IPC handlers before creating window
+    registerAgentIPC();
+    createWindow();
+});
 electron_1.app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') {
         electron_1.app.quit();

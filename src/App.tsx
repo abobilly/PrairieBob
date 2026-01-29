@@ -20,6 +20,8 @@ import { EntityPalette } from '@/components/EntityPalette'
 import { PropertiesPanel } from '@/components/PropertiesPanel'
 import { TilesetImportDialog, TilesetImportResult } from '@/components/TilesetImportDialog'
 import { AgentPanel } from '@/components/AgentPanel'
+import { ProjectSelector } from '@/components/ProjectSelector'
+import { NewProjectWizard } from '@/components/NewProjectWizard'
 import { getFileSystemAdapter } from '@/lib/fs-adapter'
 import { Toaster, toast } from 'sonner'
 
@@ -81,6 +83,7 @@ function App() {
     canUndo,
     canRedo,
     tilesets,
+    projectName,
     undo,
     redo,
     setMapData,
@@ -103,6 +106,7 @@ function App() {
     initTilesets,
     addTileset,
     removeTileset,
+    saveMap,
   } = useProjectStore()
 
   const {
@@ -110,6 +114,8 @@ function App() {
     tilesetZoom,
     importDialogOpen,
     pendingImportPath,
+    showProjectSelector,
+    showNewProjectWizard,
     openImportDialog,
     closeImportDialog,
     setPanelSize,
@@ -118,10 +124,40 @@ function App() {
 
   const fsAdapter = getFileSystemAdapter()
 
+  // Defensive: persisted UI state may contain older/corrupted values (e.g. null/object)
+  // react-resizable-panels expects size constraints to be number|string.
+  const leftPanelSize = typeof (panels as any)?.left?.size === 'number' && Number.isFinite((panels as any).left.size)
+    ? (panels as any).left.size
+    : 20
+  const leftPanelMinSize = typeof (panels as any)?.left?.minSize === 'number' && Number.isFinite((panels as any).left.minSize)
+    ? (panels as any).left.minSize
+    : 15
+  const leftPanelMaxSize = typeof (panels as any)?.left?.maxSize === 'number' && Number.isFinite((panels as any).left.maxSize)
+    ? (panels as any).left.maxSize
+    : 40
+
+  const rightPanelSize = typeof (panels as any)?.right?.size === 'number' && Number.isFinite((panels as any).right.size)
+    ? (panels as any).right.size
+    : 20
+  const rightPanelMinSize = typeof (panels as any)?.right?.minSize === 'number' && Number.isFinite((panels as any).right.minSize)
+    ? (panels as any).right.minSize
+    : 15
+  const rightPanelMaxSize = typeof (panels as any)?.right?.maxSize === 'number' && Number.isFinite((panels as any).right.maxSize)
+    ? (panels as any).right.maxSize
+    : 35
+
   // ============== Initialize ==============
   useEffect(() => {
-    initTilesets()
-  }, [initTilesets])
+    // Don't auto-load - let the project selector handle it
+    // The ProjectSelector shows by default (showProjectSelector: true in uiStore)
+  }, [])
+
+  useEffect(() => {
+    // Fallback: init tilesets if project loading didn't happen
+    if (tilesets.length === 0) {
+      initTilesets()
+    }
+  }, [initTilesets, tilesets.length])
 
   useEffect(() => {
     if (tilesets.length > 0 && !activeTilesetId) {
@@ -198,29 +234,8 @@ function App() {
 
   // ============== Save/Export ==============
   const handleSave = useCallback(async () => {
-    if (!mapData) return
-
-    const updatedMap = {
-      ...mapData,
-      metadata: {
-        ...mapData.metadata,
-        editedAt: new Date().toISOString(),
-      },
-    }
-
-    if (currentRoomPath) {
-      await fsAdapter.saveRoom(currentRoomPath, updatedMap)
-      setHasUnsavedChanges(false)
-      toast.success('Room saved!')
-    } else {
-      const path = await fsAdapter.saveRoomAs(updatedMap)
-      if (path) {
-        setCurrentRoomPath(path)
-        setHasUnsavedChanges(false)
-        toast.success('Room saved!')
-      }
-    }
-  }, [mapData, currentRoomPath, fsAdapter, setHasUnsavedChanges, setCurrentRoomPath])
+    await saveMap()
+  }, [saveMap])
 
   const handleExport = useCallback(() => {
     if (!mapData) return
@@ -479,14 +494,40 @@ function App() {
 
   const handleEntityTypeSelect = useCallback((type: EntityType) => {
     const entityId = `${type}_${Date.now()}`
+    const baseSize = mapData?.tileSize || 32
+
+    const getEntityDimensions = () => {
+      switch (type) {
+        case 'ladder':
+          return { width: baseSize, height: baseSize * 2 }
+        default:
+          return { width: baseSize, height: baseSize }
+      }
+    }
+
+    const getEntityProperties = () => {
+      switch (type) {
+        case 'door':
+          return { interactionId: 'door_wooden', targetRoom: '', targetSpawn: '' }
+        case 'portal':
+          return { targetRoom: '', targetSpawn: '', portalType: 'default' }
+        case 'stairs':
+        case 'ladder':
+          return { targetRoom: '', targetSpawn: '', direction: 'up' }
+        default:
+          return {}
+      }
+    }
+
+    const { width, height } = getEntityDimensions()
     const entity: EntityData = {
       id: entityId,
       type,
       x: 100,
       y: 100,
-      width: type === 'door' ? 32 : 16,
-      height: 16,
-      properties: type === 'door' ? { interactionId: 'door_wooden' } : {},
+      width,
+      height,
+      properties: getEntityProperties(),
     }
 
     handleEntityPlace(entity)
@@ -553,9 +594,9 @@ function App() {
           <PanelGroup orientation="horizontal" className="h-full">
             {/* Left Panel - Tilesets */}
             <Panel
-              defaultSize={panels.left.size}
-              minSize={panels.left.minSize}
-              maxSize={panels.left.maxSize}
+              defaultSize={leftPanelSize}
+              minSize={leftPanelMinSize}
+              maxSize={leftPanelMaxSize}
               collapsible
               onResize={(size) => setPanelSize('left', size.asPercentage)}
               className="bg-card"
@@ -616,9 +657,9 @@ function App() {
 
             {/* Right Panel - Layers & Properties */}
             <Panel
-              defaultSize={panels.right.size}
-              minSize={panels.right.minSize}
-              maxSize={panels.right.maxSize}
+              defaultSize={rightPanelSize}
+              minSize={rightPanelMinSize}
+              maxSize={rightPanelMaxSize}
               collapsible
               onResize={(size) => setPanelSize('right', size.asPercentage)}
               className="bg-card"
@@ -660,6 +701,7 @@ function App() {
 
       {/* Status Bar */}
       <div className="px-4 py-2 bg-primary border-t border-border flex gap-4 text-sm font-mono">
+        {projectName && <span className="text-accent font-semibold">{projectName}</span>}
         <span>Tool: {spaceHeld ? 'pan (space)' : currentTool}</span>
         <span>Layer: {mapData.layers[activeLayerIndex]?.name}</span>
         <span>Zoom: {Math.round(zoom * 100)}%</span>
@@ -672,6 +714,10 @@ function App() {
           {hasUnsavedChanges ? '● Unsaved' : 'Saved'}
         </span>
       </div>
+
+      {/* Startup Dialogs */}
+      <ProjectSelector />
+      <NewProjectWizard />
     </div>
   )
 }

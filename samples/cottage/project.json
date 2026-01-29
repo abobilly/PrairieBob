@@ -1,0 +1,30 @@
+{
+  "$schema": "../../schemas/project.schema.json",
+  "name": "Cottage",
+  "version": "1.0.0",
+  "tileSize": 32,
+  "defaultMapSize": { "width": 12, "height": 10 },
+  "paths": {
+    "maps": "maps",
+    "tilesets": "tilesets",
+    "interactions": "interactions",
+    "entities": "entities",
+    "exports": "exports"
+  },
+  "tilesets": [
+    {
+      "id": "interior_exterior",
+      "file": "tilesets/interior_exterior.png",
+      "tileSize": 32,
+      "columns": 16,
+      "tileCount": 1053
+    }
+  ],
+  "layerTemplates": {
+    "standard": ["Floor", "Walls", "Trim", "Overlays", "Collision", "Entities"]
+  },
+  "license": {
+    "type": "CC0",
+    "note": "Assets are public domain. No attribution required."
+  }
+}

@@ -27,7 +27,38 @@ import { toast } from 'sonner'
 // Config file path
 const CONFIG_PATH = 'c:/Users/andre/lawchuck/artbob/PrairieBob/prairiebob.config.json'
 
+// Sample project path fallback (dev)
+const SAMPLE_PROJECT_PATH = 'c:/Users/andre/lawchuck/artbob/PrairieBob/samples/cottage'
+
+async function resolveSampleProjectPath(): Promise<string> {
+  if (window.electron?.app?.getPaths) {
+    const { appPath, resourcesPath, isPackaged } = await window.electron.app.getPaths()
+    return isPackaged
+      ? `${resourcesPath}/samples/cottage`
+      : `${appPath}/samples/cottage`
+  }
+  return SAMPLE_PROJECT_PATH
+}
+
 const MAX_HISTORY = 100
+
+interface ProjectConfig {
+  name: string
+  version: string
+  tileSize: number
+  paths: {
+    maps: string
+    tilesets: string
+    interactions: string
+  }
+  tilesets: Array<{
+    id: string
+    file: string
+    tileSize: number
+    columns?: number
+    tileCount?: number
+  }>
+}
 
 interface HistoryEntry {
   mapData: LevelData
@@ -55,6 +86,11 @@ const DEFAULT_MAP: LevelData = {
 }
 
 interface ProjectState {
+  // Project info
+  projectPath: string | null
+  projectName: string | null
+  projectConfig: ProjectConfig | null
+
   // Map data
   mapData: LevelData
   currentRoomPath: string | null
@@ -74,8 +110,22 @@ interface ProjectState {
 }
 
 interface ProjectActions {
+  // Project operations
+  loadProject: (projectPath: string) => Promise<void>
+  loadSampleProject: () => Promise<void>
+  createNewProject: (options: {
+    name: string
+    path: string
+    tileSize: number
+    mapWidth: number
+    mapHeight: number
+    layers: string[]
+  }) => Promise<void>
+
   // Map operations
   setMapData: (data: LevelData, recordHistory?: boolean, description?: string) => void
+  loadMap: (mapId: string) => Promise<void>
+  saveMap: () => Promise<void>
   setCurrentRoomPath: (path: string | null) => void
   setHasUnsavedChanges: (value: boolean) => void
 
@@ -116,6 +166,9 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
   devtools(
     immer((set, get) => ({
       // Initial state
+      projectPath: null,
+      projectName: null,
+      projectConfig: null,
       mapData: DEFAULT_MAP,
       currentRoomPath: null,
       hasUnsavedChanges: false,
@@ -125,6 +178,260 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
       isLoadingTileset: false,
       canUndo: false,
       canRedo: false,
+
+      // Load a project from a folder containing project.json
+      loadProject: async (projectPath: string) => {
+        if (!window.electron) {
+          toast.error('Project loading requires Electron')
+          return
+        }
+
+        try {
+          const projectJsonPath = `${projectPath}/project.json`
+          const exists = await window.electron.fs.exists(projectJsonPath)
+          if (!exists) {
+            toast.error(`No project.json found in ${projectPath}`)
+            return
+          }
+
+          const content = await window.electron.fs.readFile(projectJsonPath)
+          const config: ProjectConfig = JSON.parse(content)
+
+          // Load tilesets from project
+          const debugTileset = createDebugTileset()
+          const loadedTilesets: LoadedTileset[] = [debugTileset]
+
+          for (const tilesetRef of config.tilesets) {
+            const tilesetPath = `${projectPath}/${tilesetRef.file}`
+            try {
+              const loaded = await loadTilesetFromPath(
+                {
+                  id: tilesetRef.id,
+                  name: tilesetRef.id,
+                  sourcePath: tilesetPath,
+                  tileSize: tilesetRef.tileSize,
+                  firstGid: getNextFirstGid(loadedTilesets),
+                },
+                window.electron.fs.readFileBase64
+              )
+              loadedTilesets.push(loaded)
+              console.log(`Loaded tileset: ${tilesetRef.id}`)
+            } catch (err) {
+              console.warn(`Failed to load tileset ${tilesetRef.id}:`, err)
+            }
+          }
+
+          // Load first map in the maps folder
+          const mapsPath = `${projectPath}/${config.paths.maps}`
+          const mapEntries = await window.electron.fs.readDir(mapsPath)
+          const jsonFiles = mapEntries
+            .filter(entry => !entry.isDirectory && entry.name.endsWith('.json'))
+            .map(entry => entry.name)
+
+          let mapData = DEFAULT_MAP
+          let mapPath: string | null = null
+
+          if (jsonFiles.length > 0) {
+            mapPath = `${mapsPath}/${jsonFiles[0]}`
+            const mapContent = await window.electron.fs.readFile(mapPath)
+            mapData = JSON.parse(mapContent)
+          }
+
+          set({
+            projectPath,
+            projectName: config.name,
+            projectConfig: config,
+            tilesets: loadedTilesets,
+            mapData,
+            currentRoomPath: mapPath,
+            hasUnsavedChanges: false,
+            past: [],
+            future: [],
+            canUndo: false,
+            canRedo: false,
+          })
+
+          // Track in recent projects
+          const { addRecentProject, closeProjectSelector } = await import('./uiStore').then(m => m.useUIStore.getState())
+          addRecentProject(projectPath, config.name)
+          closeProjectSelector()
+
+          toast.success(`Loaded project: ${config.name}`)
+        } catch (err) {
+          console.error('Failed to load project:', err)
+          toast.error('Failed to load project')
+        }
+      },
+
+      // Load the sample project
+      loadSampleProject: async () => {
+        const samplePath = await resolveSampleProjectPath()
+        if (window.electron) {
+          const exists = await window.electron.fs.exists(samplePath)
+          if (!exists) {
+            toast.error(`Sample project not found at: ${samplePath}`)
+            return
+          }
+        }
+        await get().loadProject(samplePath)
+      },
+
+      // Create a new project
+      createNewProject: async ({ name, path, tileSize, mapWidth, mapHeight, layers }) => {
+        if (!window.electron) {
+          toast.error('Project creation requires Electron')
+          return
+        }
+
+        try {
+          // Create folder structure
+          await window.electron.fs.mkdir(`${path}/maps`)
+          await window.electron.fs.mkdir(`${path}/tilesets`)
+          await window.electron.fs.mkdir(`${path}/entities`)
+          await window.electron.fs.mkdir(`${path}/interactions`)
+          await window.electron.fs.mkdir(`${path}/exports`)
+
+          // Create project.json
+          const projectConfig: ProjectConfig = {
+            name,
+            version: '1.0.0',
+            tileSize,
+            paths: {
+              maps: 'maps',
+              tilesets: 'tilesets',
+              interactions: 'interactions',
+            },
+            tilesets: [
+              {
+                id: 'kim_leaf',
+                file: 'tilesets/kim_leaf.png',
+                tileSize: 32,
+                columns: 16,
+                tileCount: 1053,
+              },
+            ],
+          }
+
+          await window.electron.fs.writeFile(
+            `${path}/project.json`,
+            JSON.stringify(projectConfig, null, 2)
+          )
+
+          // Copy default tileset into project tilesets folder
+          try {
+            if (window.electron.app?.getPaths) {
+              const { appPath, resourcesPath, isPackaged } = await window.electron.app.getPaths()
+              const sourcePath = isPackaged
+                ? `${resourcesPath}/tilesets/kim_leaf.png`
+                : `${appPath}/public/tilesets/kim_leaf.png`
+              const targetPath = `${path}/tilesets/kim_leaf.png`
+
+              const base64 = await window.electron.fs.readFileBase64(sourcePath)
+              await window.electron.fs.writeFileBase64(targetPath, base64)
+            }
+          } catch (err) {
+            console.warn('Failed to copy default tileset:', err)
+            toast.error('Failed to copy default tileset')
+          }
+
+          // Create default map
+          const defaultLayers: Layer[] = layers.map(layerName => {
+            if (layerName === 'Entities') {
+              return {
+                name: layerName,
+                type: 'objectgroup' as const,
+                visible: true,
+                locked: false,
+                opacity: 1,
+                objects: [],
+              }
+            }
+            return {
+              name: layerName,
+              type: 'tilelayer' as const,
+              visible: true,
+              locked: false,
+              opacity: 1,
+              data: new Array(mapWidth * mapHeight).fill(0),
+            }
+          })
+
+          const defaultMap: LevelData = {
+            id: 'main',
+            width: mapWidth,
+            height: mapHeight,
+            tileSize,
+            layers: defaultLayers,
+            metadata: {
+              editedAt: new Date().toISOString(),
+              exportedFrom: 'prairiebob',
+              version: '1.0.0',
+            },
+          }
+
+          await window.electron.fs.writeFile(
+            `${path}/maps/main.json`,
+            JSON.stringify(defaultMap, null, 2)
+          )
+
+          // Now load the project
+          await get().loadProject(path)
+        } catch (err) {
+          console.error('Failed to create project:', err)
+          toast.error(`Failed to create project: ${err}`)
+        }
+      },
+
+      // Load a specific map by ID
+      loadMap: async (mapId: string) => {
+        const { projectPath, projectConfig } = get()
+        if (!window.electron || !projectPath || !projectConfig) return
+
+        const mapPath = `${projectPath}/${projectConfig.paths.maps}/${mapId}.json`
+        try {
+          const content = await window.electron.fs.readFile(mapPath)
+          const mapData = JSON.parse(content)
+          set({
+            mapData,
+            currentRoomPath: mapPath,
+            hasUnsavedChanges: false,
+            past: [],
+            future: [],
+            canUndo: false,
+            canRedo: false,
+          })
+          toast.success(`Loaded map: ${mapId}`)
+        } catch (err) {
+          toast.error(`Failed to load map: ${mapId}`)
+        }
+      },
+
+      // Save the current map
+      saveMap: async () => {
+        const { mapData, currentRoomPath, projectPath, projectConfig } = get()
+        if (!window.electron || !mapData) return
+
+        // Update metadata
+        const updatedMap = {
+          ...mapData,
+          metadata: {
+            ...mapData.metadata,
+            editedAt: new Date().toISOString(),
+            exportedFrom: 'prairiebob',
+          },
+        }
+
+        let savePath = currentRoomPath
+        if (!savePath && projectPath && projectConfig) {
+          savePath = `${projectPath}/${projectConfig.paths.maps}/${mapData.id}.json`
+        }
+
+        if (savePath) {
+          await window.electron.fs.writeFile(savePath, JSON.stringify(updatedMap, null, 2))
+          set({ mapData: updatedMap, currentRoomPath: savePath, hasUnsavedChanges: false })
+          toast.success('Map saved!')
+        }
+      },
 
       // Map operations
       setMapData: (data, recordHistory = true, description = 'Edit') => {

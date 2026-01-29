@@ -104,10 +104,8 @@ export class ElectronFSAdapter implements FileSystemAdapter {
     }
 
     async readDir(path: string): Promise<Array<{ name: string; isDirectory: boolean }>> {
-        const names = await window.electron!.fs.readDir(path);
-        // Convert string[] to the expected format
-        // In a real implementation, preload should return the full info
-        return names.map(name => ({ name, isDirectory: name.endsWith('/') }));
+        const entries = await window.electron!.fs.readDir(path);
+        return entries;
     }
 
     setUnsavedChanges(unsaved: boolean): void {

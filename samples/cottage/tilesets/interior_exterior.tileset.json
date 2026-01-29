@@ -1,0 +1,13 @@
+{
+  "id": "interior_exterior",
+  "name": "Interior & Exterior",
+  "image": "interior_exterior.png",
+  "tileSize": 32,
+  "columns": 16,
+  "tileCount": 1053,
+  "imageWidth": 512,
+  "imageHeight": 2464,
+  "license": "CC0",
+  "source": "kim_leaf_1v1 tileset (OpenGameArt style)",
+  "tiles": {}
+}

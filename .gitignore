@@ -7,6 +7,11 @@ dist/
 .DS_Store
 Thumbs.db
 
+# Release binaries (too large for GitHub)
+release/*.exe
+release/*.blockmap
+release/win-unpacked/
+
 # IDE
 .vs/
 *.suo

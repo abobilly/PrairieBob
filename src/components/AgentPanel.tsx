@@ -7,8 +7,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
 import { Terminal as TerminalIcon, Bot, Send, Loader2, Plug, PlugZap } from 'lucide-react';
-import { AgentService, AgentMessage } from '@/lib/agent-service';
 import { useProjectStore } from '@/stores';
+
+export interface AgentMessage {
+  role: 'user' | 'assistant' | 'system' | 'tool';
+  content: string;
+  timestamp: Date;
+  toolName?: string;
+}
 
 export function AgentPanel() {
   const [activeTab, setActiveTab] = useState<'chat' | 'terminal'>('chat');
@@ -22,114 +28,148 @@ export function AgentPanel() {
   const terminalInstance = useRef<Terminal | null>(null);
   const fitAddon = useRef<FitAddon | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const agentRef = useRef<AgentService | null>(null);
 
   // Get store actions for tool handlers
-  const { paintTile, paintTiles, fillArea, placeEntity, mapData, tilesets } = useProjectStore();
+  const { paintTiles, fillArea, placeEntity, mapData, tilesets } = useProjectStore();
 
-  // Initialize agent service
+  // Setup IPC event listeners for agent communication
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.electron) return;
+
+    const unsubMessage = window.electron.onAgentMessage((msg) => {
+      setMessages(prev => [...prev, {
+        role: msg.role as AgentMessage['role'],
+        content: msg.content,
+        timestamp: new Date(msg.timestamp),
+        toolName: msg.toolName,
+      }]);
+      setStreamingContent('');
+    });
+
+    const unsubDelta = window.electron.onAgentDelta((delta) => {
+      setStreamingContent(prev => prev + delta);
+    });
+
+    const unsubState = window.electron.onAgentState((state) => {
+      setIsLoading(state !== 'idle');
+    });
+
+    const unsubError = window.electron.onAgentError((error) => {
+      setMessages(prev => [...prev, {
+        role: 'system',
+        content: `Error: ${error}`,
+        timestamp: new Date(),
+      }]);
+      setIsLoading(false);
+    });
+
+    const unsubTool = window.electron.onAgentTool((toolName, args) => {
+      // Handle tool calls from the agent
+      handleToolCall(toolName, args);
+    });
+
+    return () => {
+      unsubMessage();
+      unsubDelta();
+      unsubState();
+      unsubError();
+      unsubTool();
+    };
+  }, []);
+
+  // Handle tool calls from the agent in the main process
+  const handleToolCall = useCallback((toolName: string, args: Record<string, unknown>) => {
+    switch (toolName) {
+      case 'paint_tiles': {
+        const layer = args.layer as string;
+        const tiles = args.tiles as Array<{ x: number; y: number; tileId: number }>;
+        const layerIndex = mapData?.layers.findIndex(l => l.name === layer) ?? 0;
+        paintTiles(layerIndex, tiles);
+        break;
+      }
+      case 'fill_layer': {
+        const layer = args.layer as string;
+        const tileId = args.tileId as number;
+        const region = args.region as { x: number; y: number; width: number; height: number } | undefined;
+        const layerIndex = mapData?.layers.findIndex(l => l.name === layer) ?? 0;
+        if (region) {
+          const tiles: Array<{ x: number; y: number; tileId: number }> = [];
+          for (let y = region.y; y < region.y + region.height; y++) {
+            for (let x = region.x; x < region.x + region.width; x++) {
+              tiles.push({ x, y, tileId });
+            }
+          }
+          paintTiles(layerIndex, tiles);
+        } else if (mapData) {
+          fillArea(layerIndex, 0, 0, tileId);
+        }
+        break;
+      }
+      case 'place_entity': {
+        const type = args.type as string;
+        const x = args.x as number;
+        const y = args.y as number;
+        const properties = args.properties as Record<string, string | number | boolean> | undefined;
+        const baseSize = mapData?.tileSize || 32;
+        const size = type === 'ladder' ? { width: baseSize, height: baseSize * 2 } : { width: baseSize, height: baseSize };
+        placeEntity({
+          id: `${type}_${Date.now()}`,
+          type: type as 'spawn_point' | 'door' | 'npc' | 'trigger' | 'prop' | 'stairs' | 'ladder' | 'portal',
+          x,
+          y,
+          width: size.width,
+          height: size.height,
+          properties: properties || {},
+        });
+        break;
+      }
+    }
+  }, [mapData, paintTiles, fillArea, placeEntity]);
+
+  // Initialize agent service via IPC
   const connectAgent = useCallback(async () => {
-    if (agentRef.current?.isConnected()) return;
+    if (typeof window === 'undefined' || !window.electron) {
+      setMessages(prev => [...prev, {
+        role: 'system',
+        content: 'Agent only available in Electron environment.',
+        timestamp: new Date(),
+      }]);
+      return;
+    }
 
+    if (isConnected) return;
     setIsLoading(true);
 
     try {
-      const agent = new AgentService({
-        model: 'gpt-5',
-        onMessage: (msg) => {
-          setMessages(prev => [...prev, msg]);
-          setStreamingContent('');
-        },
-        onDelta: (delta) => {
-          setStreamingContent(prev => prev + delta);
-        },
-        onStateChange: (state) => {
-          setIsLoading(state !== 'idle');
-        },
-        onError: (error) => {
-          setMessages(prev => [...prev, {
-            role: 'system',
-            content: `Error: ${error.message}`,
-            timestamp: new Date(),
-          }]);
-          setIsLoading(false);
-        },
-      });
+      const result = await window.electron.agent.start();
 
-      // Create tool handlers that interact with the editor
-      const toolHandlers = {
-        paintTiles: (layer: string, tiles: Array<{ x: number; y: number; tileId: number }>) => {
-          const layerIndex = mapData?.layers.findIndex(l => l.name === layer) ?? 0;
-          paintTiles(layerIndex, tiles);
-        },
-        fillLayer: (layer: string, tileId: number, region?: { x: number; y: number; width: number; height: number }) => {
-          const layerIndex = mapData?.layers.findIndex(l => l.name === layer) ?? 0;
-          if (region) {
-            const tiles: Array<{ x: number; y: number; tileId: number }> = [];
-            for (let y = region.y; y < region.y + region.height; y++) {
-              for (let x = region.x; x < region.x + region.width; x++) {
-                tiles.push({ x, y, tileId });
-              }
-            }
-            paintTiles(layerIndex, tiles);
-          } else if (mapData) {
-            fillArea(layerIndex, 0, 0, tileId);
-          }
-        },
-        placeEntity: (type: string, x: number, y: number, properties?: Record<string, unknown>) => {
-          placeEntity({
-            id: `${type}_${Date.now()}`,
-            type: type as 'spawn_point' | 'door' | 'npc' | 'trigger' | 'prop',
-            x,
-            y,
-            width: type === 'door' ? 32 : 16,
-            height: 16,
-            properties: (properties || {}) as Record<string, string | number | boolean>,
-          });
-        },
-        exportMap: async (format: string) => {
-          // Trigger export via existing mechanism
-          return `Exported as ${format}`;
-        },
-        getMapInfo: () => ({
-          width: mapData?.width ?? 0,
-          height: mapData?.height ?? 0,
-          layers: mapData?.layers.map(l => l.name) ?? [],
-          entities: mapData?.layers.find(l => l.name === 'Entities')?.objects?.map(o => o.id) ?? [],
-        }),
-        listTiles: (tileset?: string) => {
-          const ts = tileset
-            ? tilesets.find(t => t.name === tileset)
-            : tilesets[0];
-          if (!ts) return [];
-          const tiles: Array<{ id: number; name: string }> = [];
-          for (let i = 0; i < ts.totalTiles; i++) {
-            tiles.push({ id: ts.firstGid + i, name: `${ts.name}_${i}` });
-          }
-          return tiles.slice(0, 20); // Limit for brevity
-        },
-      };
-
-      await agent.start(toolHandlers);
-      agentRef.current = agent;
-      setIsConnected(true);
-
+      if (result.success) {
+        setIsConnected(true);
+      } else {
+        setMessages(prev => [...prev, {
+          role: 'system',
+          content: `Failed to connect: ${result.error}. Make sure Copilot CLI is installed.`,
+          timestamp: new Date(),
+        }]);
+      }
     } catch (error) {
       console.error('Failed to connect agent:', error);
       setMessages(prev => [...prev, {
         role: 'system',
-        content: `Failed to connect: ${error instanceof Error ? error.message : 'Unknown error'}. Make sure Copilot CLI is installed.`,
+        content: `Failed to connect: ${error instanceof Error ? error.message : 'Unknown error'}`,
         timestamp: new Date(),
       }]);
     } finally {
       setIsLoading(false);
     }
-  }, [mapData, tilesets, paintTiles, fillArea, placeEntity]);
+  }, [isConnected]);
 
   // Disconnect agent on unmount
   useEffect(() => {
     return () => {
-      agentRef.current?.stop();
+      if (typeof window !== 'undefined' && window.electron) {
+        window.electron.agent.stop();
+      }
     };
   }, []);
 
@@ -206,46 +246,25 @@ export function AgentPanel() {
 
     // Helper to send to agent and stream response to terminal
     const askAgent = async (prompt: string) => {
-      if (!agentRef.current?.isConnected()) {
+      if (!isConnected) {
         term.writeln('\x1b[1;33mConnecting to agent...\x1b[0m');
         await connectAgent();
       }
 
-      if (!agentRef.current) {
-        term.writeln('\x1b[1;31mFailed to connect to agent.\x1b[0m');
-        return;
+      if (!isConnected && typeof window !== 'undefined' && window.electron) {
+        const connected = await window.electron.agent.isConnected();
+        if (!connected) {
+          term.writeln('\x1b[1;31mFailed to connect to agent.\x1b[0m');
+          return;
+        }
       }
 
       term.writeln('\x1b[1;35m[Agent]\x1b[0m');
 
-      // Temporarily override handlers to write to terminal
-      let responseContent = '';
-      const cfg = agentRef.current as unknown as { config: { onDelta?: (d: string) => void; onMessage?: (m: AgentMessage) => void } };
-      const originalOnDelta = cfg.config.onDelta;
-      const originalOnMessage = cfg.config.onMessage;
-
-      cfg.config.onDelta = (delta: string) => {
-        responseContent += delta;
-        term.write(delta.replace(/\n/g, '\r\n'));
-      };
-
-      cfg.config.onMessage = (msg: AgentMessage) => {
-        if (msg.role === 'assistant' && !responseContent) {
-          term.writeln(msg.content.replace(/\n/g, '\r\n'));
-        } else if (msg.role === 'assistant') {
-          term.writeln('');
-        } else if (msg.role === 'tool') {
-          term.writeln(`\x1b[1;32m${msg.content}\x1b[0m`);
-        }
-        originalOnMessage?.(msg);
-      };
-
       try {
-        await agentRef.current.send(prompt);
-        await new Promise(resolve => setTimeout(resolve, 100));
-      } finally {
-        cfg.config.onDelta = originalOnDelta;
-        cfg.config.onMessage = originalOnMessage;
+        await window.electron.agent.send(prompt);
+      } catch (error) {
+        term.writeln(`\x1b[1;31mError: ${error}\x1b[0m`);
       }
     };
 
@@ -364,26 +383,25 @@ export function AgentPanel() {
 
   const handleSendMessage = async () => {
     if (!input.trim() || isLoading) return;
+    if (typeof window === 'undefined' || !window.electron) return;
 
     const prompt = input.trim();
     setInput('');
 
-    if (!agentRef.current?.isConnected()) {
+    if (!isConnected) {
       // Auto-connect on first message
       await connectAgent();
     }
 
-    if (agentRef.current) {
-      try {
-        await agentRef.current.send(prompt);
-      } catch (error) {
-        setMessages(prev => [...prev, {
-          role: 'system',
-          content: `Error: ${error instanceof Error ? error.message : 'Failed to send message'}`,
-          timestamp: new Date(),
-        }]);
-        setIsLoading(false);
-      }
+    try {
+      await window.electron.agent.send(prompt);
+    } catch (error) {
+      setMessages(prev => [...prev, {
+        role: 'system',
+        content: `Error: ${error instanceof Error ? error.message : 'Failed to send message'}`,
+        timestamp: new Date(),
+      }]);
+      setIsLoading(false);
     }
   };
 
@@ -437,12 +455,12 @@ export function AgentPanel() {
                 <div
                   key={i}
                   className={`rounded-lg p-3 text-sm ${msg.role === 'user'
-                      ? 'bg-[#f97316] text-white ml-8'
-                      : msg.role === 'assistant'
-                        ? 'bg-[#2a2a4a] text-gray-100 mr-8'
-                        : msg.role === 'tool'
-                          ? 'bg-[#1f2f1f] text-green-300 text-xs mr-8 font-mono'
-                          : 'bg-[#1f1f3a] text-gray-400 text-xs italic'
+                    ? 'bg-[#f97316] text-white ml-8'
+                    : msg.role === 'assistant'
+                      ? 'bg-[#2a2a4a] text-gray-100 mr-8'
+                      : msg.role === 'tool'
+                        ? 'bg-[#1f2f1f] text-green-300 text-xs mr-8 font-mono'
+                        : 'bg-[#1f1f3a] text-gray-400 text-xs italic'
                     }`}
                 >
                   {msg.role === 'tool' && msg.toolName && (

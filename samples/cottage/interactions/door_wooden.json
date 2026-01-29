@@ -1,0 +1,21 @@
+{
+  "id": "door_wooden",
+  "type": "door",
+  "tileSize": 32,
+  "size": { "width": 2, "height": 1 },
+  "states": {
+    "closed": {
+      "tiles": [[224, 225]],
+      "collision": true
+    },
+    "open": {
+      "tiles": [[226, 227]],
+      "collision": false
+    }
+  },
+  "transitions": {
+    "closed→open": { "duration": 200 },
+    "open→closed": { "duration": 200 }
+  },
+  "defaultState": "closed"
+}

@@ -24,7 +24,7 @@ export interface Character {
 
 export type Tool = 'brush' | 'fill' | 'rectangle' | 'line' | 'eraser' | 'select' | 'eyedropper'
 
-export type EntityType = 'spawn_point' | 'door' | 'npc' | 'trigger' | 'prop'
+export type EntityType = 'spawn_point' | 'door' | 'npc' | 'trigger' | 'prop' | 'stairs' | 'ladder' | 'portal'
 
 export type LayerType = 'tilelayer' | 'objectgroup'
 

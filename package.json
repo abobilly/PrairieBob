@@ -11,9 +11,9 @@
         "lint": "eslint .",
         "preview": "vite preview",
         "upgrade": "npx npm-check-updates -u && npm install",
-        "electron:compile": "cd electron && npx tsc && cd .. && npx move-file dist-electron/main.js dist-electron/main.cjs && npx move-file dist-electron/preload.js dist-electron/preload.cjs",
+        "electron:compile": "cd electron && npx tsc && cd .. && npx move-file dist-electron/main.js dist-electron/main.cjs && npx move-file dist-electron/preload.js dist-electron/preload.cjs && npx move-file dist-electron/agent-main.js dist-electron/agent-main.cjs",
         "electron:dev": "npx concurrently -k \"npx vite\" \"npx electron .\"",
-        "electron:build": "vite build && electron-builder",
+        "electron:build": "npm run electron:compile && vite build && electron-builder",
         "electron:preview": "vite build && electron ."
     },
     "dependencies": {
@@ -101,13 +101,33 @@
             "dist/**/*",
             "dist-electron/**/*"
         ],
+        "extraResources": [
+            {
+                "from": "public/tilesets",
+                "to": "tilesets"
+            },
+            {
+                "from": "samples",
+                "to": "samples"
+            },
+            {
+                "from": "pbob_icon_pack",
+                "to": "pbob_icon_pack"
+            }
+        ],
         "win": {
-            "target": "nsis",
+            "target": [
+                "nsis",
+                "portable"
+            ],
             "icon": "public/icon.ico"
         },
         "nsis": {
             "oneClick": false,
             "allowToChangeInstallationDirectory": true
+        },
+        "portable": {
+            "artifactName": "${productName}-Portable-${version}.exe"
         }
     }
 }

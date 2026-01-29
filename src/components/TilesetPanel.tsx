@@ -97,16 +97,26 @@ export function TilesetPanel({
                   >
                     {ts.name}
                     {ts.id !== DEBUG_TILESET_ID && onRemoveTileset && (
-                      <button
-                        className="absolute -top-1 -right-1 hidden group-hover:flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-destructive-foreground"
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        aria-label={`Remove tileset ${ts.name}`}
+                        className="absolute -top-1 -right-1 hidden group-hover:flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-destructive-foreground cursor-pointer"
                         onClick={(e) => {
                           e.stopPropagation()
                           onRemoveTileset(ts.id)
                         }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            onRemoveTileset(ts.id)
+                          }
+                        }}
                         title="Remove tileset"
                       >
                         <X className="h-3 w-3" />
-                      </button>
+                      </span>
                     )}
                   </TabsTrigger>
                 ))}

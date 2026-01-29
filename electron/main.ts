@@ -8,6 +8,8 @@
 import { app, BrowserWindow, ipcMain, dialog, Menu } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
+// Use require for agent-main since we rename .js to .cjs after compilation
+const { registerAgentIPC } = require('./agent-main.cjs');
 
 // Set unique app name to avoid conflicts with other Electron apps
 app.name = 'PrairieBob';
@@ -305,6 +307,12 @@ ipcMain.handle('fs:readFileBase64', async (_, filePath: string) => {
     return buffer.toString('base64');
 });
 
+ipcMain.handle('fs:writeFileBase64', async (_, filePath: string, base64: string) => {
+    const buffer = Buffer.from(base64, 'base64');
+    fs.writeFileSync(filePath, buffer);
+    return true;
+});
+
 ipcMain.handle('fs:writeFile', async (_, filePath: string, content: string) => {
     fs.writeFileSync(filePath, content, 'utf-8');
     return true;
@@ -324,6 +332,15 @@ ipcMain.handle('fs:readDir', async (_, dirPath: string) => {
 ipcMain.handle('fs:mkdir', async (_, dirPath: string) => {
     fs.mkdirSync(dirPath, { recursive: true });
     return true;
+});
+
+// App paths for renderer (sample/resources)
+ipcMain.handle('app:getPaths', async () => {
+    return {
+        appPath: app.getAppPath(),
+        resourcesPath: process.resourcesPath,
+        isPackaged: app.isPackaged,
+    };
 });
 
 ipcMain.handle('dialog:openFile', async (_, options) => {
@@ -346,7 +363,11 @@ ipcMain.on('editor:setUnsaved', (_, unsaved: boolean) => {
 
 // ============== App Lifecycle ==============
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+    // Register agent IPC handlers before creating window
+    registerAgentIPC();
+    createWindow();
+});
 
 app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') {

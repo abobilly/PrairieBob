@@ -34,6 +34,8 @@ export function PropertiesPanel({
     )
   }
 
+  const isTransferEntity = ['door', 'portal', 'stairs', 'ladder'].includes(selectedEntity.type)
+
   const handlePropertyChange = (key: string, value: string | number | boolean) => {
     onEntityUpdate(selectedEntity.id, {
       properties: { ...selectedEntity.properties, [key]: value },
@@ -100,7 +102,7 @@ export function PropertiesPanel({
           </div>
         </div>
 
-        {selectedEntity.type === 'door' && (
+        {isTransferEntity && (
           <>
             <div className="space-y-2">
               <Label htmlFor="target-room" className="text-xs">Target Room</Label>
@@ -122,27 +124,46 @@ export function PropertiesPanel({
                 placeholder="spawn_id"
               />
             </div>
-            <div className="space-y-2">
-              <Label className="text-xs">State Preview</Label>
-              <div className="flex gap-2">
-                <Button
-                  variant={doorState === 'closed' ? 'default' : 'outline'}
-                  size="sm"
-                  className="flex-1"
-                  onClick={() => handleStateChange('closed')}
-                >
-                  Closed
-                </Button>
-                <Button
-                  variant={doorState === 'open' ? 'default' : 'outline'}
-                  size="sm"
-                  className="flex-1"
-                  onClick={() => handleStateChange('open')}
-                >
-                  Open
-                </Button>
+            {selectedEntity.type === 'door' && (
+              <div className="space-y-2">
+                <Label className="text-xs">State Preview</Label>
+                <div className="flex gap-2">
+                  <Button
+                    variant={doorState === 'closed' ? 'default' : 'outline'}
+                    size="sm"
+                    className="flex-1"
+                    onClick={() => handleStateChange('closed')}
+                  >
+                    Closed
+                  </Button>
+                  <Button
+                    variant={doorState === 'open' ? 'default' : 'outline'}
+                    size="sm"
+                    className="flex-1"
+                    onClick={() => handleStateChange('open')}
+                  >
+                    Open
+                  </Button>
+                </div>
               </div>
-            </div>
+            )}
+            {(selectedEntity.type === 'stairs' || selectedEntity.type === 'ladder') && (
+              <div className="space-y-2">
+                <Label htmlFor="direction" className="text-xs">Direction</Label>
+                <Select
+                  value={(selectedEntity.properties.direction as string) || 'up'}
+                  onValueChange={(value) => handlePropertyChange('direction', value)}
+                >
+                  <SelectTrigger id="direction" className="h-8 text-sm">
+                    <SelectValue placeholder="Direction" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="up">Up</SelectItem>
+                    <SelectItem value="down">Down</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </>
         )}
 

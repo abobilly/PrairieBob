@@ -13,10 +13,15 @@ contextBridge.exposeInMainWorld('electron', {
     fs: {
         readFile: (filePath: string) => ipcRenderer.invoke('fs:readFile', filePath),
         readFileBase64: (filePath: string) => ipcRenderer.invoke('fs:readFileBase64', filePath),
+        writeFileBase64: (filePath: string, base64: string) => ipcRenderer.invoke('fs:writeFileBase64', filePath, base64),
         writeFile: (filePath: string, content: string) => ipcRenderer.invoke('fs:writeFile', filePath, content),
         exists: (filePath: string) => ipcRenderer.invoke('fs:exists', filePath),
         readDir: (dirPath: string) => ipcRenderer.invoke('fs:readDir', dirPath),
         mkdir: (dirPath: string) => ipcRenderer.invoke('fs:mkdir', dirPath),
+    },
+
+    app: {
+        getPaths: () => ipcRenderer.invoke('app:getPaths'),
     },
 
     // ============== Dialogs ==============
@@ -103,6 +108,40 @@ contextBridge.exposeInMainWorld('electron', {
         ipcRenderer.on('room:saveAs', (_, path) => callback(path));
         return () => ipcRenderer.removeAllListeners('room:saveAs');
     },
+
+    // ============== Agent IPC ==============
+    agent: {
+        start: () => ipcRenderer.invoke('agent:start'),
+        send: (prompt: string) => ipcRenderer.invoke('agent:send', prompt),
+        abort: () => ipcRenderer.invoke('agent:abort'),
+        stop: () => ipcRenderer.invoke('agent:stop'),
+        isConnected: () => ipcRenderer.invoke('agent:isConnected'),
+    },
+    onAgentMessage: (callback: (message: { role: string; content: string; timestamp: string; toolName?: string }) => void) => {
+        const handler = (_: Electron.IpcRendererEvent, message: { role: string; content: string; timestamp: string; toolName?: string }) => callback(message);
+        ipcRenderer.on('agent:message', handler);
+        return () => ipcRenderer.removeListener('agent:message', handler);
+    },
+    onAgentDelta: (callback: (delta: string) => void) => {
+        const handler = (_: Electron.IpcRendererEvent, delta: string) => callback(delta);
+        ipcRenderer.on('agent:delta', handler);
+        return () => ipcRenderer.removeListener('agent:delta', handler);
+    },
+    onAgentState: (callback: (state: 'idle' | 'thinking' | 'executing') => void) => {
+        const handler = (_: Electron.IpcRendererEvent, state: 'idle' | 'thinking' | 'executing') => callback(state);
+        ipcRenderer.on('agent:state', handler);
+        return () => ipcRenderer.removeListener('agent:state', handler);
+    },
+    onAgentError: (callback: (error: string) => void) => {
+        const handler = (_: Electron.IpcRendererEvent, error: string) => callback(error);
+        ipcRenderer.on('agent:error', handler);
+        return () => ipcRenderer.removeListener('agent:error', handler);
+    },
+    onAgentTool: (callback: (toolName: string, args: Record<string, unknown>) => void) => {
+        const handler = (_: Electron.IpcRendererEvent, toolName: string, args: Record<string, unknown>) => callback(toolName, args);
+        ipcRenderer.on('agent:tool', handler);
+        return () => ipcRenderer.removeListener('agent:tool', handler);
+    },
 });
 
 // TypeScript declaration for the exposed API
@@ -111,10 +150,15 @@ declare global {
         electron: {
             fs: {
                 readFile: (filePath: string) => Promise<string>;
+                readFileBase64: (filePath: string) => Promise<string>;
+                writeFileBase64: (filePath: string, base64: string) => Promise<boolean>;
                 writeFile: (filePath: string, content: string) => Promise<boolean>;
                 exists: (filePath: string) => Promise<boolean>;
                 readDir: (dirPath: string) => Promise<Array<{ name: string; isDirectory: boolean }>>;
                 mkdir: (dirPath: string) => Promise<boolean>;
+            };
+            app: {
+                getPaths: () => Promise<{ appPath: string; resourcesPath: string; isPackaged: boolean }>;
             };
             dialog: {
                 openFile: (options?: Electron.OpenDialogOptions) => Promise<Electron.OpenDialogReturnValue>;
@@ -123,6 +167,13 @@ declare global {
             };
             editor: {
                 setUnsaved: (unsaved: boolean) => void;
+            };
+            agent: {
+                start: () => Promise<{ success: boolean; error?: string; alreadyStarted?: boolean }>;
+                send: (prompt: string) => Promise<{ success: boolean; error?: string }>;
+                abort: () => Promise<{ success: boolean; error?: string }>;
+                stop: () => Promise<{ success: boolean; error?: string }>;
+                isConnected: () => Promise<boolean>;
             };
             onMenuSave: (callback: () => void) => () => void;
             onMenuUndo: (callback: () => void) => () => void;
@@ -141,6 +192,11 @@ declare global {
             onProjectOpened: (callback: (path: string) => void) => () => void;
             onRoomOpened: (callback: (data: { path: string; content: string }) => void) => () => void;
             onRoomSaveAs: (callback: (path: string) => void) => () => void;
+            onAgentMessage: (callback: (message: { role: string; content: string; timestamp: string; toolName?: string }) => void) => () => void;
+            onAgentDelta: (callback: (delta: string) => void) => () => void;
+            onAgentState: (callback: (state: 'idle' | 'thinking' | 'executing') => void) => () => void;
+            onAgentError: (callback: (error: string) => void) => () => void;
+            onAgentTool: (callback: (toolName: string, args: Record<string, unknown>) => void) => () => void;
         };
     }
 }
