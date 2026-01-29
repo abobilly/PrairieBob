@@ -2,6 +2,38 @@
 
 AI-assisted tile editor for pixel art games. Designed to integrate with kimbar's Tiled pipeline.
 
+---
+
+## 🚀 Quick Start (Windows)
+
+### First Time Setup
+
+1. **Install Node.js** (if you don't have it):
+   - Go to [nodejs.org](https://nodejs.org/)
+   - Download the **LTS** version (green button)
+   - Run the installer, accept all defaults
+
+2. **Install PrairieBob**:
+   - Double-click **`INSTALL.bat`**
+   - Wait for it to finish (~2-3 minutes)
+
+### Launch the App
+
+**Double-click `START.bat`** - that's it!
+
+The app will open in a window. The terminal window that appears is normal - keep it open while using the app.
+
+### Keyboard Shortcuts
+| Key | Tool |
+|-----|------|
+| B | Brush |
+| F | Fill |
+| R | Rectangle |
+| E | Eraser |
+| G | Toggle Grid |
+
+---
+
 ## Features
 
 - **Tile painting** - Brush, fill, rectangle, eraser tools
@@ -10,6 +42,8 @@ AI-assisted tile editor for pixel art games. Designed to integrate with kimbar's
 - **Keyboard shortcuts** - B(rush), F(ill), R(ect), E(raser), S(elect), G(rid)
 - **Export** - JSON format compatible with Tiled/LDtk
 - **Embedded AI Agent** - Chat or terminal interface powered by Copilot SDK
+
+---
 
 ## Copilot SDK Integration
 
