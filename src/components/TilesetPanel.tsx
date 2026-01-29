@@ -1,6 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Slider } from '@/components/ui/slider'
@@ -38,8 +37,22 @@ export function TilesetPanel({
 }: TilesetPanelProps) {
   const activeTileset = tilesets.find(t => t.id === activeTilesetId)
 
-  // If no active tileset, default to first one
+  // Debug: log tilesets state
+  useEffect(() => {
+    console.log('[TilesetPanel] tilesets:', tilesets.length, tilesets.map(t => ({ id: t.id, name: t.name, status: t.status })))
+    console.log('[TilesetPanel] activeTilesetId:', activeTilesetId)
+  }, [tilesets, activeTilesetId])
+
+  // If no active tileset, default to first one and notify parent
   const effectiveActiveId = activeTilesetId || tilesets[0]?.id || null
+
+  // Auto-select first tileset if none selected
+  useEffect(() => {
+    if (!activeTilesetId && tilesets.length > 0) {
+      console.log('[TilesetPanel] Auto-selecting first tileset:', tilesets[0].id)
+      onTilesetSelect(tilesets[0].id)
+    }
+  }, [activeTilesetId, tilesets, onTilesetSelect])
 
   return (
     <Card className="h-full flex flex-col">
@@ -72,10 +85,11 @@ export function TilesetPanel({
           </div>
         </CardTitle>
       </CardHeader>
-      <CardContent className="flex-1 p-2 overflow-hidden">
+      <CardContent className="p-2 min-h-[200px]">
         {tilesets.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
             <p className="text-sm">No tilesets loaded</p>
+            <p className="text-xs mt-1">Add a tileset to start painting.</p>
             <Button variant="outline" size="sm" className="mt-2" onClick={onAddTileset}>
               <Plus className="h-4 w-4 mr-1" />
               Add Tileset
@@ -85,8 +99,9 @@ export function TilesetPanel({
           <Tabs
             value={effectiveActiveId || ''}
             onValueChange={onTilesetSelect}
-            className="h-full flex flex-col"
+            className="flex flex-col"
           >
+            {/* Tileset Tabs - Tiled-style pinned tabs */}
             <div className="flex items-center gap-1 mb-2">
               <TabsList className="flex-1 h-auto flex-wrap justify-start">
                 {tilesets.map(ts => (
@@ -123,19 +138,28 @@ export function TilesetPanel({
               </TabsList>
             </div>
 
+            {/* LDtk-style Tileset Inspector - always visible metadata */}
+            {activeTileset && activeTileset.status === 'ready' && (
+              <div className="px-2 py-1 bg-secondary/30 text-xs flex gap-3 border-b mb-1">
+                <span title="Tile size">{activeTileset.tileSize}×{activeTileset.tileSize}px</span>
+                <span title="Grid size">{activeTileset.tilesPerRow}×{Math.ceil(activeTileset.totalTiles / activeTileset.tilesPerRow)}</span>
+                <span title="Total tiles" className="text-muted-foreground">{activeTileset.totalTiles} tiles</span>
+              </div>
+            )}
+
             {tilesets.map(ts => (
               <TabsContent
                 key={ts.id}
                 value={ts.id}
-                className="flex-1 mt-0 data-[state=active]:flex data-[state=active]:flex-col overflow-hidden"
+                className="mt-0 min-h-[150px] max-h-[400px] overflow-y-auto"
               >
                 {ts.status === 'loading' && (
-                  <div className="flex items-center justify-center h-full">
+                  <div className="flex items-center justify-center h-32">
                     <p className="text-muted-foreground">Loading...</p>
                   </div>
                 )}
                 {ts.status === 'error' && (
-                  <div className="flex flex-col items-center justify-center h-full text-destructive">
+                  <div className="flex flex-col items-center justify-center h-32 text-destructive">
                     <p className="text-sm">Failed to load tileset</p>
                     <p className="text-xs mt-1">{ts.error}</p>
                   </div>
@@ -357,7 +381,7 @@ function TileGrid({
   }, [highlightedTile, onTileSelect])
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
+    <div className="flex flex-col">
       {/* Search input (stolen from YATE) */}
       <div className="p-2 border-b flex gap-1 items-center">
         <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
@@ -381,7 +405,7 @@ function TileGrid({
         )}
       </div>
 
-      <ScrollArea className="flex-1" ref={scrollRef}>
+      <div className="overflow-y-auto max-h-[350px]" ref={scrollRef}>
         <div
           ref={containerRef}
           className="grid gap-0.5 p-1 select-none"
@@ -450,7 +474,7 @@ function TileGrid({
         <div className="p-2 text-xs text-muted-foreground text-center border-t">
           Shift+drag to select multiple tiles
         </div>
-      </ScrollArea>
+      </div>
     </div>
   )
 }

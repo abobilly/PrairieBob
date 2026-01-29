@@ -701,7 +701,7 @@ export function MapCanvas({
   }, [mapData, activeLayerIndex, onTileSelect])
 
   // Wheel zoom with zoom-to-cursor (Ctrl/⌘ + wheel). Plain wheel pans.
-  const handleWheel = useCallback((e: React.WheelEvent) => {
+  const handleWheel = useCallback((e: WheelEvent) => {
     const canvas = canvasRef.current
     if (!canvas) return
 
@@ -723,6 +723,14 @@ export function MapCanvas({
     e.preventDefault()
     onPanChange(panX - e.deltaX, panY - e.deltaY)
   }, [zoom, onZoomToPoint, onPanChange, panX, panY])
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    canvas.addEventListener('wheel', handleWheel, { passive: false })
+    return () => canvas.removeEventListener('wheel', handleWheel)
+  }, [handleWheel])
 
   // Notify parent of cursor position changes
   useEffect(() => {
@@ -751,7 +759,6 @@ export function MapCanvas({
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
-      onWheel={handleWheel}
       onContextMenu={handleContextMenu}
     />
   )

@@ -24,6 +24,7 @@ AI-assisted tile editor for pixel art games. Designed to integrate with kimbar's
 The app will open in a window. The terminal window that appears is normal - keep it open while using the app.
 
 ### Keyboard Shortcuts
+
 | Key | Tool |
 |-----|------|
 | B | Brush |
@@ -52,11 +53,13 @@ PrairieBob embeds GitHub Copilot as an AI assistant that can directly manipulate
 ### Agent Panel (bottom of editor)
 
 **Chat tab** - Natural language commands:
+
 - "Fill the floor with grass tiles"
 - "Add a door at position 5,3"
 - "Export this map as kimbar format"
 
 **Terminal tab** - CLI-style commands:
+
 ```bash
 pb help                              # Show commands
 pb list layers|tilesets|entities     # List resources
@@ -69,6 +72,7 @@ pb ask <natural language>            # Ask agent anything
 ### Custom Tools
 
 The agent has access to these editor tools:
+
 - `paint_tiles` - Paint tiles on any layer
 - `fill_layer` - Fill a layer or region
 - `place_entity` - Add entities (door, npc, spawn_point, trigger, prop)

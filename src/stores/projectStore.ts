@@ -342,7 +342,7 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
               const sourcePath = isPackaged
                 ? `${resourcesPath}/tilesets/${tilesetConfig.sourcePath}`
                 : `${appPath}/public/tilesets/${tilesetConfig.sourcePath}`
-              
+
               // Extract just the filename for the target
               const targetFilename = tilesetConfig.file.split('/').pop() || 'tileset.png'
               const targetPath = `${path}/tilesets/${targetFilename}`
@@ -704,12 +704,15 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
 
       // Tileset operations
       initTilesets: async () => {
+        console.log('[projectStore] initTilesets called')
         const debugTileset = createDebugTileset()
         let loadedTilesets: LoadedTileset[] = [debugTileset]
+        console.log('[projectStore] Created debug tileset:', debugTileset.id, 'status:', debugTileset.status)
 
         try {
           if (window.electron) {
             const configExists = await window.electron.fs.exists(CONFIG_PATH)
+            console.log('[projectStore] Config exists:', configExists, 'at', CONFIG_PATH)
             if (configExists) {
               const configContent = await window.electron.fs.readFile(CONFIG_PATH)
               const config = JSON.parse(configContent)
@@ -746,6 +749,7 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
           console.warn('Failed to load tileset config:', err)
         }
 
+        console.log('[projectStore] Setting tilesets:', loadedTilesets.length, loadedTilesets.map(t => ({ id: t.id, status: t.status })))
         set({ tilesets: loadedTilesets })
       },
 

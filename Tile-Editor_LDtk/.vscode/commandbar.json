@@ -1,0 +1,82 @@
+{
+	"skipTerminateQuickPick": true,
+	"skipSwitchToOutput": false,
+	"skipErrorMessage": true,
+	"commands": [
+		{
+			"text": "⚡ Rdr dbg",
+			"color": "yellow",
+			"commandType":"palette",
+			"command": "workbench.action.tasks.runTask|Electron Renderer debug",
+			"alignment": "right",
+			"skipTerminateQuickPick": false,
+			"priority": -21
+		},
+		{
+			"text": "⚡ Main dbg",
+			"color": "yellow",
+			"commandType":"palette",
+			"command": "workbench.action.tasks.runTask|Electron Main debug",
+			"alignment": "right",
+			"skipTerminateQuickPick": false,
+			"priority": -23
+		},
+		{
+			"text": "⚡ Main rel",
+			"color": "yellow",
+			"commandType":"palette",
+			"command": "workbench.action.tasks.runTask|Electron Main release",
+			"alignment": "right",
+			"skipTerminateQuickPick": false,
+			"priority": -24
+		},
+		{
+			"text": "🖥️ Term",
+			"color": "white",
+			"command": "start /d app cmd",
+			"alignment": "right",
+			"skipTerminateQuickPick": false,
+			"priority": -30
+		},
+		{
+			"text": "📦 Pack",
+			"color": "#ffcc94",
+			"command": "cd app  &&  npm run pack-win  &&  echo Done.",
+			"alignment": "right",
+			"skipTerminateQuickPick": false,
+			"priority": -31
+		},
+		{
+			"text": "📘 Docs",
+			"color": "#8a96ff",
+			"command": "haxe doc.hxml",
+			"alignment": "right",
+			"skipTerminateQuickPick": false,
+			"priority": -32
+		},
+		{
+			"text": "📗 QT",
+			"color": "#58ffb2",
+			"command": "cd app  &&  npm run quicktype  &&  echo Done.",
+			"alignment": "right",
+			"skipTerminateQuickPick": false,
+			"priority": -33
+		},
+		{
+			"text": "➾ GitHub",
+			"color": "cyan",
+			"command": "cd app  &&  npm run publish-github  &&  echo Done.",
+			"alignment": "right",
+			"skipTerminateQuickPick": false,
+			"priority": -40
+		},
+		{
+			"text": "➾ ItchIo",
+			"color": "cyan",
+			"command": "cd app  &&  npm run publish-itchio  &&  echo Done.",
+			"alignment": "right",
+			"skipTerminateQuickPick": false,
+			"priority": -41
+		}
+	]
+}

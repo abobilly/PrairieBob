@@ -1,0 +1,26 @@
+package project.editor.value;
+
+import js.jquery.JQuery;
+import project.data.value.ColorValueTemplate;
+import util.Fields;
+
+class ColorValueTemplateEditor extends ValueTemplateEditor
+{
+	public var defaultField:JQuery;
+
+	override function importInto(into:JQuery)
+	{
+		var colorTemplate:ColorValueTemplate = cast template;
+
+		// default val
+		defaultField = Fields.createColor("Default Color", colorTemplate.defaults);
+		Fields.createSettingsBlock(into, defaultField, SettingsBlock.Half, "Default", SettingsBlock.InlineTitle);
+	}
+
+	override function save()
+	{
+		var colorTemplate:ColorValueTemplate = cast template;
+
+		colorTemplate.defaults = Fields.getColor(defaultField);
+	}
+}

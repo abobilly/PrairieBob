@@ -1,0 +1,72 @@
+<h2>
+	<span class="icon world"></span>
+	World
+</h2>
+
+<div class="scroller">
+	<div class="worldBar buttons">
+		<select></select>
+		<button class="create small" title="Create a new world"> <span class="icon add"></span> </button>
+		<button class="delete red small" title="Delete current world"> <span class="icon delete"></span> </button>
+	</div>
+
+	<div class="levelBar buttons">
+		<button class="create"> <span class="icon add"></span> Create a new level</button>
+		<button class="duplicate small" title="Duplicate current level"> <span class="icon copy"></span> </button>
+		<button class="delete red small" title="Delete current level"> <span class="icon delete"></span> </button>
+	</div>
+
+
+	<div class="worldSettings">
+		<div class="collapser" default="open" id="worldPanel_world" default="open">World settings: "<span class="curWorldId"></span>"</div>
+		<dl class="form">
+			<dt>
+				<label for="worldIid">IID</label>
+				<info>The IID (stands for Instance IDentifier) is a unique string identifier associated with this World.</info>
+			</dt>
+			<dd>
+				<input type="text" id="worldIid" readonly="readonly"/>
+				<button class="small gray copyWorldIid"> <span class="icon copy"></span> </button>
+			</dd>
+
+			<dt>
+				<label for="worldId">World identifier</label>
+				<info class="identifier"></info>
+			</dt>
+			<dd>
+				<input type="text" id="worldId"/>
+			</dd>
+			<dt>
+				<label for="color">World layout</label>
+				<info>
+					This setting will affect how all levels are be positioned in the world space.
+				</info>
+			</dt>
+			<dd>
+				<select name="worldLayout"></select>
+			</dd>
+
+			<dt class="GridVania">
+				<label for="worldGridWidth">Gridvania grid size</label>
+				<info>Size in pixels of the large grid that will contain levels. This grid will constraint levels position and their size.</info>
+			</dt>
+			<dd class="GridVania">
+				<input type="text" id="worldGridWidth" name="worldGridWidth" class="small"/> <span>x</span>
+				<input type="text" id="worldGridHeight" name="worldGridHeight" class="small"/> <span>px</span>
+			</dd>
+
+			<dt>
+				<label for="defaultLevelWidth">Default "new level" size</label>
+				<info>Default level width and height in pixels for all future levels.</info>
+			</dt>
+			<dd>
+				<input type="text" id="defaultLevelWidth" class="small"/> <span>x</span>
+				<input type="text" id="defaultLevelHeight" class="small"/> <span>px</span>
+			</dd>
+		</dl>
+	</div>
+
+
+	<div class="currentLevelInstance">
+	</div>
+</div>

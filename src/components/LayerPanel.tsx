@@ -1,9 +1,8 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { Eye, EyeSlash, Lock, LockOpen, DotsSixVertical, Trash, Plus, PencilSimple } from '@phosphor-icons/react'
 import { Layer, LayerType } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { Slider } from '@/components/ui/slider'
 import { Input } from '@/components/ui/input'
 import {
@@ -53,6 +52,12 @@ export function LayerPanel({
   const [editingName, setEditingName] = useState('')
   const [dragIndex, setDragIndex] = useState<number | null>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
+
+  // Debug: log layers state
+  useEffect(() => {
+    console.log('[LayerPanel] layers:', layers.length, layers.map(l => ({ name: l.name, type: l.type, visible: l.visible })))
+    console.log('[LayerPanel] activeLayerIndex:', activeLayerIndex)
+  }, [layers, activeLayerIndex])
 
   // Handle add layer dialog
   const handleAddLayer = useCallback(() => {
@@ -124,153 +129,154 @@ export function LayerPanel({
             )}
           </CardTitle>
         </CardHeader>
-        <CardContent className="flex-1 p-2">
-          <ScrollArea className="max-h-64">
-            <div className="flex flex-col gap-1">
-              {[...layers].reverse().map((layer, reverseIndex) => {
-                const index = layers.length - 1 - reverseIndex
-                const isActive = index === activeLayerIndex
-                const isDragging = dragIndex === index
-                const isDragOver = dragOverIndex === index
+        <CardContent className="p-2">
+          {layers.length === 0 ? (
+            <div className="text-xs text-muted-foreground p-2">No layers loaded.</div>
+          ) : (
+            <div className="flex flex-col gap-1 max-h-80 overflow-y-auto">
+              <div className="flex flex-col gap-1">
+                {[...layers].reverse().map((layer, reverseIndex) => {
+                  const index = layers.length - 1 - reverseIndex
+                  const isActive = index === activeLayerIndex
+                  const isDragging = dragIndex === index
+                  const isDragOver = dragOverIndex === index
 
-                return (
-                  <div
-                    key={index}
-                    draggable={!!onLayerReorder}
-                    onDragStart={(e) => handleDragStart(index, e)}
-                    onDragOver={(e) => handleDragOver(index, e)}
-                    onDrop={(e) => handleDrop(index, e)}
-                    onDragEnd={handleDragEnd}
-                    className={`
+                  return (
+                    <div
+                      key={index}
+                      draggable={!!onLayerReorder}
+                      onDragStart={(e) => handleDragStart(index, e)}
+                      onDragOver={(e) => handleDragOver(index, e)}
+                      onDrop={(e) => handleDrop(index, e)}
+                      onDragEnd={handleDragEnd}
+                      className={`
                       flex flex-col gap-1 p-2 rounded border transition-all
                       ${isActive ? 'bg-accent/20 border-accent' : 'bg-card border-border hover:bg-secondary/50'}
                       ${isDragging ? 'opacity-50' : ''}
                       ${isDragOver ? 'border-primary border-2' : ''}
                       cursor-pointer
                     `}
-                    onClick={() => onLayerSelect(index)}
-                  >
-                    {/* Main row */}
-                    <div className="flex items-center gap-1">
-                      {/* Drag handle */}
-                      {onLayerReorder && (
-                        <div className="layer-drag-handle cursor-grab" title="Drag to reorder">
-                          <DotsSixVertical size={14} />
-                        </div>
-                      )}
+                      onClick={() => onLayerSelect(index)}
+                    >
+                      {/* Main row - Aseprite-style compact controls */}
+                      <div className="flex items-center gap-1">
+                        {/* Drag handle */}
+                        {onLayerReorder && (
+                          <div className="layer-drag-handle cursor-grab" title="Drag to reorder">
+                            <DotsSixVertical size={14} />
+                          </div>
+                        )}
 
-                      {/* Visibility toggle */}
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-5 w-5"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          onLayerToggle(index, 'visible')
-                        }}
-                        title={layer.visible ? 'Hide layer' : 'Show layer'}
-                      >
-                        {layer.visible ? <Eye size={14} /> : <EyeSlash size={14} />}
-                      </Button>
-
-                      {/* Lock toggle */}
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-5 w-5"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          onLayerToggle(index, 'locked')
-                        }}
-                        title={layer.locked ? 'Unlock layer' : 'Lock layer'}
-                      >
-                        {layer.locked ? <Lock size={14} /> : <LockOpen size={14} />}
-                      </Button>
-
-                      {/* Layer name (editable) */}
-                      {editingIndex === index ? (
-                        <Input
-                          value={editingName}
-                          onChange={(e) => setEditingName(e.target.value)}
-                          onBlur={handleFinishRename}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') handleFinishRename()
-                            if (e.key === 'Escape') {
-                              setEditingIndex(null)
-                              setEditingName('')
-                            }
-                          }}
-                          className="h-5 text-xs flex-1"
-                          autoFocus
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                      ) : (
-                        <span
-                          className="text-xs flex-1 truncate"
-                          onDoubleClick={(e) => handleStartRename(index, layer.name, e)}
-                          title="Double-click to rename"
-                        >
-                          {layer.name}
-                        </span>
-                      )}
-
-                      {/* Type badge */}
-                      <span className="text-[10px] text-muted-foreground px-1 bg-secondary rounded">
-                        {layer.type === 'tilelayer' ? 'tile' : 'obj'}
-                      </span>
-
-                      {/* Rename button */}
-                      {onLayerRename && editingIndex !== index && (
+                        {/* Visibility toggle */}
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-5 w-5 opacity-0 group-hover:opacity-100"
-                          onClick={(e) => handleStartRename(index, layer.name, e)}
-                          title="Rename layer"
-                        >
-                          <PencilSimple size={12} />
-                        </Button>
-                      )}
-
-                      {/* Delete button */}
-                      {onLayerDelete && layers.length > 1 && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-5 w-5 text-destructive hover:text-destructive"
+                          className="h-5 w-5 shrink-0"
                           onClick={(e) => {
                             e.stopPropagation()
-                            onLayerDelete(index)
+                            onLayerToggle(index, 'visible')
                           }}
-                          title="Delete layer"
+                          title={layer.visible ? 'Hide layer' : 'Show layer'}
                         >
-                          <Trash size={12} />
+                          {layer.visible ? <Eye size={14} /> : <EyeSlash size={14} className="opacity-50" />}
                         </Button>
-                      )}
-                    </div>
 
-                    {/* Opacity slider (shown when active) */}
-                    {isActive && onLayerOpacityChange && (
-                      <div className="flex items-center gap-2 pl-5">
-                        <span className="text-[10px] text-muted-foreground w-10">Opacity</span>
-                        <Slider
-                          value={[(layer.opacity ?? 1) * 100]}
-                          onValueChange={([v]) => onLayerOpacityChange(index, v / 100)}
-                          min={0}
-                          max={100}
-                          step={5}
-                          className="flex-1 h-3"
-                        />
-                        <span className="text-[10px] text-muted-foreground w-8">
-                          {Math.round((layer.opacity ?? 1) * 100)}%
+                        {/* Lock toggle */}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-5 w-5 shrink-0"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onLayerToggle(index, 'locked')
+                          }}
+                          title={layer.locked ? 'Unlock layer' : 'Lock layer'}
+                        >
+                          {layer.locked ? <Lock size={14} className="text-amber-500" /> : <LockOpen size={14} className="opacity-50" />}
+                        </Button>
+
+                        {/* Aseprite-style inline opacity (always visible) */}
+                        {onLayerOpacityChange && (
+                          <div className="flex items-center gap-1 w-16 shrink-0" title={`Opacity: ${Math.round((layer.opacity ?? 1) * 100)}%`}>
+                            <Slider
+                              value={[(layer.opacity ?? 1) * 100]}
+                              onValueChange={([v]) => onLayerOpacityChange(index, v / 100)}
+                              onClick={(e) => e.stopPropagation()}
+                              min={0}
+                              max={100}
+                              step={5}
+                              className="h-3"
+                            />
+                          </div>
+                        )}
+
+                        {/* Layer name (editable) */}
+                        {editingIndex === index ? (
+                          <Input
+                            value={editingName}
+                            onChange={(e) => setEditingName(e.target.value)}
+                            onBlur={handleFinishRename}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleFinishRename()
+                              if (e.key === 'Escape') {
+                                setEditingIndex(null)
+                                setEditingName('')
+                              }
+                            }}
+                            className="h-5 text-xs flex-1"
+                            autoFocus
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        ) : (
+                          <span
+                            className="text-xs flex-1 truncate"
+                            onDoubleClick={(e) => handleStartRename(index, layer.name, e)}
+                            title="Double-click to rename"
+                          >
+                            {layer.name}
+                          </span>
+                        )}
+
+                        {/* Type badge */}
+                        <span className="text-[10px] text-muted-foreground px-1 bg-secondary rounded">
+                          {layer.type === 'tilelayer' ? 'tile' : 'obj'}
                         </span>
+
+                        {/* Rename button */}
+                        {onLayerRename && editingIndex !== index && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-5 w-5 opacity-0 group-hover:opacity-100"
+                            onClick={(e) => handleStartRename(index, layer.name, e)}
+                            title="Rename layer"
+                          >
+                            <PencilSimple size={12} />
+                          </Button>
+                        )}
+
+                        {/* Delete button */}
+                        {onLayerDelete && layers.length > 1 && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-5 w-5 text-destructive/50 hover:text-destructive shrink-0"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onLayerDelete(index)
+                            }}
+                            title="Delete layer"
+                          >
+                            <Trash size={12} />
+                          </Button>
+                        )}
                       </div>
-                    )}
-                  </div>
-                )
-              })}
+                    </div>
+                  )
+                })}
+              </div>
             </div>
-          </ScrollArea>
+          )}
         </CardContent>
       </Card>
 

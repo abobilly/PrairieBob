@@ -20,6 +20,9 @@ export function PropertiesPanel({
   onEntityDelete,
 }: PropertiesPanelProps) {
   const [doorState, setDoorState] = useState<string>('closed')
+  const isTransferEntity = selectedEntity
+    ? ['door', 'portal', 'stairs', 'ladder'].includes(selectedEntity.type)
+    : false
 
   if (!selectedEntity) {
     return (
@@ -33,8 +36,6 @@ export function PropertiesPanel({
       </Card>
     )
   }
-
-  const isTransferEntity = ['door', 'portal', 'stairs', 'ladder'].includes(selectedEntity.type)
 
   const handlePropertyChange = (key: string, value: string | number | boolean) => {
     onEntityUpdate(selectedEntity.id, {

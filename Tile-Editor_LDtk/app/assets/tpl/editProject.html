@@ -1,0 +1,254 @@
+<h2>
+	<div class="icon project"></div>
+	Project settings
+</h2>
+
+<div class="buttons">
+	<button class="save" title="Save project" keys="CTRL+S"> <span class="icon save"></span> Save project</button>
+	<button class="saveAs" title="Save project to a different file" keys="CTRL+SHIFT+S"> <span class="icon saveAs"></span> Save as...</button>
+	<button class="rename" title="Renaming should only happen from inside the app as various internal file paths will also need to be updated accordingly."> <span class="icon rename"></span> Rename project</button>
+	<button class="locate gray small" title="Locate project file"><span class="icon locate"></span> </button>
+</div>
+
+<dl class="form projectForm">
+
+	<dt class="full"> <h3>Extra files</h3> </dt>
+
+	<dt>
+		<label for="minify">Super simple export ❤</label>
+		<info tip="bottom">
+			Enable this to export your level data in a secondary super simple format, ideal for quick integration in ANY existing engine.
+			You will get:
+			 - one PNG per layer,
+			 - one composite PNG per level,
+			 - a single JSON file per level containing main level infos and entities.
+
+		</info>
+	</dt>
+	<dd class="simplifiedExport">
+		<input type="checkbox" name="simplifiedExport" id="simplifiedExport"/>
+		<div class="locate"></div>
+		<a href="https://ldtk.io/go/simple">Learn more about this format</a>
+	</dd>
+
+	<dt>
+		<label for="externalLevels">Save levels to separate files</label>
+		<info>
+			Enable this to separate the main project file (containing settings, definitions etc.) from the level files (one file per level, stored in a sub-folder).
+			Saving times are also faster with separate levels enabled because unmodified data is cached and not re-wrote.
+		</info>
+	</dt>
+	<dd>
+		<input type="checkbox" id="externalLevels"/>
+		<div class="locate"></div>
+	</dd>
+
+	<dt class="notSimplified">
+		<label for="png">Export as PNG</label>
+		<info>This option allows you to export 'flattened' PNG screenshots of the levels in addition to the JSON data, every time you save the project.</info>
+	</dt>
+	<dd class="imageExportMode notSimplified">
+		<div class="locate"></div>
+
+		<select></select>
+	</dd>
+
+	<dt class="imageExportOnly notSimplified">
+		Also export level backgrounds
+		<info>Enable this to export PNGs that will include the level background color or image.</info>
+	</dt>
+	<dd class="imageExportOnly notSimplified">
+		<input type="checkbox" name="exportLevelBg" id="exportLevelBg"/>
+	</dd>
+
+	<dt class="imageExportOnly notSimplified">PNG file names</dt>
+	<dd class="imageExportOnly notSimplified">
+		<div class="pngPatternEditor"></div>
+	</dd>
+
+	<dt>
+		<label for="tiled">Export Tiled TMX</label>
+		<info>
+			Enable this to create Tiled TMX files (one per level) in a sub folder, every time you save your project.
+			Warning: this Tiled export is made for quick integration with game frameworks that don't support LDtk yet, but it comes with some limitations!
+			See the link for more info.
+		</info>
+	</dt>
+	<dd>
+		<input type="checkbox" id="tiled"/>
+		<div class="locate"></div>
+		<a href="https://ldtk.io/go/tiled">Learn more about Tiled export limitations</a>
+	</dd>
+
+
+
+
+	<dt class="full"> <h3>Project settings</h3> </dt>
+
+	<dt>
+		<label for="useAppExtension">Use .::ext:: extension</label>
+		<info>
+			If checked, the project file will use the official extension ".::ext::" instead of the standard ".json".
+			This setting is recommended for proper file identification and association on your system.
+		</info>
+	</dt>
+	<dd>
+		<input type="checkbox" name="useAppExtension" id="useAppExtension"/>
+		<span>(recommended)</span>
+	</dd>
+
+	<dt>
+		<label for="backup">Backup on save</label>
+		<info>
+			Everytime you save your project, an extra backup copy will be created in a subfolder.
+			Backups will obviously increase saving time and disk usage, but that's not a reason for not using them ;)
+			Note: in case of a crash, a special backup will be created, even if this setting is disabled.
+		</info>
+	</dt>
+	<dd>
+		<input type="checkbox" id="backup" />
+		<button class="curBackupPath gray">?</button>
+		<button class="resetBackupPath gray" title="Reset destination folder to default"> <span class="icon reset"></span> </button>
+		<div class="locate"></div>
+		<span>Max backup files: </span>
+		<input type="text" id="backupCount"/>
+		<warning class="backupRecommend">It's recommended to enable backups for large or important projects.</warning>
+	</dd>
+
+	<dt>
+		<label for="minify">Minify JSON</label>
+		<info>
+			Enable this to save project JSON file without any "pretty" formatting (ie. white spaces and indentation).
+			This is NOT necessarily recommended if your project is stored on a versioning system (git, svn etc.) because this could cause issues with diffs and merging operations.
+			Only use this option if you really need to reduce the project files size.
+		</info>
+	</dt>
+	<dd>
+		<input type="checkbox" name="minify" id="minify"/>
+	</dd>
+
+	<dt>
+		<label for="png">Identifers format convention</label>
+		<info>This option allows to customize the constraints on "identifiers" format. It's recommended to keep the default "First letter uppercased" format, unless you know what you're doing.</info>
+	</dt>
+	<dd>
+		<select id="identifierStyle"></select>
+	</dd>
+
+
+
+
+	<dt class="full"><h3>User custom commands</h3></dt>
+	<dt>
+		<label>Custom commands</label>
+		<info>
+			A list of custom commands that will be executed by LDtk in various situations.
+			The working directory for all these commands is the project directory.
+			If multiple commands are to be ran at a given moment (eg. before saving), they will be executed in order of appearance here.
+		</info>
+	</dt>
+	<dd class="customCommands">
+		<div class="trusted">This project is allowed to run user commands on your computer. <a>Remove authorization</a></div>
+		<div class="untrusted">This project is NOT allowed to run user commands on your computer. <a>Unblock it</a></div>
+		<ul></ul>
+		<xml id="customCommand">
+			<select class="when"></select>
+			<input type="text" class="command"/>
+			<button class="remove"> <span class="icon delete"></span> </button>
+		</xml>
+		<button class="add"> <span class="icon add"></span> </button>
+	</dd>
+
+
+
+	<dt class="full"> <h3>Workspace settings</h3> </dt>
+
+	<dt>
+		<label for="defaultGridSize">Default layer grid</label>
+		<info>Set the default grid size when creating new layers in this project.</info>
+	</dt>
+	<dd>
+		<input type="text" name="defaultGridSize" id="defaultGridSize" class="small"/>
+		<span>px</span>
+	</dd>
+
+	<dt>
+		<label>Default entity size</label>
+		<info>Set the default width/height when creating new entities in this project.</info>
+	</dt>
+	<dd>
+		<input type="text" name="defaultEntityWidth" class="small"/>
+		<span>x </span>
+		<input type="text" name="defaultEntityHeight" class="small"/>
+		<span>px</span>
+	</dd>
+
+	<dt>
+		<label for="levelName">Default level identifiers</label>
+		<info>
+			You can customize the default naming convention for all level identifiers.
+			Note that level identifiers must be UNIQUE and as such, an extra auto-increment might be added to levels sharing getting the same name, to avoid collisions.
+			Also, remember the identifiers should only contain letters, numbers, "-" and "_".
+		</info>
+	</dt>
+	<dd>
+		<div class="levelNamePatternEditor"></div>
+	</dd>
+
+	<dt>
+		<label for="bgColor">Workspace background color</label>
+		<info>Base background color of the project workspace</info>
+	</dt>
+	<dd>
+		<input type="color" name="bgColor" id="bgColor"/>
+	</dd>
+
+	<dt>
+		<label for="defaultLevelbgColor">Default level bg color</label>
+		<info>Default background color of all levels.</info>
+	</dt>
+	<dd>
+		<input type="color" name="defaultLevelbgColor" id="defaultLevelbgColor"/>
+	</dd>
+
+	<dt>
+		<label>Default pivot point for new entities</label>
+		<info>
+			Default entity pivot point position for all entities.
+			See the Entity panel for more information about the pivot point.
+		</info>
+	</dt>
+	<dd>
+		<div class="pivot"></div>
+	</dd>
+
+</dl>
+
+
+<div class="collapser">Advanced project settings</div>
+
+<dl class="form advanced">
+
+	<dt class="full">
+		<div class="help">
+			Advanced options are not recommended for most users as they might break compatibility with older game APIs. Please make sure you know what you're doing before using any of them!
+		</div>
+	</dt>
+
+	<dt class="full">
+		<ul class="advFlags"></ul>
+	</dt>
+
+	<dt class="sample">
+		Tutorial description
+		<info>
+			This optional description is displayed in a permanent banner on top of LDtk while this project is open.
+			It is mainly used in LDtk sample maps to provide extra explanations of provided examples.
+		</info>
+	</dt>
+	<dd class="sample">
+		<textarea name="tutorialDesc"></textarea>
+	</dd>
+
+
+</dl>

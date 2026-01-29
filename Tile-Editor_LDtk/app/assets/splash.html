@@ -1,0 +1,119 @@
+<html>
+<head>
+	<meta charset="utf-8"/>
+	<style type="text/css">
+		body {
+			margin: 0;
+			padding: 16px;
+			overflow: hidden;
+			color: #737f9d;
+			font-family: Roboto, Arial;
+			/* border: 1px solid blue; */
+		}
+
+		* {
+			pointer-events: none;
+			user-select: none;
+		}
+
+		@font-face {
+			font-family: Roboto;
+			src: url("fonts/RobotoCondensed-Light.ttf");
+		}
+
+		@font-face {
+			font-family: Roboto Bold;
+			src: url("fonts/RobotoCondensed-Bold.ttf");
+		}
+
+
+		.windowWrapper {
+			display: grid;
+			align-items: center;
+			justify-content: center;
+			width: 100%;
+			height: 100%;
+		}
+
+		.splashWrapper {
+			position: relative;
+			display: grid;
+			grid-template-rows: min-content min-content;
+			box-sizing: border-box;
+			overflow: hidden;
+
+			box-shadow: 0px 0px 16px #232a3880 inset,
+				0px 4px 8px rgba(0,0,0, 0.4),
+				0px 0px 32px rgba(0,0,0, 0.3);
+
+			border-top-right-radius: 24px;
+
+			/* background: #14171b80; */
+		}
+
+		img.ldtkIcon {
+			width: auto;
+			height: 200px;
+		}
+
+		.version {
+			display: grid;
+			grid-template-columns: auto min-content min-content;
+
+			color: #fc0;
+			white-space: nowrap;
+			font-size: 20pt;
+			line-height: 1em;
+
+			background: #14171b;
+			padding: 10px;
+			padding-top: 0;
+		}
+
+		.version .filler {
+			background-color: #252a33;
+			margin-right: 6px;
+		}
+		.version #mainVersion,
+		.version #patchVersion {
+			display: flex;
+			align-items: center;
+		}
+		.version #mainVersion {
+			font-weight: bold;
+		}
+	</style>
+</head>
+
+
+<body>
+	<div class="windowWrapper">
+		<div class="splashWrapper">
+
+			<img class="ldtkIcon" src="appIcon.png"/>
+
+			<div class="version">
+				<div class="filler"></div>
+				<span id="mainVersion">???</span>
+				<span id="patchVersion">???</span>
+			</div>
+
+		</div>
+	</div>
+
+
+
+	<script type="text/javascript">
+		// Write version from args
+		window.location.search
+			.substr(1)
+			.split("&")
+			.forEach(function (item) {
+				if( item.split("=")[0]=="patchVersion" )
+					document.getElementById("patchVersion").innerHTML = item.split("=")[1];
+				if( item.split("=")[0]=="mainVersion" )
+					document.getElementById("mainVersion").innerHTML = item.split("=")[1];
+			});
+	</script>
+</body>
+</html>

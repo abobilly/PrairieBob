@@ -1,0 +1,206 @@
+<h2> <div class="icon entity"></div> Project entities </h2>
+
+
+<div class="entityList">
+	<div class="buttons">
+		<button class="create"> <span class="icon add"></span> </button>
+		<button class="presets small" title="Create an entity using a preset.">Presets</button>
+		<!-- <button class="delete">🗑️</button> -->
+	</div>
+	<div class="search"></div>
+	<ul class="niceList"></ul>
+</div>
+
+<div class="rightColumn">
+	<div class="help none">
+		ENTITIES are generic data that can be placed in your levels, such as the Player start position or Items to pick up. Each entity can have various custom editable properties as defined below.
+	</div>
+
+	<div class="entityForm">
+		<div class="previewWrapper">
+			<div class="label"></div>
+		</div>
+
+		<dl class="form main">
+			<dt>
+				<label for="eName">Entity identifier</label>
+				<div class="info identifier"></div>
+			</dt>
+			<dd>
+				<input type="text" name="name" id="eName"/>
+				<label for="showIdentifier" title="If enabled, the identifier will be displayed above entities in the editor view.">
+					<input type="checkbox" name="showIdentifier" id="showIdentifier"/>
+					Show identifier
+				</label>
+			</dd>
+		</dl>
+
+
+		<div class="collapser" default="open" id="extraEntityDetails">Entity settings</div>
+
+
+		<dl class="form extra">
+			<dt>
+				<label for="eName">Misc options</label>
+			</dt>
+			<dd>
+				<label for="exportToToc" tip="bottom" title="If enabled, all instances of this entity will be listed in a table of content in the root of the project JSON file.\nFor example, this is especially useful if you want to have a quick access to the location of all PlayerStart entities in your game without parsing all your levels manually.\nBE CAREFUL: don't put every entities in the table of content as this will just result in a bloated project JSON.">
+					<input type="checkbox" name="exportToToc" id="exportToToc"/>
+					Add to JSON Table-of-content
+				</label>
+				<label for="allowOutOfBounds" tip="bottom" title="If enabled, this entity will be allowed to exist outside of the current level bounds.\nIf disabled, the entity is automatically destroyed if dragged outside of the current level bounds.\nThis has no effect on existing entities.">
+					<input type="checkbox" name="allowOutOfBounds" id="allowOutOfBounds"/>
+					Can be out of level bounds
+				</label>
+			</dd>
+
+			<dt>
+				<label for="entityDoc">Documentation</label>
+				<info class="userDoc"></info>
+			</dt>
+			<dd>
+				<input type="text" name="entityDoc" id="entityDoc"/>
+			</dd>
+
+			<dt>
+				<label>Tags</label>
+				<div class="info">
+					Tags are used to group entities in custom categories. Multiple tags can be assigned to a single entity.
+					You may also use tags in Layers settings to filter which entities are allowed and which are not.
+					Example: add an "Actor" tag to some entities and create an Entity layer that only accepts "Actors" entities in it.
+				</div>
+			</dt>
+			<dd>
+				<div id="tags"></div>
+			</dd>
+
+			<dt>
+				<label for="width">Size</label>
+				<div class="info">Default width and height (in pixels) of this entity.</div>
+			</dt>
+			<dd>
+				<input type="text" name="width" class="small" id="width"/>
+				<span>x</span>
+				<input type="text" name="height" class="small"/>
+
+				<div class="minMax">
+					<span>Min:</span>
+					<input type="text" name="minWidth" class="small"/>
+					<span>x</span>
+					<input type="text" name="minHeight" class="small"/>
+
+					<span class="sep">Max:</span>
+					<input type="text" name="maxWidth" class="small"/>
+					<span>x</span>
+					<input type="text" name="maxHeight" class="small"/>
+				</div>
+			</dd>
+			<dd>
+				<span>Resizable:</span>
+				<label for="resizableX" tip="bottom">
+					<input type="checkbox" id="resizableX" title="If checked, the entity instances will be horizontally resizable. In this case, the width above will define the a minimum size."/>
+					Width
+				</label>
+
+				<label for="resizableY" tip="bottom">
+					<input type="checkbox" id="resizableY" title="If checked, the entity instances will be vertically resizable. In this case, the height above will define the a minimum size."/>
+					Height
+				</label>
+
+				<label for="keepAspectRatio" tip="bottom">
+					<input type="checkbox" id="keepAspectRatio" title="If checked, the entity instance size will use the same aspect ratio as the size above."/>
+					Keep aspect ratio
+				</label>
+			</dd>
+
+			<dt>
+				<label>Editor visual</label>
+				<div class="info">Customize visual representation of the entity in the editor view.</div>
+			</dt>
+			<dd class="renderMode">
+				<input type="color" name="color" id="eColor"/>
+				<select class="renderMode"></select>
+
+				<div class="tilePicker"></div>
+				<select class="mode_Tile tileRenderMode"></select>
+
+				<span class="nineSlice">
+					<div class="info">
+						9-slice scaling mode splits the selected texture in 9 sections (4 corners, 4 borders and 1 inner).
+						Corners are drawn as-is, Borders are repeated on the sides of the entity, and Inner is stretch at the center of the entity.
+						You can adjust the size of up, down, left and right borders, in pixels.
+					</div>
+					<span>9-slices borders:</span>
+					<span>top=</span>
+					<input type="text" name="nineSliceUp"/>
+					<span>down=</span>
+					<input type="text" name="nineSliceDown"/>
+					<span>left=</span>
+					<input type="text" name="nineSliceLeft"/>
+					<span>right=</span>
+					<input type="text" name="nineSliceRight"/>
+				</span>
+			</dd>
+
+			<dd>
+				<span>Tile=</span>
+				<input type="text" id="tileOpacity" class="tiny" title="Tile opacity"/>
+
+				<span>% Fill=</span>
+				<input type="text" id="fillOpacity" class="tiny" title="Fill color opacity"/>
+
+				<span>% Line=</span>
+				<input type="text" id="lineOpacity" class="tiny" title="Outline color opacity"/>
+				<span>%</span>
+
+				<label for="hollow">
+					<input type="checkbox" id="hollow" name="hollow" title="Clicks will pass through 'hollow' entities, except on edges. They don't have any fill color (only an outline and/or a tile)."/>
+					Hollow
+				</label>
+			</dd>
+
+
+			<dt class="uiTile">
+				<label>Alt UI icon</label>
+				<div class="info">Alternative icon to represent this entity in the interface panels and lists.\nIf not set, the Editor Visual settings (see above) will be used by default.</div>
+			</dt>
+			<dd class="uiTile">
+				<select class="uiTileset"></select>
+				<div class="uiTilePicker"></div>
+			</dd>
+
+
+			<dt>
+				<label>Pivot point</label>
+				<div class="info">
+					The pivot of the entity is its actual pixel coordinate of the entity in the level.
+					The pivot alignment can be customized to adjust the position of the entity bounds relatively to these coordinates: the entity could be centered over the point, above it, on the right, etc.
+				</div>
+			</dt>
+			<dd>
+				<div class="pivot"></div>
+			</dd>
+
+			<dt>
+				<label for="maxCount">Max count</label>
+				<div class="info">
+					An entity can be limited to a specific number of instances per level or per world.
+					Examples: a PlayerStart entity could be limited to 1 max per world, or you may limit LightSource entities to 10 per level etc.
+					What actually happens when you reach the limit is also customizable.
+				</div>
+			</dt>
+			<dd>
+				<input type="text" id="maxCount" placeholder="Unlimited" class="small"/>
+				<select name="scope"></select>
+				<span>, and </span>
+				<select name="limitBehavior"></select>
+				<span>when max is reached.</span>
+			</dd>
+
+		</dl>
+
+	</div>
+
+	<div id="fields"></div>
+
+</div>

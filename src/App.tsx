@@ -148,19 +148,24 @@ function App() {
 
   // ============== Initialize ==============
   useEffect(() => {
+    console.log('[App] Mount - projectName:', projectName, 'tilesets:', tilesets.length, 'mapData.layers:', mapData?.layers?.length)
     // Don't auto-load - let the project selector handle it
     // The ProjectSelector shows by default (showProjectSelector: true in uiStore)
   }, [])
 
   useEffect(() => {
     // Fallback: init tilesets if project loading didn't happen
+    console.log('[App] tilesets effect - count:', tilesets.length)
     if (tilesets.length === 0) {
+      console.log('[App] No tilesets, calling initTilesets()')
       initTilesets()
     }
   }, [initTilesets, tilesets.length])
 
   useEffect(() => {
+    console.log('[App] activeTilesetId effect - tilesets:', tilesets.length, 'activeTilesetId:', activeTilesetId)
     if (tilesets.length > 0 && !activeTilesetId) {
+      console.log('[App] Setting activeTilesetId to:', tilesets[0].id)
       setActiveTilesetId(tilesets[0].id)
     }
   }, [tilesets, activeTilesetId, setActiveTilesetId])

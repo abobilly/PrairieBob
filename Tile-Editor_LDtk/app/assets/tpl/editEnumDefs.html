@@ -1,0 +1,74 @@
+<h2>
+	<div class="icon enum"></div>
+	Project Enums
+</h2>
+
+<div class="enumList">
+	<div class="buttons">
+		<button class="createEnum"> <span class="icon add"></span> </button>
+		<button class="import small">Import</button>
+	</div>
+	<div class="search"></div>
+	<ul class="niceList"></ul>
+</div>
+
+<div class="help none">
+	Enumerations (Enums) are list of values.
+	Examples: your enemy types, items, states etc.
+</div>
+
+<div class="enumFormWrapper">
+	<dl class="form enumForm">
+		<dt class="onlyExternal">
+			<label>Source file</label>
+			<info>This Enum was imported from an external file and can be kept in-sync with it.</info>
+		</dt>
+
+		<dd class="source">
+		</dd>
+
+
+		<dt>
+			<label for="id">Enum identifier</label>
+			<div class="info identifier"></div>
+		</dt>
+		<dd>
+			<input type="text" name="id" id="id"/>
+		</dd>
+
+
+		<dt>
+			<label for="icons">Icon tileset</label>
+			<div class="info">You can link an existing Tileset to this Enum to associate icons to each enum values.</div>
+		</dt>
+		<dd>
+			<select id="icons"></select>
+		</dd>
+
+		<dt class="noExternal">
+			<label for="tags">Tags</label>
+			<div class="info">Tags are used to freely organize your Enums.</div>
+		</dt>
+		<dd class="noExternal">
+			<div id="tags"></div>
+		</dd>
+	</dl>
+
+
+	<div class="valuesWrapper">
+		<h2>All possible enum values</h2>
+		<button class="createEnumValue noExternal gray">Add a new value</button>
+		<ul class="enumValues"></ul>
+	</div>
+
+</div>
+
+
+<!-- Template -->
+<xml class="enum">
+	<div class="sortHandle"></div>
+	<div class="pickerWrapper"></div>
+	<input type="color" name="color"/>
+	<input type="text" class="name" placeholder="REQUIRED - Unique identifier"/>
+	<button class="delete gray noExternal"> <span class="icon delete"></span> </button>
+</xml>
