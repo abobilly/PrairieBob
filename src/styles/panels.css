@@ -1,0 +1,232 @@
+/**
+ * Panel Resize Handles - Tiled-style
+ * Styling for react-resizable-panels drag handles
+ */
+
+/* Base resize handle */
+.panel-resize-handle {
+    position: relative;
+    background: transparent;
+    transition: background-color 0.15s ease;
+}
+
+/* Horizontal resize handle (left-right panels) */
+.panel-resize-handle[data-resize-handle-state="drag"],
+.panel-resize-handle:hover {
+    background: hsl(var(--accent));
+}
+
+.panel-resize-handle::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 4px;
+    height: 32px;
+    background: hsl(var(--border));
+    border-radius: 2px;
+    opacity: 0.5;
+    transition: opacity 0.15s ease, background-color 0.15s ease;
+}
+
+.panel-resize-handle:hover::before,
+.panel-resize-handle[data-resize-handle-state="drag"]::before {
+    opacity: 1;
+    background: hsl(var(--accent-foreground));
+}
+
+/* Handle hit area */
+.panel-resize-handle[data-panel-group-direction="horizontal"] {
+    width: 6px;
+    cursor: col-resize;
+}
+
+.panel-resize-handle[data-panel-group-direction="vertical"] {
+    height: 6px;
+    cursor: row-resize;
+}
+
+/* Vertical handle dots */
+.panel-resize-handle[data-panel-group-direction="vertical"]::before {
+    width: 32px;
+    height: 4px;
+}
+
+/* Tool selection animation */
+.tool-button {
+    position: relative;
+    transition: all 0.15s ease;
+}
+
+.tool-button::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    background: hsl(var(--accent) / 0.2);
+}
+
+.tool-button:hover::after {
+    opacity: 1;
+}
+
+.tool-button[data-state="on"] {
+    background: hsl(var(--accent));
+    color: hsl(var(--accent-foreground));
+    box-shadow: 0 0 0 2px hsl(var(--accent) / 0.3);
+}
+
+/* Layer panel item transitions */
+.layer-item {
+    transition: all 0.15s ease;
+}
+
+.layer-item:hover {
+    transform: translateX(2px);
+}
+
+.layer-item.active {
+    border-left: 3px solid hsl(var(--accent));
+    padding-left: calc(0.5rem - 3px);
+}
+
+/* Tile selection highlight */
+.tile-button {
+    position: relative;
+    transition: all 0.1s ease;
+}
+
+.tile-button.selected {
+    box-shadow: inset 0 0 0 2px hsl(var(--primary));
+    z-index: 1;
+}
+
+.tile-button.selected::after {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border: 2px solid hsl(var(--primary));
+    border-radius: 2px;
+    animation: tile-select-pulse 1s ease-in-out infinite;
+}
+
+@keyframes tile-select-pulse {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.5;
+    }
+}
+
+/* Multi-tile stamp selection */
+.tile-button.in-stamp {
+    box-shadow: inset 0 0 0 1px hsl(var(--accent));
+}
+
+/* Slider customization */
+.tileset-zoom-slider {
+    height: 4px;
+}
+
+.tileset-zoom-slider [data-orientation="horizontal"] {
+    height: 4px;
+}
+
+/* Status bar */
+.status-bar {
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 0.75rem;
+}
+
+/* Canvas cursor styles */
+.canvas-crosshair {
+    cursor: crosshair;
+}
+
+.canvas-grab {
+    cursor: grab;
+}
+
+.canvas-grabbing {
+    cursor: grabbing;
+}
+
+.canvas-eyedropper {
+    cursor: crosshair;
+}
+
+/* Layer drag handle */
+.layer-drag-handle {
+    cursor: grab;
+    opacity: 0.5;
+    transition: opacity 0.15s ease;
+}
+
+.layer-drag-handle:hover {
+    opacity: 1;
+}
+
+.layer-drag-handle:active {
+    cursor: grabbing;
+}
+
+/* Opacity slider in layer panel */
+.layer-opacity-slider {
+    width: 60px;
+    height: 4px;
+}
+
+/* Panel collapse button */
+.panel-collapse-btn {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 10;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+}
+
+.panel:hover .panel-collapse-btn {
+    opacity: 1;
+}
+
+/* Horizontal resize handle for bottom panel */
+.panel-resize-handle-horizontal {
+    position: relative;
+    height: 6px;
+    cursor: row-resize;
+    background: transparent;
+    transition: background-color 0.15s ease;
+}
+
+.panel-resize-handle-horizontal:hover,
+.panel-resize-handle-horizontal[data-resize-handle-state="drag"] {
+    background: hsl(var(--accent));
+}
+
+.panel-resize-handle-horizontal::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 32px;
+    height: 4px;
+    background: hsl(var(--border));
+    border-radius: 2px;
+    opacity: 0.5;
+    transition: opacity 0.15s ease, background-color 0.15s ease;
+}
+
+.panel-resize-handle-horizontal:hover::before,
+.panel-resize-handle-horizontal[data-resize-handle-state="drag"]::before {
+    opacity: 1;
+    background: hsl(var(--accent-foreground));
+}

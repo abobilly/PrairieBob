@@ -143,34 +143,35 @@ assets/
 
 ### 3.1 Canvas
 
-- [ ] Pan/zoom with mouse and keyboard
-- [ ] Zoom controls (mouse wheel, toolbar +/- buttons, reset to 100%, 0.25x–4x)
+- [x] Pan/zoom with mouse and keyboard (Ctrl+wheel = zoom-to-cursor, arrow keys = nudge, space+drag = pan)
+- [x] Zoom controls (mouse wheel, toolbar +/- buttons, reset to 100%, 0.25x–4x)
 - [ ] Center/reset view button
-- [ ] Grid overlay toggle
+- [x] Grid overlay toggle (G key)
 - [ ] Chunk boundaries display
-- [ ] Layer visibility toggles
+- [x] Layer visibility toggles
 - [ ] Selection tools (rect, lasso, magic wand)
 - [ ] Selection clipboard (copy/paste)
 
 ### 3.2 Painting Tools
 
-- [ ] Brush (single tile)
-- [ ] Bucket fill
+- [x] Brush (single tile)
+- [x] Bucket fill
 - [ ] Line tool
-- [ ] Rectangle/ellipse fill
-- [ ] Stamp (multi-tile pattern)
-- [ ] Eyedropper (pick tile from map)
-- [ ] Eraser
+- [x] Rectangle/ellipse fill
+- [x] Stamp (multi-tile pattern) - Shift+drag in tileset panel to select NxM region
+- [x] Eyedropper (pick tile from map) - I key or right-click
+- [x] Eraser
 
 ### 3.3 Layers
 
-- [ ] Unlimited layers
+- [x] Unlimited layers (add/delete/rename via Layer Panel)
 - [ ] Layer groups/folders
 - [ ] Blend modes (normal, multiply, overlay for lighting)
 - [ ] Decal layers (free image placement)
 - [ ] Grid layers (metadata overlays)
 - [ ] Layer templates (e.g., "Standard Room" = Floor, Walls, Trim, Overlays, Collision, Entities)
-- [ ] Layer opacity controls (per-layer sliders)
+- [x] Layer opacity controls (per-layer sliders)
+- [x] Layer reorder (drag-and-drop)
 
 ### 3.4 World Management
 
@@ -622,12 +623,46 @@ PrairieBob exports must pass `npm run validate:tiled` in kimbar.
 
 ### Priority Local Tasks (Tier 1.5)
 
-1. **Undo/Redo** - Add history stack, wire Ctrl+Z/Y
-2. **Zoom controls** - Mouse wheel + toolbar buttons
-3. **Eyedropper** - Sample tile from canvas (I key)
-4. **Dark theme** - Professional IDE aesthetic
+1. **Undo/Redo** - ✅ Done (Zustand store with history)
+2. **Zoom controls** - ✅ Done (Mouse wheel + toolbar + keyboard)
+3. **Eyedropper** - ✅ Done (I key + right-click anywhere)
+4. **Dark theme** - ✅ Done (Professional IDE aesthetic)
 5. **Door preview** - Toggle open/closed states visually
-6. **Export** - Generate kimbar-compatible JSON
+6. **Export** - ✅ Done (JSON export)
+
+### Tier 1.5+ Stolen UX Features (Jan 2026)
+
+**From Tiled:**
+
+- [x] Resizable panels (react-resizable-panels)
+- [x] Multi-tile stamps (Shift+drag selection)
+- [x] Stamp preview ghost (50% opacity at cursor)
+- [x] Zoom-to-cursor (keeps point under mouse stationary)
+- [x] Tileset zoom slider (1x-4x display size)
+- [x] Line tool (L) - Bresenham's algorithm for pixel-perfect lines
+- [x] Copy/Paste selection (Ctrl+C/V) - copy tile regions
+
+**From LDtk:**
+
+- [x] Zustand state management (modern React patterns)
+- [x] Snappy CSS transitions (panel hover/select)
+
+**From Ogmo:**
+
+- [x] Layer management (add/delete/rename/reorder/opacity)
+- [x] Grid toggle (G key)
+
+**From YATE:**
+
+- [ ] Tile groups (collapsible sections in tileset)
+- [x] Tile tags/search (search by tile ID, Enter to select)
+- [ ] CLI pipeline integration
+
+**From Aseprite/Photoshop:**
+
+- [x] Selection tool (S) with marching ants preview
+- [x] Right-click eyedropper (instant tile sampling)
+- [x] Escape to clear selection
 
 ### Asset Integration
 
