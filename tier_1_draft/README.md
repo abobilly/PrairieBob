@@ -1,23 +1,28 @@
-# ✨ Welcome to Your Spark Template!
-You've just launched your brand-new Spark Template Codespace — everything’s fired up and ready for you to explore, build, and create with Spark!
+# PrairieBob
 
-This template is your blank canvas. It comes with a minimal setup to help you get started quickly with Spark development.
+AI-assisted tile editor for pixel art games. Designed to integrate with kimbar's Tiled pipeline.
 
-🚀 What's Inside?
-- A clean, minimal Spark environment
-- Pre-configured for local development
-- Ready to scale with your ideas
-  
-🧠 What Can You Do?
+## Features
 
-Right now, this is just a starting point — the perfect place to begin building and testing your Spark applications.
+- **Tile painting** - Brush, fill, rectangle, eraser tools
+- **Layer management** - Floor, Walls, Trim, Overlays, Collision, Entities
+- **Entity placement** - NPCs, doors, spawn points with properties
+- **Keyboard shortcuts** - B(rush), F(ill), R(ect), E(raser), S(elect), G(rid)
+- **Export** - JSON format compatible with Tiled/LDtk
 
-🧹 Just Exploring?
-No problem! If you were just checking things out and don’t need to keep this code:
+## Development
 
-- Simply delete your Spark.
-- Everything will be cleaned up — no traces left behind.
+```bash
+npm install
+npm run dev
+```
 
-📄 License For Spark Template Resources 
+## Upgrade dependencies
 
-The Spark Template files and resources from GitHub are licensed under the terms of the MIT license, Copyright GitHub, Inc.
+```bash
+npm run upgrade
+```
+
+## License
+
+MIT

@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { useKV } from '@github/spark/hooks'
 import { LevelData, Tool, EntityType, EntityData } from '@/lib/types'
 import { createTilesetCanvas } from '@/lib/tileset'
 import { Toolbar } from '@/components/Toolbar'
@@ -10,26 +9,40 @@ import { EntityPalette } from '@/components/EntityPalette'
 import { PropertiesPanel } from '@/components/PropertiesPanel'
 import { Toaster, toast } from 'sonner'
 
+const DEFAULT_MAP: LevelData = {
+  id: 'test_room',
+  width: 30,
+  height: 20,
+  tileSize: 16,
+  layers: [
+    { name: 'Floor', type: 'tilelayer', visible: true, locked: false, data: new Array(30 * 20).fill(0) },
+    { name: 'Walls', type: 'tilelayer', visible: true, locked: false, data: new Array(30 * 20).fill(0) },
+    { name: 'Trim', type: 'tilelayer', visible: true, locked: false, data: new Array(30 * 20).fill(0) },
+    { name: 'Overlays', type: 'tilelayer', visible: true, locked: false, data: new Array(30 * 20).fill(0) },
+    { name: 'Collision', type: 'tilelayer', visible: true, locked: false, data: new Array(30 * 20).fill(0) },
+    { name: 'Entities', type: 'objectgroup', visible: true, locked: false, objects: [] },
+  ],
+  metadata: {
+    editedAt: new Date().toISOString(),
+    exportedFrom: 'prairiebob',
+    version: '1.0.0',
+  },
+}
+
 function App() {
-  const [mapData, setMapData] = useKV<LevelData>('prairiebob-map', {
-    id: 'test_room',
-    width: 30,
-    height: 20,
-    tileSize: 16,
-    layers: [
-      { name: 'Floor', type: 'tilelayer', visible: true, locked: false, data: new Array(30 * 20).fill(0) },
-      { name: 'Walls', type: 'tilelayer', visible: true, locked: false, data: new Array(30 * 20).fill(0) },
-      { name: 'Trim', type: 'tilelayer', visible: true, locked: false, data: new Array(30 * 20).fill(0) },
-      { name: 'Overlays', type: 'tilelayer', visible: true, locked: false, data: new Array(30 * 20).fill(0) },
-      { name: 'Collision', type: 'tilelayer', visible: true, locked: false, data: new Array(30 * 20).fill(0) },
-      { name: 'Entities', type: 'objectgroup', visible: true, locked: false, objects: [] },
-    ],
-    metadata: {
-      editedAt: new Date().toISOString(),
-      exportedFrom: 'prairiebob',
-      version: '1.0.0',
-    },
+  const [mapData, setMapData] = useState<LevelData>(() => {
+    // Load from localStorage if available
+    const saved = localStorage.getItem('prairiebob-map')
+    if (saved) {
+      try { return JSON.parse(saved) } catch { /* ignore */ }
+    }
+    return DEFAULT_MAP
   })
+
+  // Persist to localStorage on change
+  useEffect(() => {
+    localStorage.setItem('prairiebob-map', JSON.stringify(mapData))
+  }, [mapData])
 
   const [tileset, setTileset] = useState<HTMLCanvasElement | null>(null)
   const [currentTool, setCurrentTool] = useState<Tool>('brush')
@@ -100,23 +113,23 @@ function App() {
         layers: [],
         metadata: { editedAt: new Date().toISOString(), exportedFrom: 'prairiebob', version: '1.0.0' }
       }
-      
+
       const newMapData = { ...current }
       const layer = newMapData.layers[layerIndex]
-      
+
       if (layer.type === 'tilelayer' && layer.data) {
         const newData = [...layer.data]
         const index = y * current.width + x
-        
+
         if (currentTool === 'eraser') {
           newData[index] = 0
         } else {
           newData[index] = tileId
         }
-        
+
         layer.data = newData
       }
-      
+
       return newMapData
     })
   }
@@ -131,23 +144,23 @@ function App() {
         layers: [],
         metadata: { editedAt: new Date().toISOString(), exportedFrom: 'prairiebob', version: '1.0.0' }
       }
-      
+
       const newMapData = { ...current }
       const layer = newMapData.layers[layerIndex]
-      
+
       if (layer.type === 'tilelayer' && layer.data) {
         const newData = [...layer.data]
-        
+
         tiles.forEach(({ x, y, tileId }) => {
           const index = y * current.width + x
           if (index >= 0 && index < newData.length) {
             newData[index] = tileId
           }
         })
-        
+
         layer.data = newData
       }
-      
+
       return newMapData
     })
   }
@@ -162,18 +175,18 @@ function App() {
         layers: [],
         metadata: { editedAt: new Date().toISOString(), exportedFrom: 'prairiebob', version: '1.0.0' }
       }
-      
+
       const newMapData = { ...current }
       const entityLayer = newMapData.layers.find(l => l.name === 'Entities')
-      
+
       if (entityLayer && entityLayer.type === 'objectgroup') {
         if (!entityLayer.objects) entityLayer.objects = []
         entityLayer.objects.push(entity)
       }
-      
+
       return newMapData
     })
-    
+
     toast.success(`${entity.type} placed`)
   }
 
@@ -191,10 +204,10 @@ function App() {
         layers: [],
         metadata: { editedAt: new Date().toISOString(), exportedFrom: 'prairiebob', version: '1.0.0' }
       }
-      
+
       const newMapData = { ...current }
       const entityLayer = newMapData.layers.find(l => l.name === 'Entities')
-      
+
       if (entityLayer && entityLayer.type === 'objectgroup' && entityLayer.objects) {
         const objIndex = entityLayer.objects.findIndex(o => o.id === id)
         if (objIndex !== -1) {
@@ -204,7 +217,7 @@ function App() {
           }
         }
       }
-      
+
       return newMapData
     })
   }
@@ -223,17 +236,17 @@ function App() {
         layers: [],
         metadata: { editedAt: new Date().toISOString(), exportedFrom: 'prairiebob', version: '1.0.0' }
       }
-      
+
       const newMapData = { ...current }
       const entityLayer = newMapData.layers.find(l => l.name === 'Entities')
-      
+
       if (entityLayer && entityLayer.type === 'objectgroup' && entityLayer.objects) {
         entityLayer.objects = entityLayer.objects.filter(o => o.id !== id)
       }
-      
+
       return newMapData
     })
-    
+
     setSelectedEntityId(null)
     toast.success('Entity deleted')
   }
@@ -249,7 +262,7 @@ function App() {
       height: 16,
       properties: type === 'door' ? { interactionId: 'door_wooden' } : {},
     }
-    
+
     handleEntityPlace(entity)
     setSelectedEntityId(entityId)
   }
@@ -264,7 +277,7 @@ function App() {
         layers: [],
         metadata: { editedAt: new Date().toISOString(), exportedFrom: 'prairiebob', version: '1.0.0' }
       }
-      
+
       const newMapData = { ...current }
       newMapData.layers[index][prop] = !newMapData.layers[index][prop]
       return newMapData
@@ -283,7 +296,7 @@ function App() {
         layers: [],
         metadata: { editedAt: new Date().toISOString(), exportedFrom: 'prairiebob', version: '1.0.0' }
       }
-      
+
       return {
         ...current,
         metadata: {
@@ -292,7 +305,7 @@ function App() {
         },
       }
     })
-    
+
     toast.success('Map saved!')
   }
 
@@ -307,7 +320,7 @@ function App() {
     a.download = `${mapData.id}.json`
     a.click()
     URL.revokeObjectURL(url)
-    
+
     toast.success('Map exported!')
   }
 
@@ -320,7 +333,7 @@ function App() {
   return (
     <div className="h-screen flex flex-col bg-background text-foreground">
       <Toaster position="top-right" />
-      
+
       <Toolbar
         currentTool={currentTool}
         onToolChange={setCurrentTool}
@@ -330,7 +343,7 @@ function App() {
         onExport={handleExport}
         onSave={handleSave}
       />
-      
+
       <div className="flex-1 flex overflow-hidden">
         <div className="w-64 border-r border-border p-4 overflow-y-auto bg-card">
           <TilesetPanel
@@ -340,7 +353,7 @@ function App() {
           />
           <EntityPalette onEntityTypeSelect={handleEntityTypeSelect} />
         </div>
-        
+
         <div className="flex-1 bg-background">
           <MapCanvas
             mapData={mapData}
@@ -364,7 +377,7 @@ function App() {
             onEntityMove={handleEntityMove}
           />
         </div>
-        
+
         <div className="w-64 border-l border-border p-4 space-y-4 overflow-y-auto bg-card">
           <LayerPanel
             layers={mapData.layers}
@@ -379,7 +392,7 @@ function App() {
           />
         </div>
       </div>
-      
+
       <div className="px-4 py-2 bg-primary border-t border-border flex gap-4 text-sm font-mono">
         <span>Tool: {currentTool}</span>
         <span>Layer: {mapData.layers[activeLayerIndex]?.name}</span>
