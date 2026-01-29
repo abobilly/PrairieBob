@@ -120,6 +120,14 @@ interface ProjectActions {
     mapWidth: number
     mapHeight: number
     layers: string[]
+    tileset?: {
+      id: string
+      file: string
+      sourcePath: string
+      tileSize: number
+      columns: number
+      tileCount: number
+    } | null
   }) => Promise<void>
 
   // Map operations
@@ -277,7 +285,7 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
       },
 
       // Create a new project
-      createNewProject: async ({ name, path, tileSize, mapWidth, mapHeight, layers }) => {
+      createNewProject: async ({ name, path, tileSize, mapWidth, mapHeight, layers, tileset }) => {
         if (!window.electron) {
           toast.error('Project creation requires Electron')
           return
@@ -291,6 +299,16 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
           await window.electron.fs.mkdir(`${path}/interactions`)
           await window.electron.fs.mkdir(`${path}/exports`)
 
+          // Determine which tileset to use
+          const tilesetConfig = tileset || {
+            id: 'kim_leaf',
+            file: 'tilesets/kim_leaf.png',
+            sourcePath: 'kim_leaf.png',
+            tileSize: 32,
+            columns: 16,
+            tileCount: 1053,
+          }
+
           // Create project.json
           const projectConfig: ProjectConfig = {
             name,
@@ -303,11 +321,11 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
             },
             tilesets: [
               {
-                id: 'kim_leaf',
-                file: 'tilesets/kim_leaf.png',
-                tileSize: 32,
-                columns: 16,
-                tileCount: 1053,
+                id: tilesetConfig.id,
+                file: tilesetConfig.file,
+                tileSize: tilesetConfig.tileSize,
+                columns: tilesetConfig.columns,
+                tileCount: tilesetConfig.tileCount,
               },
             ],
           }
@@ -317,21 +335,24 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
             JSON.stringify(projectConfig, null, 2)
           )
 
-          // Copy default tileset into project tilesets folder
+          // Copy tileset into project tilesets folder
           try {
             if (window.electron.app?.getPaths) {
               const { appPath, resourcesPath, isPackaged } = await window.electron.app.getPaths()
               const sourcePath = isPackaged
-                ? `${resourcesPath}/tilesets/kim_leaf.png`
-                : `${appPath}/public/tilesets/kim_leaf.png`
-              const targetPath = `${path}/tilesets/kim_leaf.png`
+                ? `${resourcesPath}/tilesets/${tilesetConfig.sourcePath}`
+                : `${appPath}/public/tilesets/${tilesetConfig.sourcePath}`
+              
+              // Extract just the filename for the target
+              const targetFilename = tilesetConfig.file.split('/').pop() || 'tileset.png'
+              const targetPath = `${path}/tilesets/${targetFilename}`
 
               const base64 = await window.electron.fs.readFileBase64(sourcePath)
               await window.electron.fs.writeFileBase64(targetPath, base64)
             }
           } catch (err) {
-            console.warn('Failed to copy default tileset:', err)
-            toast.error('Failed to copy default tileset')
+            console.warn('Failed to copy tileset:', err)
+            toast.error('Failed to copy tileset - you may need to add one manually')
           }
 
           // Create default map

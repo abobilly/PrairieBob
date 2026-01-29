@@ -30,13 +30,82 @@ import {
     ChevronRight,
     FolderOpen,
     Sparkles,
+    Swords,
+    Gamepad2,
+    Grid3X3,
 } from 'lucide-react';
 import { useUIStore, useProjectStore } from '@/stores';
 import { toast } from 'sonner';
 
+// Project template definitions
+type ProjectTemplate = 'topdown-rpg' | 'platformer' | 'blank';
+
+interface TemplateConfig {
+    id: ProjectTemplate;
+    name: string;
+    description: string;
+    icon: React.ReactNode;
+    tileSize: number;
+    mapWidth: number;
+    mapHeight: number;
+    layers: string[];
+    tileset: {
+        id: string;
+        file: string;
+        sourcePath: string; // Path in public/tilesets
+        tileSize: number;
+        columns: number;
+        tileCount: number;
+    } | null;
+}
+
+const PROJECT_TEMPLATES: TemplateConfig[] = [
+    {
+        id: 'topdown-rpg',
+        name: 'Top-Down RPG',
+        description: '16×16 tiles, dungeon crawler style',
+        icon: <Swords className="h-6 w-6" />,
+        tileSize: 16,
+        mapWidth: 24,
+        mapHeight: 18,
+        layers: ['Floor', 'Walls', 'Objects', 'Collision', 'Entities'],
+        tileset: {
+            id: 'kenney_tiny_dungeon',
+            file: 'tilesets/tilemap_packed.png',
+            sourcePath: 'kenney_tiny-dungeon/Tilemap/tilemap_packed.png',
+            tileSize: 16,
+            columns: 12,
+            tileCount: 132,
+        },
+    },
+    {
+        id: 'platformer',
+        name: 'Platformer',
+        description: '64×64 tiles, side-scrolling action',
+        icon: <Gamepad2 className="h-6 w-6" />,
+        tileSize: 64,
+        mapWidth: 40,
+        mapHeight: 12,
+        layers: ['Background', 'Platforms', 'Decorations', 'Hazards', 'Entities'],
+        tileset: null, // Will use kim_leaf for now until platformer is packed
+    },
+    {
+        id: 'blank',
+        name: 'Blank Canvas',
+        description: 'Start from scratch, customize everything',
+        icon: <Grid3X3 className="h-6 w-6" />,
+        tileSize: 32,
+        mapWidth: 20,
+        mapHeight: 15,
+        layers: ['Background', 'Main', 'Foreground', 'Entities'],
+        tileset: null,
+    },
+];
+
 interface ProjectSettings {
     name: string;
     path: string;
+    template: ProjectTemplate;
     tileSize: number;
     mapWidth: number;
     mapHeight: number;
@@ -58,11 +127,15 @@ export function NewProjectWizard() {
     const [settings, setSettings] = useState<ProjectSettings>({
         name: 'My Project',
         path: '',
-        tileSize: 32,
-        mapWidth: 20,
-        mapHeight: 15,
+        template: 'topdown-rpg',
+        tileSize: 16,
+        mapWidth: 24,
+        mapHeight: 18,
         layerPreset: 'standard',
     });
+
+    // Get current template config
+    const currentTemplate = PROJECT_TEMPLATES.find(t => t.id === settings.template) || PROJECT_TEMPLATES[0];
 
     const handleSelectFolder = useCallback(async () => {
         if (!window.electron) {
@@ -73,6 +146,19 @@ export function NewProjectWizard() {
         const result = await window.electron.dialog.openDirectory();
         if (!result.canceled && result.filePath) {
             setSettings(prev => ({ ...prev, path: result.filePath! }));
+        }
+    }, []);
+
+    const handleTemplateSelect = useCallback((templateId: ProjectTemplate) => {
+        const template = PROJECT_TEMPLATES.find(t => t.id === templateId);
+        if (template) {
+            setSettings(prev => ({
+                ...prev,
+                template: templateId,
+                tileSize: template.tileSize,
+                mapWidth: template.mapWidth,
+                mapHeight: template.mapHeight,
+            }));
         }
     }, []);
 
@@ -91,10 +177,11 @@ export function NewProjectWizard() {
             await createNewProject({
                 name: settings.name.trim(),
                 path: settings.path,
-                tileSize: settings.tileSize,
-                mapWidth: settings.mapWidth,
-                mapHeight: settings.mapHeight,
-                layers: LAYER_PRESETS[settings.layerPreset],
+                tileSize: showAdvanced ? settings.tileSize : currentTemplate.tileSize,
+                mapWidth: showAdvanced ? settings.mapWidth : currentTemplate.mapWidth,
+                mapHeight: showAdvanced ? settings.mapHeight : currentTemplate.mapHeight,
+                layers: showAdvanced ? LAYER_PRESETS[settings.layerPreset] : currentTemplate.layers,
+                tileset: currentTemplate.tileset,
             });
             closeNewProjectWizard();
             toast.success(`Created project: ${settings.name}`);
@@ -103,22 +190,49 @@ export function NewProjectWizard() {
         } finally {
             setIsCreating(false);
         }
-    }, [settings, createNewProject, closeNewProjectWizard]);
+    }, [settings, showAdvanced, currentTemplate, createNewProject, closeNewProjectWizard]);
 
     return (
         <Dialog open={showNewProjectWizard} onOpenChange={(open) => !open && closeNewProjectWizard()}>
-            <DialogContent className="sm:max-w-[480px] bg-[#1a1a2e] border-[#2a2a4a] text-white">
+            <DialogContent className="sm:max-w-[560px] bg-[#1a1a2e] border-[#2a2a4a] text-white">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                         <Sparkles className="h-5 w-5 text-[#f97316]" />
                         New Project
                     </DialogTitle>
                     <DialogDescription className="text-gray-400">
-                        Create a new tile map project
+                        Choose a template and create your tile map project
                     </DialogDescription>
                 </DialogHeader>
 
                 <div className="grid gap-4 py-4">
+                    {/* Template Selection */}
+                    <div className="grid gap-2">
+                        <Label>Project Template</Label>
+                        <div className="grid grid-cols-3 gap-2">
+                            {PROJECT_TEMPLATES.map((template) => (
+                                <button
+                                    key={template.id}
+                                    type="button"
+                                    onClick={() => handleTemplateSelect(template.id)}
+                                    className={`p-3 rounded-lg border-2 transition-all text-left ${
+                                        settings.template === template.id
+                                            ? 'border-[#f97316] bg-[#f97316]/10'
+                                            : 'border-[#2a2a4a] bg-[#12121f] hover:border-[#3a3a5a]'
+                                    }`}
+                                >
+                                    <div className={`mb-2 ${settings.template === template.id ? 'text-[#f97316]' : 'text-gray-400'}`}>
+                                        {template.icon}
+                                    </div>
+                                    <div className="font-medium text-sm">{template.name}</div>
+                                    <div className="text-xs text-gray-500 mt-1">{template.description}</div>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <Separator className="bg-[#2a2a4a]" />
+
                     {/* Project Name */}
                     <div className="grid gap-2">
                         <Label htmlFor="name">Project Name</Label>
