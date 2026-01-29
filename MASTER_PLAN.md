@@ -604,6 +604,106 @@ PrairieBob exports must pass `npm run validate:tiled` in kimbar.
 
 ## Open Source Editor Analysis
 
+## Tile-Editor Source Index (LOCAL MIRRORS)
+
+Purpose: catalog the local `Tile-Editor_*` folders and extract reusable patterns, data formats, and UX ideas. Avoid direct code reuse across incompatible stacks/licenses unless explicitly allowed.
+
+### Tile-Editor_LDtk
+
+- **Path:** `Tile-Editor_LDtk/`
+- **Repo:** deepnight/ldtk
+- **License:** MIT
+- **Stack:** Haxe + Electron
+- **Local highlights:**
+  - **Schemas**: `Tile-Editor_LDtk/ldtk-master/docs/JSON_SCHEMA.json` and `Tile-Editor_LDtk/ldtk-master/docs/MINIMAL_JSON_SCHEMA.json` for project+level structure.
+  - **Templates**: `Tile-Editor_LDtk/ldtk-master/app/assets/tpl/` (project settings UI, tileset definition UI).
+  - **Changelog**: `Tile-Editor_LDtk/ldtk-master/docs/CHANGELOG.md` for feature ideas (auto-layers, tile tags, separate level files, backups).
+- **Primary reuse targets:**
+  - Data model inspiration: project/world/level JSON split, external level file option, per-layer PNG export ideas.
+  - UX: rules-based auto-layers, tile tags/custom data per tile, optional rule groups.
+
+### Tile-Editor_Tiled
+
+- **Path:** `Tile-Editor_Tiled/`
+- **Repo:** mapeditor/tiled
+- **License:** GPLv2 for app; libtiled components include BSD/Apache 2.0.
+- **Stack:** C++ / Qt
+- **Local highlights:**
+  - **README:** `Tile-Editor_Tiled/README.md` (format/feature overview).
+- **Primary reuse targets:**
+  - File formats: TMX/TSX as compatibility targets only (no code reuse from GPL app).
+  - UX: object layers, terrain/rule-based painting, world files, scripting extensibility patterns.
+
+### Tile-Editor_OGMO3-CE
+
+- **Path:** `Tile-Editor_OGMO3-CE/`
+- **Repo:** Ogmo Editor 3 CE
+- **License:** MIT
+- **Stack:** Haxe + Electron
+- **Local highlights:**
+  - **README:** `Tile-Editor_OGMO3-CE/README.md` (build/dev notes).
+- **Primary reuse targets:**
+  - Project-based workflow, layer taxonomy (tile/decal/entity/grid), JSON export structure.
+
+### Tile-Editor_YATE
+
+- **Path:** `Tile-Editor_YATE/`
+- **Product:** Yet Another TileSet Editor (YATE)
+- **License:** MIT listed on official site (confirm upstream for any direct code reuse).
+- **Stack:** Flutter/Dart app + CLI pipeline + ImageMagick (per official docs).
+- **Local highlights:**
+  - **Sample project:** `Tile-Editor_YATE/sample-projects/dungeons/dungeons.yate.json` (tileset slices, groups, deterministic output layout, garbage index list).
+  - **Binaries:** `Tile-Editor_YATE/yate.exe` and Flutter runtime files (no source here).
+- **Primary reuse targets:**
+  - Deterministic tileset layout editing, slices/groups/tilegroups, JSON-driven pipeline for reproducible tileset builds.
+
+---
+
+## Extraction & Incorporation Plan (PrairieBob)
+
+### 1) Data Format Harvest
+
+- **LDtk schemas** → define a PrairieBob `ProjectSchema` and `LevelSchema` with:
+  - Optional external level files (per-level JSON) for version control friendliness.
+  - `tileTags` + `tileCustomData` per tile definition.
+- **Tiled TMX/TSX compatibility** → export adapters only (no GPL code reuse):
+  - Keep TMX/TSX as compatibility/export targets for downstream pipelines.
+- **Ogmo JSON model** → align layer types (tile/decal/entity/grid) and project settings.
+- **YATE JSON** → adopt tileset `slices`, `groups`, deterministic `output` positions.
+
+### 2) Tileset Pipeline (YATE + BobTile)
+
+- Use YATE-style **tileset slices/groups/tilegroups** to drive deterministic packing in BobTile.
+- Add **“garbage” tile tracking** (unused tile indices) to optimize output and detect waste.
+- Expose a JSON-driven CLI command in PrairieBob that:
+  1) Parses a YATE-style tileset definition
+  2) Runs BobTile packing
+  3) Writes deterministic atlas + metadata to linked project
+
+### 3) Auto-Layers & Rule Systems (LDtk/Tiled)
+
+- Implement **rule-based auto-layer generation** (terrain/biome rules with optional groups).
+- Provide **preview mode** + “commit” to convert rules into actual tile placements.
+
+### 4) Project Workflow (Ogmo + LDtk)
+
+- “Project first” UX: define layers, tilesets, entities up-front before drawing.
+- Support **separate level files** for large worlds and team collaboration.
+
+### 5) License Boundaries
+
+- **No code reuse** from Tiled app (GPL). Only reimplement ideas & file format compatibility.
+- **Possible code reuse** from LDtk/Ogmo if ported and license-compatible, but prefer clean reimplementation in React.
+
+---
+
+## PrairieBob Harvest Matrix (What to Pull First)
+
+1. **YATE tileset slices/groups + deterministic output** → add to Tileset Editor + BobTile pipeline.
+2. **LDtk tile tags/custom data + optional auto-layer rules** → add to tile properties + auto-tiling.
+3. **Ogmo layer taxonomy + project workflow** → align UI and data model.
+4. **Tiled TMX/TSX export compatibility** → keep downstream tooling intact.
+
 ### Tiled (mapeditor/tiled)
 
 - **License:** GPLv2 for the app, with BSD (libtiled) and Apache 2.0 present for some components
