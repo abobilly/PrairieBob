@@ -17,5 +17,5 @@ release/win-unpacked/
 *.suo
 *.user
 
-# Large reference editor folders
-Tile-Editor_*
+# Local editor references (do not commit large cloned editor repos)
+Tile-Editors_to-be-scrapped/

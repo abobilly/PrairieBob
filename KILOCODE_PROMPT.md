@@ -1,153 +1,125 @@
-# Kilocode Integration Prompt for PrairieBob Tilemap Editor
+# Kilo Code Prompt: Port LDtk to React/TypeScript
 
-## Context
+## Mission
 
-I have assembled reference implementations from **6 major tilemap/sprite editors** in the `Tile-Editor_*` prefixed folders. Your mission: systematically extract the best patterns, algorithms, and architecture from each and incorporate them into **PrairieBob** - our new React/TypeScript tilemap editor.
+**Port LDtk's entire editor to React/TypeScript/Electron**, then add PrairieBob's unique features on top.
 
-## Reference Implementations Available
+LDtk source is in `Tile-Editors_to-be-scrapped/LDtk/` (MIT license, 1063 files, Haxe→JS).
 
-### 1. `Tile-Editor_Tiled/` - Tiled Map Editor (Qt/C++)
-**Steal these:**
-- TMX/JSON format specifications (the industry standard)
-- Terrain/autotile system (Wang tiles, corner/edge matching)
-- Object layer architecture (points, polygons, polylines, text)
-- Infinite map chunking system
-- Custom properties system (per-tile, per-layer, per-object)
-- Tile collision editor
-- Animation frame sequencing
+## Why Port Instead of Build From Scratch
 
-### 2. `Tile-Editor_LDtk/` - LDtk (Haxe)
-**Steal these:**
-- Auto-layer rules engine (the BEST autotile system)
-- Entity/field definitions with typed properties
-- Level hierarchy and world organization
-- IntGrid system for collision/metadata layers
-- Rule-based tile placement patterns
-- Clean JSON schema design
-- Real-time rule preview
+LDtk has:
 
-### 3. `Tile-Editor_YATE/` - YATE (TypeScript/Electron)
-**Steal these:**
-- TypeScript architecture patterns (closest to our stack)
-- Electron app structure (if we go desktop)
-- React component organization
-- State management approach
+- 1150-line App.hx with polished UX
+- Auto-layer rules (THE killer feature for tilemap editors)
+- World/Level/Layer hierarchy
+- Entity system with typed fields
+- Command palette, tool palettes, modals
+- Camera, rendering, invalidation systems
 
-### 4. `Tile-Editor_Ogmo3/` - Ogmo Editor 3 (Haxe)
-**Steal these:**
-- Project/level separation model
-- Entity definition system
-- Grid-based vs freeform placement modes
-- Decal layers for non-grid art
-- Export customization system
+PrairieBob currently has 731 lines in App.tsx that we'll mostly replace.
 
-### 5. `Tile-Editor_Godot/` - Godot Engine (C++/GDScript)
-**Steal these:**
-- TileSet resource architecture
-- Physics/collision shape integration
-- Navigation polygon baking
-- Occlusion culling for 2D
-- Terrain sets (their autotile successor)
-- Tile alternatives/variations system
-- Scene-as-tile embedding
+## PrairieBob Unique Features to Preserve
 
-### 6. `Tile-Editor_Asperite/extracted/` - Aseprite (C++) **NEW**
-**Steal these:**
-- `tilemap/tile.h` - Tile data structure (32-bit with flip flags)
-- `tilemap/tileset.*` - Hash-based tile deduplication
-- `tools/ink_processing.h` - 60KB of pixel manipulation algorithms
-- `rendering/render.cpp` - Compositing/blending engine
-- `document/grid.*` - Snap-to-grid system
-- `algorithms/algo.*` - Bresenham lines, flood fill, polygons
-- `selection/mask_boundaries.*` - Marching ants selection
-- `commands/` - Full undo/redo command pattern
-- `palette/` - Indexed color palette system
+After porting LDtk, integrate these from existing PrairieBob code:
 
----
+1. **Copilot CLI integration** - `src/lib/agent-service.ts`
+2. **Project linking** - `prairiebob.config.json` schema, game folder integration
+3. **Live interaction previews** - Door state toggling with tile/collision updates
+4. **BobTile integration** - `bobtile/tools/BobTileAdapter.ts`
 
-## Integration Priorities
+## Port Order
 
 ### Phase 1: Core Data Model
-1. **Tile format**: Use Aseprite's `tile_t` (32-bit with X/Y/diagonal flip flags)
-2. **Tileset**: Combine Aseprite's hash deduplication + LDtk's rule definitions
-3. **Layer types**: Tiled's layer hierarchy + LDtk's IntGrid + Godot's physics layers
-4. **Project structure**: LDtk's world/level/layer model
 
-### Phase 2: Drawing & Tools
-1. **Pixel algorithms**: Port Aseprite's `algo.cpp` (Bresenham, flood fill)
-2. **Tool system**: Aseprite's tool loop architecture
-3. **Brush shapes**: Aseprite's `point_shapes.h`
-4. **Selection**: Aseprite's mask system with marching ants
+Port these Haxe files to TypeScript in `src/lib/ldtk/`:
 
-### Phase 3: Autotile Intelligence
-1. **Rule engine**: LDtk's auto-layer rules (THE priority feature)
-2. **Terrain matching**: Tiled's Wang tile system as fallback
-3. **Godot terrain sets**: For 3x3 minimal mode
-
-### Phase 4: Entity System
-1. **Entity definitions**: LDtk's typed field system
-2. **Object placement**: Tiled's object layer flexibility
-3. **Prefab support**: Godot's scene-as-tile concept
-
-### Phase 5: Export & Compatibility
-1. **TMX export**: Tiled format for maximum compatibility
-2. **LDtk export**: For projects using LDtk
-3. **Custom JSON**: Our own optimized format
-
----
-
-## Specific Files to Study
-
-```
-# Start with these key files:
-
-# Tile data structure
-Tile-Editor_Asperite/extracted/tilemap/tile.h
-
-# Autotile rules (THE killer feature)
-Tile-Editor_LDtk/src/data/def/AutoLayerRuleDef.hx
-Tile-Editor_LDtk/src/data/def/AutoLayerRuleGroup.hx
-
-# Drawing algorithms
-Tile-Editor_Asperite/extracted/algorithms/algo.cpp
-Tile-Editor_Asperite/extracted/tools/ink_processing.h
-
-# TMX format reference
-Tile-Editor_Tiled/src/libtiled/map.h
-Tile-Editor_Tiled/src/libtiled/tileset.h
-
-# Godot terrain system
-Tile-Editor_Godot/scene/resources/tile_set.h
-Tile-Editor_Godot/editor/plugins/tiles/
-
-# Grid/snap system
-Tile-Editor_Asperite/extracted/document/grid.cpp
+```text
+LDtk/src/electron.renderer/data/Project.hx      → src/lib/ldtk/project.ts
+LDtk/src/electron.renderer/data/World.hx        → src/lib/ldtk/world.ts
+LDtk/src/electron.renderer/data/Level.hx        → src/lib/ldtk/level.ts
+LDtk/src/electron.renderer/data/def/LayerDef.hx → src/lib/ldtk/layer-def.ts
+LDtk/src/electron.renderer/data/def/TilesetDef.hx → src/lib/ldtk/tileset-def.ts
+LDtk/src/electron.renderer/data/def/EntityDef.hx → src/lib/ldtk/entity-def.ts
+LDtk/src/electron.renderer/data/def/FieldDef.hx → src/lib/ldtk/field-def.ts
+LDtk/src/electron.renderer/data/def/AutoLayerRuleDef.hx → src/lib/ldtk/auto-layer-rule.ts
 ```
 
----
+### Phase 2: Rendering System
 
-## Technical Requirements
+Port to React Canvas components:
 
-- **Stack**: React 18+, TypeScript, Zustand/Jotai, Canvas 2D (or WebGL)
-- **No runtime deps** on any reference code (study & rewrite)
-- **GPL compliance**: Aseprite code requires GPL-compatible license if used directly
-- **Performance**: Target 60fps with 1000x1000 tile maps
+```text
+LDtk/src/electron.renderer/display/Camera.hx      → src/lib/ldtk/camera.ts
+LDtk/src/electron.renderer/display/LevelRender.hx → src/components/LevelCanvas.tsx
+LDtk/src/electron.renderer/display/LayerRender.hx → src/components/LayerRenderer.tsx
+```
 
----
+### Phase 3: Tool System
 
-## Your Mission
+Port tool architecture:
 
-Do not rest until you have:
+```text
+LDtk/src/electron.renderer/Tool.hx              → src/lib/ldtk/tool.ts
+LDtk/src/electron.renderer/tool/*               → src/lib/ldtk/tools/
+LDtk/src/electron.renderer/ui/ToolPalette.hx    → src/components/ToolPalette.tsx
+```
 
-1. **Analyzed** the architecture of each reference implementation
-2. **Identified** the 10 most valuable patterns/algorithms across all 6 codebases
-3. **Ported** the core tilemap data model (combining the best of each)
-4. **Implemented** LDtk-style auto-layer rules (this is the flagship feature)
-5. **Built** Aseprite-quality drawing tools
-6. **Created** a unified export system supporting TMX + LDtk + custom JSON
+### Phase 4: UI Components
 
-Start by exploring each `Tile-Editor_*` folder, then propose a concrete implementation plan with specific files to create/modify in PrairieBob.
+Port UI:
 
-**The goal**: A tilemap editor that has LDtk's intelligence, Aseprite's pixel-perfect tools, Tiled's compatibility, and Godot's physics integration - all in a modern React/TypeScript codebase.
+```text
+LDtk/src/electron.renderer/ui/CommandPalette.hx → src/components/CommandPalette.tsx
+LDtk/src/electron.renderer/ui/EntityInstanceEditor.hx → src/components/EntityEditor.tsx
+LDtk/src/electron.renderer/ui/RulePatternEditor.hx → src/components/RulePatternEditor.tsx
+LDtk/src/electron.renderer/ui/Tileset.hx        → src/components/TilesetPanel.tsx (replace existing)
+```
 
-Go.
+### Phase 5: Main App
+
+Replace App.tsx with LDtk's structure:
+
+```text
+LDtk/src/electron.renderer/App.hx → src/App.tsx (rewrite)
+```
+
+## Key Haxe→TypeScript Patterns
+
+| Haxe | TypeScript |
+|------|------------|
+| `var x:Int` | `x: number` |
+| `var x:Float` | `x: number` |
+| `var x:Bool` | `x: boolean` |
+| `var x:String` | `x: string` |
+| `Array<T>` | `T[]` |
+| `Map<K,V>` | `Map<K,V>` |
+| `Null<T>` | `T \| null` |
+| `inline function` | Regular function (TS will inline) |
+| `@:allow(pkg)` | Remove (no access control) |
+| `js.jquery.JQuery` | Use React refs instead |
+| `h2d.*` (Heaps) | Canvas 2D API |
+
+## Start Here
+
+Read these files first to understand LDtk's architecture:
+
+1. `Tile-Editors_to-be-scrapped/LDtk/src/electron.renderer/App.hx` (1150 lines)
+2. `Tile-Editors_to-be-scrapped/LDtk/src/electron.renderer/data/def/AutoLayerRuleDef.hx` (464 lines)
+3. `Tile-Editors_to-be-scrapped/LDtk/src/electron.renderer/display/LevelRender.hx` (820 lines)
+4. `Tile-Editors_to-be-scrapped/LDtk/src/electron.renderer/Tool.hx` (373 lines)
+
+Then begin porting Phase 1.
+
+## Preserve From PrairieBob
+
+After each phase, ensure these still work:
+
+- `npm run dev` launches Electron app
+- Agent panel loads (`src/components/AgentPanel.tsx`)
+- Project config loads (`prairiebob.config.json`)
+
+## Output
+
+Create a new `src/lib/ldtk/` directory for ported data model.
+Replace components one-by-one, keeping the app functional.
