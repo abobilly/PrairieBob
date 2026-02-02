@@ -19,3 +19,4 @@ release/win-unpacked/
 
 # Local editor references (do not commit large cloned editor repos)
 Tile-Editors_to-be-scrapped/
+build-output/

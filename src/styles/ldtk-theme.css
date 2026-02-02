@@ -1,0 +1,553 @@
+/**
+ * LDtk/Tiled-inspired theme for PrairieBob
+ * 
+ * Design principles stolen from:
+ * - LDtk: Deep dark background (#1a1a2e), cyan accents (#00d9ff), clean minimal UI
+ * - Tiled: Functional density, subtle borders, icon-forward design
+ * - Aseprite: Compact toolbars, high contrast for pixel work
+ */
+
+:root {
+    /* LDtk-style dark palette */
+    --pb-bg-deep: #0f0f17;
+    /* Deepest background (canvas area) */
+    --pb-bg-panel: #16161f;
+    /* Panel backgrounds */
+    --pb-bg-header: #1c1c28;
+    /* Panel headers, toolbar */
+    --pb-bg-hover: #252535;
+    /* Hover states */
+    --pb-bg-active: #2a2a3d;
+    /* Active/selected states */
+    --pb-bg-input: #1a1a26;
+    /* Input fields */
+
+    /* Borders - subtle, not distracting */
+    --pb-border: #2a2a3d;
+    --pb-border-subtle: #222230;
+    --pb-border-focus: #00b4d8;
+
+    /* Text hierarchy */
+    --pb-text-primary: #e8e8f0;
+    --pb-text-secondary: #8888a0;
+    --pb-text-muted: #5a5a70;
+    --pb-text-accent: #00d9ff;
+
+    /* Accent colors (LDtk cyan) */
+    --pb-accent: #00d9ff;
+    --pb-accent-dim: #0099b8;
+    --pb-accent-glow: rgba(0, 217, 255, 0.15);
+
+    /* Secondary accent (purple for layers/entities) */
+    --pb-purple: #a855f7;
+    --pb-purple-dim: #7c3aed;
+
+    /* Status colors */
+    --pb-success: #22c55e;
+    --pb-warning: #f59e0b;
+    --pb-error: #ef4444;
+
+    /* Tile editor specific */
+    --pb-grid-line: rgba(255, 255, 255, 0.06);
+    --pb-grid-line-major: rgba(255, 255, 255, 0.12);
+    --pb-selection: rgba(0, 217, 255, 0.3);
+    --pb-selection-border: #00d9ff;
+}
+
+/* ===== Global App Container ===== */
+.pb-app {
+    background: var(--pb-bg-deep);
+    color: var(--pb-text-primary);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+/* ===== Toolbar (LDtk-style top bar) ===== */
+.pb-toolbar {
+    background: var(--pb-bg-header);
+    border-bottom: 1px solid var(--pb-border);
+    padding: 6px 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 44px;
+}
+
+.pb-toolbar-brand {
+    font-weight: 700;
+    font-size: 15px;
+    color: var(--pb-accent);
+    letter-spacing: -0.5px;
+    padding-right: 12px;
+    border-right: 1px solid var(--pb-border);
+    margin-right: 4px;
+}
+
+.pb-toolbar-divider {
+    width: 1px;
+    height: 24px;
+    background: var(--pb-border);
+    margin: 0 4px;
+}
+
+.pb-toolbar-group {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.pb-tool-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 4px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--pb-text-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.1s ease;
+}
+
+.pb-tool-btn:hover {
+    background: var(--pb-bg-hover);
+    color: var(--pb-text-primary);
+}
+
+.pb-tool-btn.active {
+    background: var(--pb-accent-glow);
+    border-color: var(--pb-accent);
+    color: var(--pb-accent);
+}
+
+.pb-tool-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
+/* ===== Panel System ===== */
+.pb-panel {
+    background: var(--pb-bg-panel);
+    display: flex;
+    flex-direction: column;
+}
+
+.pb-panel-header {
+    background: var(--pb-bg-header);
+    border-bottom: 1px solid var(--pb-border);
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 36px;
+}
+
+.pb-panel-title {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--pb-text-secondary);
+}
+
+.pb-panel-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.pb-panel-btn {
+    width: 24px;
+    height: 24px;
+    border-radius: 3px;
+    border: none;
+    background: transparent;
+    color: var(--pb-text-muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.1s ease;
+}
+
+.pb-panel-btn:hover {
+    background: var(--pb-bg-hover);
+    color: var(--pb-text-primary);
+}
+
+.pb-panel-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+}
+
+/* Scrollbar styling (LDtk-style thin scrollbars) */
+.pb-panel-content::-webkit-scrollbar {
+    width: 6px;
+}
+
+.pb-panel-content::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.pb-panel-content::-webkit-scrollbar-thumb {
+    background: var(--pb-border);
+    border-radius: 3px;
+}
+
+.pb-panel-content::-webkit-scrollbar-thumb:hover {
+    background: var(--pb-text-muted);
+}
+
+/* ===== Collapsed Panel Toggle ===== */
+.pb-panel-toggle {
+    width: 28px;
+    background: var(--pb-bg-panel);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.1s ease;
+}
+
+.pb-panel-toggle:hover {
+    background: var(--pb-bg-hover);
+}
+
+.pb-panel-toggle-bottom {
+    height: 28px;
+    width: 100%;
+    gap: 8px;
+}
+
+/* ===== Section Headers (inside panels) ===== */
+.pb-section {
+    margin-bottom: 12px;
+}
+
+.pb-section-header {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--pb-text-muted);
+    margin-bottom: 8px;
+    padding: 0 4px;
+}
+
+/* ===== Layer List (LDtk-style) ===== */
+.pb-layer-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.1s ease;
+    border: 1px solid transparent;
+}
+
+.pb-layer-item:hover {
+    background: var(--pb-bg-hover);
+}
+
+.pb-layer-item.active {
+    background: var(--pb-bg-active);
+    border-color: var(--pb-border);
+}
+
+.pb-layer-item.active .pb-layer-name {
+    color: var(--pb-accent);
+}
+
+.pb-layer-icon {
+    width: 20px;
+    height: 20px;
+    border-radius: 3px;
+    background: var(--pb-purple-dim);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    color: white;
+    flex-shrink: 0;
+}
+
+.pb-layer-icon.tiles {
+    background: #3b82f6;
+}
+
+.pb-layer-icon.objects {
+    background: #a855f7;
+}
+
+.pb-layer-icon.intgrid {
+    background: #22c55e;
+}
+
+.pb-layer-name {
+    flex: 1;
+    font-size: 12px;
+    color: var(--pb-text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.pb-layer-actions {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    opacity: 0.6;
+}
+
+.pb-layer-item:hover .pb-layer-actions {
+    opacity: 1;
+}
+
+.pb-layer-action-btn {
+    width: 22px;
+    height: 22px;
+    border-radius: 3px;
+    border: none;
+    background: transparent;
+    color: var(--pb-text-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.pb-layer-action-btn:hover {
+    background: var(--pb-bg-hover);
+    color: var(--pb-text-primary);
+}
+
+.pb-layer-action-btn.hidden {
+    color: var(--pb-text-muted);
+}
+
+/* ===== Tileset Grid ===== */
+.pb-tileset-grid {
+    background: var(--pb-bg-input);
+    border: 1px solid var(--pb-border);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.pb-tileset-canvas {
+    display: block;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+}
+
+/* ===== Tabs (for tileset switching) ===== */
+.pb-tabs {
+    display: flex;
+    gap: 2px;
+    padding: 4px;
+    background: var(--pb-bg-input);
+    border-radius: 4px;
+    margin-bottom: 8px;
+}
+
+.pb-tab {
+    flex: 1;
+    padding: 6px 8px;
+    border-radius: 3px;
+    border: none;
+    background: transparent;
+    color: var(--pb-text-secondary);
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.1s ease;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.pb-tab:hover {
+    background: var(--pb-bg-hover);
+    color: var(--pb-text-primary);
+}
+
+.pb-tab.active {
+    background: var(--pb-bg-active);
+    color: var(--pb-accent);
+}
+
+/* ===== Input Fields ===== */
+.pb-input {
+    width: 100%;
+    padding: 6px 10px;
+    border-radius: 4px;
+    border: 1px solid var(--pb-border);
+    background: var(--pb-bg-input);
+    color: var(--pb-text-primary);
+    font-size: 12px;
+    outline: none;
+    transition: border-color 0.1s ease;
+}
+
+.pb-input:focus {
+    border-color: var(--pb-border-focus);
+}
+
+.pb-input::placeholder {
+    color: var(--pb-text-muted);
+}
+
+/* ===== Buttons ===== */
+.pb-btn {
+    padding: 6px 12px;
+    border-radius: 4px;
+    border: 1px solid var(--pb-border);
+    background: var(--pb-bg-hover);
+    color: var(--pb-text-primary);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.1s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.pb-btn:hover {
+    background: var(--pb-bg-active);
+    border-color: var(--pb-text-muted);
+}
+
+.pb-btn-primary {
+    background: var(--pb-accent);
+    border-color: var(--pb-accent);
+    color: #000;
+}
+
+.pb-btn-primary:hover {
+    background: var(--pb-accent-dim);
+    border-color: var(--pb-accent-dim);
+}
+
+.pb-btn-icon {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+}
+
+/* ===== Status Bar ===== */
+.pb-statusbar {
+    background: var(--pb-bg-header);
+    border-top: 1px solid var(--pb-border);
+    padding: 4px 12px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    font-size: 11px;
+    color: var(--pb-text-secondary);
+    height: 28px;
+}
+
+.pb-statusbar-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.pb-statusbar-accent {
+    color: var(--pb-accent);
+    font-weight: 600;
+}
+
+.pb-statusbar-right {
+    margin-left: auto;
+}
+
+.pb-statusbar-unsaved {
+    color: var(--pb-warning);
+}
+
+/* ===== Canvas Area ===== */
+.pb-canvas-area {
+    background: var(--pb-bg-deep);
+    background-image:
+        linear-gradient(45deg, #0d0d14 25%, transparent 25%),
+        linear-gradient(-45deg, #0d0d14 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #0d0d14 75%),
+        linear-gradient(-45deg, transparent 75%, #0d0d14 75%);
+    background-size: 20px 20px;
+    background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+}
+
+/* ===== Slider (zoom controls) ===== */
+.pb-slider {
+    height: 4px;
+    background: var(--pb-bg-input);
+    border-radius: 2px;
+    position: relative;
+}
+
+.pb-slider-track {
+    height: 100%;
+    background: var(--pb-accent-dim);
+    border-radius: 2px;
+}
+
+.pb-slider-thumb {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--pb-accent);
+    border: 2px solid var(--pb-bg-panel);
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    cursor: pointer;
+}
+
+/* ===== Tooltips ===== */
+.pb-tooltip {
+    background: var(--pb-bg-active);
+    border: 1px solid var(--pb-border);
+    border-radius: 4px;
+    padding: 6px 10px;
+    font-size: 11px;
+    color: var(--pb-text-primary);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.pb-tooltip-shortcut {
+    color: var(--pb-text-muted);
+    margin-left: 8px;
+}
+
+/* ===== Agent Panel (terminal-style) ===== */
+.pb-agent-panel {
+    background: var(--pb-bg-deep);
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 12px;
+}
+
+.pb-agent-output {
+    padding: 8px 12px;
+    white-space: pre-wrap;
+    color: var(--pb-text-secondary);
+}
+
+.pb-agent-prompt {
+    color: var(--pb-accent);
+}
+
+.pb-agent-input {
+    background: transparent;
+    border: none;
+    color: var(--pb-text-primary);
+    font-family: inherit;
+    font-size: inherit;
+    outline: none;
+    width: 100%;
+}

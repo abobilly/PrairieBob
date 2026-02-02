@@ -1,9 +1,13 @@
-import { Tool } from './tool'
+import { Tool, ToolContext } from './tool'
 
 export class PanTool extends Tool {
     private dragging = false
     private lastX = 0
     private lastY = 0
+
+    constructor(context: ToolContext) {
+        super(context)
+    }
 
     onMouseDown(e: MouseEvent): void {
         this.dragging = e.button === 0 || e.button === 1 || e.button === 2

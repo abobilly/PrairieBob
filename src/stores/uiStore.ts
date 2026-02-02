@@ -22,10 +22,11 @@ interface RecentProject {
 }
 
 interface UIState {
-  // Panel configuration (for react-resizable-panels)
+  // Panel configuration - simple collapsed state
   panels: {
     left: PanelConfig    // Tileset panel
     right: PanelConfig   // Layer/Properties panel
+    bottom: PanelConfig  // Agent panel
   }
 
   // Tileset panel zoom (1-4x tile display size)
@@ -51,9 +52,9 @@ interface UIState {
 
 interface UIActions {
   // Panel actions
-  setPanelSize: (panel: 'left' | 'right', size: number) => void
-  setPanelCollapsed: (panel: 'left' | 'right', collapsed: boolean) => void
-  togglePanelCollapsed: (panel: 'left' | 'right') => void
+  setPanelSize: (panel: 'left' | 'right' | 'bottom', size: number) => void
+  setPanelCollapsed: (panel: 'left' | 'right' | 'bottom', collapsed: boolean) => void
+  togglePanelCollapsed: (panel: 'left' | 'right' | 'bottom') => void
 
   // Tileset zoom
   setTilesetZoom: (zoom: number) => void
@@ -84,16 +85,22 @@ const PERSIST_KEY = 'prairiebob-ui-v2'
 
 const DEFAULT_PANELS: UIState['panels'] = {
   left: {
-    size: 20,
+    size: 280,
     collapsed: false,
-    minSize: 15,
-    maxSize: 40,
+    minSize: 200,
+    maxSize: 400,
   },
   right: {
-    size: 20,
+    size: 280,
     collapsed: false,
-    minSize: 15,
-    maxSize: 35,
+    minSize: 200,
+    maxSize: 400,
+  },
+  bottom: {
+    size: 250,
+    collapsed: false,
+    minSize: 150,
+    maxSize: 500,
   },
 }
 
@@ -119,6 +126,7 @@ function sanitizePanels(value: unknown, fallback: UIState['panels']): UIState['p
   return {
     left: sanitizePanelConfig(v.left, fallback.left),
     right: sanitizePanelConfig(v.right, fallback.right),
+    bottom: sanitizePanelConfig(v.bottom, fallback.bottom),
   }
 }
 
@@ -129,16 +137,22 @@ export const useUIStore = create<UIState & UIActions>()(
         // Initial state
         panels: {
           left: {
-            size: 20,        // 20% of container
+            size: 280,       // pixels
             collapsed: false,
-            minSize: 15,
-            maxSize: 40,
+            minSize: 200,
+            maxSize: 400,
           },
           right: {
-            size: 20,        // 20% of container
+            size: 280,       // pixels
             collapsed: false,
-            minSize: 15,
-            maxSize: 35,
+            minSize: 200,
+            maxSize: 400,
+          },
+          bottom: {
+            size: 250,       // pixels
+            collapsed: false,
+            minSize: 150,
+            maxSize: 500,
           },
         },
         tilesetZoom: 2,      // 2x default (good for 32px tiles)
@@ -255,6 +269,7 @@ export const useUIStore = create<UIState & UIActions>()(
 // Selectors
 export const useLeftPanel = () => useUIStore((s) => s.panels.left)
 export const useRightPanel = () => useUIStore((s) => s.panels.right)
+export const useBottomPanel = () => useUIStore((s) => s.panels.bottom)
 export const useTilesetZoom = () => useUIStore((s) => s.tilesetZoom)
 export const useTheme = () => useUIStore((s) => s.theme)
 export const useImportDialog = () => useUIStore((s) => ({

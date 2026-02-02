@@ -1,6 +1,10 @@
-import { Tool } from './tool'
+import { Tool, ToolContext } from './tool'
 
 export class PickTool extends Tool {
+    constructor(context: ToolContext) {
+        super(context)
+    }
+
     onMouseDown(e: MouseEvent): void {
         if (e.button !== 0) return
         const layer = this.context.getActiveLayer?.()
@@ -18,9 +22,7 @@ export class PickTool extends Tool {
 
         if (layer.type === 'tilelayer' && layer.data) {
             const tileId = layer.data[index]
-            if (tileId && tileId > 0) {
-                this.context.onPickTile?.(tileId)
-            }
+            this.context.onPickTile?.(tileId)
         } else if (layer.type === 'intgrid' && layer.intGrid) {
             const value = layer.intGrid[index] ?? 0
             this.context.onPickIntGrid?.(value)

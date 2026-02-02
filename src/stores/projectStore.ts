@@ -259,6 +259,10 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
             canRedo: false,
           })
 
+          console.log('[projectStore] Project loaded:', config.name)
+          console.log('[projectStore] Tilesets loaded:', loadedTilesets.length)
+          console.log('[projectStore] MapData:', mapData?.id)
+
           // Track in recent projects
           const { addRecentProject, closeProjectSelector } = await import('./uiStore').then(m => m.useUIStore.getState())
           addRecentProject(projectPath, config.name)
@@ -273,9 +277,12 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
 
       // Load the sample project
       loadSampleProject: async () => {
+        console.log('[projectStore] loadSampleProject called')
         const samplePath = await resolveSampleProjectPath()
+        console.log('[projectStore] samplePath:', samplePath)
         if (window.electron) {
           const exists = await window.electron.fs.exists(samplePath)
+          console.log('[projectStore] samplePath exists:', exists)
           if (!exists) {
             toast.error(`Sample project not found at: ${samplePath}`)
             return

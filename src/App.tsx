@@ -8,8 +8,8 @@
  * - YATE: Tileset organization
  */
 
-import { useEffect, useCallback } from 'react'
-import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from 'react-resizable-panels'
+import { useEffect, useCallback, useState } from 'react'
+import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, PanelBottomClose, PanelBottomOpen } from 'lucide-react'
 import { EntityType, EntityData } from '@/lib/types'
 import { resolveTileId } from '@/lib/tileset'
 import { Toolbar } from '@/components/Toolbar'
@@ -24,6 +24,8 @@ import { ProjectSelector } from '@/components/ProjectSelector'
 import { NewProjectWizard } from '@/components/NewProjectWizard'
 import { getFileSystemAdapter } from '@/lib/fs-adapter'
 import { Toaster, toast } from 'sonner'
+import { NotificationContainer } from '@/components/Notification'
+import { DialogContainer } from '@/components/Dialog'
 
 // Zustand stores
 import {
@@ -118,33 +120,16 @@ function App() {
     showNewProjectWizard,
     openImportDialog,
     closeImportDialog,
-    setPanelSize,
+    togglePanelCollapsed,
     setTilesetZoom,
   } = useUIStore()
 
   const fsAdapter = getFileSystemAdapter()
 
-  // Defensive: persisted UI state may contain older/corrupted values (e.g. null/object)
-  // react-resizable-panels expects size constraints to be number|string.
-  const leftPanelSize = typeof (panels as any)?.left?.size === 'number' && Number.isFinite((panels as any).left.size)
-    ? (panels as any).left.size
-    : 20
-  const leftPanelMinSize = typeof (panels as any)?.left?.minSize === 'number' && Number.isFinite((panels as any).left.minSize)
-    ? (panels as any).left.minSize
-    : 15
-  const leftPanelMaxSize = typeof (panels as any)?.left?.maxSize === 'number' && Number.isFinite((panels as any).left.maxSize)
-    ? (panels as any).left.maxSize
-    : 40
-
-  const rightPanelSize = typeof (panels as any)?.right?.size === 'number' && Number.isFinite((panels as any).right.size)
-    ? (panels as any).right.size
-    : 20
-  const rightPanelMinSize = typeof (panels as any)?.right?.minSize === 'number' && Number.isFinite((panels as any).right.minSize)
-    ? (panels as any).right.minSize
-    : 15
-  const rightPanelMaxSize = typeof (panels as any)?.right?.maxSize === 'number' && Number.isFinite((panels as any).right.maxSize)
-    ? (panels as any).right.maxSize
-    : 35
+  // Panel visibility from store
+  const leftPanelOpen = !panels.left.collapsed
+  const rightPanelOpen = !panels.right.collapsed
+  const bottomPanelOpen = !panels.bottom.collapsed
 
   // ============== Initialize ==============
   useEffect(() => {
@@ -302,8 +287,9 @@ function App() {
         e.preventDefault()
         setSpaceHeld(true)
         // Temporarily switch to pan mode (Tiled/Photoshop style)
-        if (currentTool !== 'select') {
+        if (currentTool !== 'pan') {
           setPreviousTool(currentTool)
+          setTool('pan')
         }
       }
       if (e.key === 'Shift') setShiftHeld(true)
@@ -432,6 +418,9 @@ function App() {
           break
         case 'g':
           toggleGrid()
+          break
+        case 'p':
+          setTool('pan')
           break
         case 'escape':
           // Clear selection (stolen from Photoshop/Tiled)
@@ -563,9 +552,14 @@ function App() {
     )
   }
 
+  // Debug: log that we're rendering the main UI
+  console.log('[App] Rendering main UI - mapData:', mapData?.id, 'layers:', mapData?.layers?.length, 'tilesets:', tilesets.length)
+
   return (
-    <div className="h-screen flex flex-col bg-background text-foreground">
-      <Toaster position="top-right" />
+    <div className="pb-app h-screen w-screen overflow-hidden flex flex-col">
+      <Toaster position="top-right" theme="dark" />
+      <NotificationContainer />
+      <DialogContainer />
 
       {/* Tileset Import Dialog */}
       <TilesetImportDialog
@@ -577,7 +571,7 @@ function App() {
 
       {/* Toolbar */}
       <Toolbar
-        currentTool={spaceHeld ? 'select' : currentTool}
+        currentTool={currentTool}
         onToolChange={setTool}
         gridVisible={gridVisible}
         onGridToggle={toggleGrid}
@@ -593,20 +587,25 @@ function App() {
         onSave={handleSave}
       />
 
-      {/* Main Content - Resizable Panels (Tiled-style) */}
-      <PanelGroup orientation="vertical" className="flex-1">
-        <Panel defaultSize={75} minSize={40}>
-          <PanelGroup orientation="horizontal" className="h-full">
-            {/* Left Panel - Tilesets */}
-            <Panel
-              defaultSize={leftPanelSize}
-              minSize={leftPanelMinSize}
-              maxSize={leftPanelMaxSize}
-              collapsible
-              onResize={(size) => setPanelSize('left', size.asPercentage)}
-              className="bg-card"
-            >
-              <div className="h-full overflow-y-auto p-4">
+      {/* Main Content - LDtk-style Panels */}
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+        {/* Top section: left panel + canvas + right panel */}
+        <div className="flex-1 flex min-h-0 overflow-hidden">
+
+          {/* Left Panel - Tilesets */}
+          {leftPanelOpen && (
+            <div className="w-72 pb-panel border-r border-[var(--pb-border)] flex flex-col shrink-0">
+              <div className="pb-panel-header">
+                <span className="pb-panel-title">Tilesets</span>
+                <button
+                  onClick={() => togglePanelCollapsed('left')}
+                  className="pb-panel-btn"
+                  title="Close Tileset Panel"
+                >
+                  <PanelLeftClose className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="pb-panel-content">
                 <TilesetPanel
                   tilesets={tilesets}
                   activeTilesetId={activeTilesetId}
@@ -622,54 +621,75 @@ function App() {
                 />
                 <EntityPalette onEntityTypeSelect={handleEntityTypeSelect} />
               </div>
-            </Panel>
+            </div>
+          )}
 
-            {/* Resize Handle */}
-            <PanelResizeHandle className="panel-resize-handle" />
-
-            {/* Center Panel - Canvas */}
-            <Panel className="bg-background">
-              <MapCanvas
-                mapData={mapData}
-                tilesets={tilesets}
-                currentTool={spaceHeld ? 'select' : currentTool}
-                selectedTileId={selectedTileId}
-                stamp={stamp}
-                activeLayerIndex={activeLayerIndex}
-                zoom={zoom}
-                panX={panX}
-                panY={panY}
-                gridVisible={gridVisible}
-                selectedEntityId={selectedEntityId}
-                onPanChange={setPan}
-                onZoomChange={setZoom}
-                onZoomToPoint={zoomToPoint}
-                onPaint={handlePaint}
-                onBatchPaint={handleBatchPaint}
-                onFill={fillArea}
-                onEntityPlace={handleEntityPlace}
-                onEntitySelect={setSelectedEntityId}
-                onEntityMove={moveEntity}
-                onTileSelect={handleTileSelect}
-                onCursorTileChange={setCursorTile}
-                selection={selection}
-                onSelectionChange={setSelection}
-              />
-            </Panel>
-
-            {/* Resize Handle */}
-            <PanelResizeHandle className="panel-resize-handle" />
-
-            {/* Right Panel - Layers & Properties */}
-            <Panel
-              defaultSize={rightPanelSize}
-              minSize={rightPanelMinSize}
-              maxSize={rightPanelMaxSize}
-              collapsible
-              onResize={(size) => setPanelSize('right', size.asPercentage)}
-              className="bg-card"
+          {/* Left panel toggle when collapsed */}
+          {!leftPanelOpen && (
+            <button
+              onClick={() => togglePanelCollapsed('left')}
+              className="pb-panel-toggle border-r border-[var(--pb-border)]"
+              title="Open Tileset Panel"
             >
-              <div className="h-full overflow-y-auto p-4 space-y-4">
+              <PanelLeftOpen className="w-4 h-4 text-[var(--pb-text-muted)]" />
+            </button>
+          )}
+
+          {/* Center Panel - Canvas */}
+          <div className="flex-1 pb-canvas-area min-w-0 overflow-hidden">
+            <MapCanvas
+              mapData={mapData}
+              tilesets={tilesets}
+              currentTool={currentTool}
+              selectedTileId={selectedTileId}
+              stamp={stamp}
+              activeLayerIndex={activeLayerIndex}
+              zoom={zoom}
+              panX={panX}
+              panY={panY}
+              gridVisible={gridVisible}
+              selectedEntityId={selectedEntityId}
+              onPanChange={setPan}
+              onZoomChange={setZoom}
+              onZoomToPoint={zoomToPoint}
+              onPaint={handlePaint}
+              onBatchPaint={handleBatchPaint}
+              onFill={fillArea}
+              onEntityPlace={handleEntityPlace}
+              onEntitySelect={setSelectedEntityId}
+              onEntityMove={moveEntity}
+              onTileSelect={handleTileSelect}
+              onCursorTileChange={setCursorTile}
+              selection={selection}
+              onSelectionChange={setSelection}
+            />
+          </div>
+
+          {/* Right panel toggle when collapsed */}
+          {!rightPanelOpen && (
+            <button
+              onClick={() => togglePanelCollapsed('right')}
+              className="pb-panel-toggle border-l border-[var(--pb-border)]"
+              title="Open Layers Panel"
+            >
+              <PanelRightOpen className="w-4 h-4 text-[var(--pb-text-muted)]" />
+            </button>
+          )}
+
+          {/* Right Panel - Layers & Properties */}
+          {rightPanelOpen && (
+            <div className="w-72 pb-panel border-l border-[var(--pb-border)] flex flex-col shrink-0">
+              <div className="pb-panel-header">
+                <span className="pb-panel-title">Layers</span>
+                <button
+                  onClick={() => togglePanelCollapsed('right')}
+                  className="pb-panel-btn"
+                  title="Close Layers Panel"
+                >
+                  <PanelRightClose className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="pb-panel-content space-y-4">
                 <LayerPanel
                   layers={mapData.layers}
                   activeLayerIndex={activeLayerIndex}
@@ -691,32 +711,68 @@ function App() {
                   }}
                 />
               </div>
-            </Panel>
-          </PanelGroup>
-        </Panel>
+            </div>
+          )}
+        </div>
 
-        {/* Resize Handle - Vertical */}
-        <PanelResizeHandle className="panel-resize-handle-horizontal" />
+        {/* Bottom panel toggle when collapsed */}
+        {!bottomPanelOpen && (
+          <button
+            onClick={() => togglePanelCollapsed('bottom')}
+            className="pb-panel-toggle pb-panel-toggle-bottom border-t border-[var(--pb-border)]"
+            title="Open Agent Panel"
+          >
+            <PanelBottomOpen className="w-4 h-4 text-[var(--pb-text-muted)]" />
+            <span className="text-xs text-[var(--pb-text-muted)]">Agent</span>
+          </button>
+        )}
 
         {/* Bottom Panel - Agent/Terminal */}
-        <Panel defaultSize={25} minSize={15} maxSize={50} collapsible className="bg-card">
-          <AgentPanel />
-        </Panel>
-      </PanelGroup>
+        {bottomPanelOpen && (
+          <div className="h-64 pb-panel border-t border-[var(--pb-border)] flex flex-col shrink-0">
+            <div className="pb-panel-header">
+              <span className="pb-panel-title">Agent</span>
+              <button
+                onClick={() => togglePanelCollapsed('bottom')}
+                className="pb-panel-btn"
+                title="Close Agent Panel"
+              >
+                <PanelBottomClose className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-hidden pb-agent-panel">
+              <AgentPanel />
+            </div>
+          </div>
+        )}
+      </div>
 
-      {/* Status Bar */}
-      <div className="px-4 py-2 bg-primary border-t border-border flex gap-4 text-sm font-mono">
-        {projectName && <span className="text-accent font-semibold">{projectName}</span>}
-        <span>Tool: {spaceHeld ? 'pan (space)' : currentTool}</span>
-        <span>Layer: {mapData.layers[activeLayerIndex]?.name}</span>
-        <span>Zoom: {Math.round(zoom * 100)}%</span>
-        <span>Tile: {selectedTileId}</span>
+      {/* Status Bar (LDtk-style) */}
+      <div className="pb-statusbar">
+        {projectName && <span className="pb-statusbar-accent">{projectName}</span>}
+        <span className="pb-statusbar-item">
+          <span className="text-[var(--pb-text-muted)]">Tool:</span> {currentTool}
+        </span>
+        <span className="pb-statusbar-item">
+          <span className="text-[var(--pb-text-muted)]">Layer:</span> {mapData.layers[activeLayerIndex]?.name}
+        </span>
+        <span className="pb-statusbar-item">
+          <span className="text-[var(--pb-text-muted)]">Zoom:</span> {Math.round(zoom * 100)}%
+        </span>
+        <span className="pb-statusbar-item">
+          <span className="text-[var(--pb-text-muted)]">Tile:</span> {selectedTileId}
+        </span>
         {stamp.width > 1 || stamp.height > 1 ? (
-          <span>Stamp: {stamp.width}×{stamp.height}</span>
+          <span className="pb-statusbar-item">
+            <span className="text-[var(--pb-text-muted)]">Stamp:</span> {stamp.width}×{stamp.height}
+          </span>
         ) : null}
-        <span>Tilesets: {tilesets.filter(ts => ts.status === 'ready').length}</span>
-        <span className="ml-auto">
-          {hasUnsavedChanges ? '● Unsaved' : 'Saved'}
+        <span className="pb-statusbar-right">
+          {hasUnsavedChanges ? (
+            <span className="pb-statusbar-unsaved">● Unsaved</span>
+          ) : (
+            <span className="text-[var(--pb-success)]">✓ Saved</span>
+          )}
         </span>
       </div>
 

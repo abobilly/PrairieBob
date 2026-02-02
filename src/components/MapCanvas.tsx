@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { LevelData, Tool, EntityData, LoadedTileset, TileStamp, TileSelection } from '@/lib/types'
+import { PanTool, PickTool, ToolContext, ToolLayer } from '@/lib/ldtk'
 import { resolveTileId } from '@/lib/tileset'
 import { toast } from 'sonner'
 
@@ -59,7 +60,8 @@ export function MapCanvas({
 }: MapCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [isPanning, setIsPanning] = useState(false)
-  const [lastMousePos, setLastMousePos] = useState({ x: 0, y: 0 })
+  const [activePanTool, setActivePanTool] = useState<PanTool | null>(null)
+  const [activePickTool, setActivePickTool] = useState<PickTool | null>(null)
   const [isPainting, setIsPainting] = useState(false)
   const [cursorPos, setCursorPos] = useState<{ x: number; y: number } | null>(null)
   const [isDraggingEntity, setIsDraggingEntity] = useState(false)
@@ -73,6 +75,88 @@ export function MapCanvas({
   const [selectionEnd, setSelectionEnd] = useState<{ x: number; y: number } | null>(null)
 
   const tileSize = Math.max(1, Math.round(mapData.tileSize))
+
+  const screenToWorld = useCallback((screenX: number, screenY: number) => {
+    const canvas = canvasRef.current
+    if (!canvas) return { x: 0, y: 0 }
+
+    const rect = canvas.getBoundingClientRect()
+    return {
+      x: (screenX - rect.left - panX) / zoom,
+      y: (screenY - rect.top - panY) / zoom,
+    }
+  }, [panX, panY, zoom])
+
+  const worldToTile = useCallback((worldX: number, worldY: number) => {
+    return {
+      x: Math.floor(worldX / tileSize),
+      y: Math.floor(worldY / tileSize),
+    }
+  }, [tileSize])
+
+  const getActiveLayer = useCallback((): ToolLayer | null => {
+    const layer = mapData.layers[activeLayerIndex]
+    if (!layer) return null
+    if (layer.type === 'tilelayer') {
+      return {
+        type: 'tilelayer',
+        width: mapData.width,
+        height: mapData.height,
+        data: layer.data ?? [],
+      }
+    }
+    if (layer.type === 'objectgroup') {
+      return {
+        type: 'objectgroup',
+        width: mapData.width,
+        height: mapData.height,
+        objects: layer.objects ?? [],
+      }
+    }
+    return null
+  }, [mapData.layers, activeLayerIndex, mapData.width, mapData.height])
+
+  const toolContext = useMemo<ToolContext>(() => ({
+    viewport: { zoom, panX, panY },
+    setPan: onPanChange,
+    setZoom: onZoomChange,
+    zoomToPoint: onZoomToPoint,
+    screenToWorld,
+    worldToTile,
+    tileSize,
+    getActiveLayer,
+    onPickTile: (tileId) => {
+      if (tileId === undefined || tileId === null) return
+      onTileSelect?.(tileId)
+      if (tileId > 0) {
+        toast.success(`Sampled tile ${tileId}`)
+      } else {
+        toast.info('Empty tile (no tile to sample)')
+      }
+    },
+    onPickEntity: (entityId) => {
+      if (!entityId) return
+      onEntitySelect(entityId)
+    },
+  }), [
+    zoom,
+    panX,
+    panY,
+    onPanChange,
+    onZoomChange,
+    onZoomToPoint,
+    screenToWorld,
+    worldToTile,
+    tileSize,
+    getActiveLayer,
+    onTileSelect,
+    onEntitySelect,
+  ])
+
+  useEffect(() => {
+    setActivePanTool(new PanTool(toolContext))
+    setActivePickTool(new PickTool(toolContext))
+  }, [toolContext])
 
   // Bresenham's line algorithm for pixel-perfect lines (from Tiled)
   const getLinePoints = useCallback((x0: number, y0: number, x1: number, y1: number): Array<{ x: number; y: number }> => {
@@ -383,24 +467,6 @@ export function MapCanvas({
     return () => observer.disconnect()
   }, [renderCanvas])
 
-  const screenToWorld = (screenX: number, screenY: number) => {
-    const canvas = canvasRef.current
-    if (!canvas) return { x: 0, y: 0 }
-
-    const rect = canvas.getBoundingClientRect()
-    const x = (screenX - rect.left - panX) / zoom
-    const y = (screenY - rect.top - panY) / zoom
-
-    return { x, y }
-  }
-
-  const worldToTile = (worldX: number, worldY: number) => {
-    return {
-      x: Math.floor(worldX / tileSize),
-      y: Math.floor(worldY / tileSize),
-    }
-  }
-
   const floodFill = (startX: number, startY: number, targetTileId: number, replacementTileId: number) => {
     const layer = mapData.layers[activeLayerIndex]
     if (layer.type !== 'tilelayer' || !layer.data) return []
@@ -438,9 +504,15 @@ export function MapCanvas({
     const world = screenToWorld(e.clientX, e.clientY)
     const tile = worldToTile(world.x, world.y)
 
-    if (e.button === 1) {
+    if (currentTool === 'pan') {
+      activePanTool?.onMouseDown(e.nativeEvent)
       setIsPanning(true)
-      setLastMousePos({ x: e.clientX, y: e.clientY })
+      return
+    }
+
+    if (e.button === 1) {
+      activePanTool?.onMouseDown(e.nativeEvent)
+      setIsPanning(true)
       return
     }
 
@@ -514,16 +586,8 @@ export function MapCanvas({
           } else if (currentTool === 'eraser') {
             setIsPainting(true)
             onPaint(activeLayerIndex, tile.x, tile.y, 0)
-          } else if (currentTool === 'eyedropper' && layer.data) {
-            // Eyedropper: sample the tile under cursor
-            const index = tile.y * mapData.width + tile.x
-            const sampledTileId = layer.data[index]
-            if (sampledTileId > 0 && onTileSelect) {
-              onTileSelect(sampledTileId)
-              toast.success(`Sampled tile ${sampledTileId}`)
-            } else if (sampledTileId === 0) {
-              toast.info('Empty tile (no tile to sample)')
-            }
+          } else if (currentTool === 'eyedropper') {
+            activePickTool?.onMouseDown(e.nativeEvent)
           }
         }
       }
@@ -541,10 +605,7 @@ export function MapCanvas({
     }
 
     if (isPanning) {
-      const dx = e.clientX - lastMousePos.x
-      const dy = e.clientY - lastMousePos.y
-      onPanChange(panX + dx, panY + dy)
-      setLastMousePos({ x: e.clientX, y: e.clientY })
+      activePanTool?.onMouseMove(e.nativeEvent)
     }
 
     if (isPainting && (currentTool === 'brush' || currentTool === 'eraser')) {
@@ -675,6 +736,9 @@ export function MapCanvas({
       setSelectionEnd(null)
     }
 
+    if (isPanning) {
+      activePanTool?.onMouseUp()
+    }
     setIsPanning(false)
     setIsPainting(false)
     setIsDraggingEntity(false)
@@ -684,21 +748,8 @@ export function MapCanvas({
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
 
-    const layer = mapData.layers[activeLayerIndex]
-    if (layer.type !== 'tilelayer' || !layer.data) return
-
-    const world = screenToWorld(e.clientX, e.clientY)
-    const tile = worldToTile(world.x, world.y)
-
-    if (tile.x >= 0 && tile.x < mapData.width && tile.y >= 0 && tile.y < mapData.height) {
-      const index = tile.y * mapData.width + tile.x
-      const sampledTileId = layer.data[index]
-      if (sampledTileId > 0 && onTileSelect) {
-        onTileSelect(sampledTileId)
-        toast.success(`Sampled tile ${sampledTileId}`)
-      }
-    }
-  }, [mapData, activeLayerIndex, onTileSelect])
+    activePickTool?.onMouseDown(e.nativeEvent)
+  }, [activePickTool])
 
   // Wheel zoom with zoom-to-cursor (Ctrl/⌘ + wheel). Plain wheel pans.
   const handleWheel = useCallback((e: WheelEvent) => {
@@ -741,7 +792,7 @@ export function MapCanvas({
 
   // Get cursor class based on current tool
   const getCursorClass = () => {
-    if (isPanning) return 'cursor-grabbing'
+    if (currentTool === 'pan') return isPanning ? 'cursor-grabbing' : 'cursor-grab'
     switch (currentTool) {
       case 'select': return 'cursor-grab'
       case 'eyedropper': return 'cursor-crosshair'

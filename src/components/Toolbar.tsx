@@ -1,7 +1,5 @@
-import { Pencil, PaintBucket, Rectangle, Eraser, CursorClick, Eyedropper, ArrowUUpLeft, ArrowUUpRight, MagnifyingGlassMinus, MagnifyingGlassPlus, LineSegment } from '@phosphor-icons/react'
+import { Pencil, PaintBucket, Rectangle, Eraser, CursorClick, Eyedropper, Hand, ArrowUUpLeft, ArrowUUpRight, MagnifyingGlassMinus, MagnifyingGlassPlus, LineSegment, GridFour, FloppyDisk, Export } from '@phosphor-icons/react'
 import { Tool } from '@/lib/types'
-import { Button } from '@/components/ui/button'
-import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
 interface ToolbarProps {
@@ -38,129 +36,155 @@ export function Toolbar({
   onSave,
 }: ToolbarProps) {
   const tools: { id: Tool; icon: React.ReactNode; label: string; shortcut: string }[] = [
-    { id: 'brush', icon: <Pencil size={20} />, label: 'Brush', shortcut: 'B' },
-    { id: 'fill', icon: <PaintBucket size={20} />, label: 'Fill', shortcut: 'F' },
-    { id: 'rectangle', icon: <Rectangle size={20} />, label: 'Rectangle', shortcut: 'R' },
-    { id: 'line', icon: <LineSegment size={20} />, label: 'Line', shortcut: 'L' },
-    { id: 'eraser', icon: <Eraser size={20} />, label: 'Eraser', shortcut: 'E' },
-    { id: 'select', icon: <CursorClick size={20} />, label: 'Select', shortcut: 'S' },
-    { id: 'eyedropper', icon: <Eyedropper size={20} />, label: 'Eyedropper', shortcut: 'I' },
+    { id: 'brush', icon: <Pencil size={18} weight="bold" />, label: 'Brush', shortcut: 'B' },
+    { id: 'fill', icon: <PaintBucket size={18} weight="bold" />, label: 'Fill', shortcut: 'F' },
+    { id: 'rectangle', icon: <Rectangle size={18} weight="bold" />, label: 'Rectangle', shortcut: 'R' },
+    { id: 'line', icon: <LineSegment size={18} weight="bold" />, label: 'Line', shortcut: 'L' },
+    { id: 'eraser', icon: <Eraser size={18} weight="bold" />, label: 'Eraser', shortcut: 'E' },
+    { id: 'select', icon: <CursorClick size={18} weight="bold" />, label: 'Select', shortcut: 'S' },
+    { id: 'eyedropper', icon: <Eyedropper size={18} weight="bold" />, label: 'Eyedropper', shortcut: 'I' },
+    { id: 'pan', icon: <Hand size={18} weight="bold" />, label: 'Pan', shortcut: 'Space' },
   ]
 
   return (
-    <div className="flex items-center gap-2 p-2 bg-primary border-b border-border">
-      <h1 className="text-xl font-bold px-2">PrairieBob</h1>
-
-      <Separator orientation="vertical" className="h-8" />
+    <div className="pb-toolbar">
+      {/* Brand */}
+      <span className="pb-toolbar-brand">PrairieBob</span>
 
       {/* Undo/Redo */}
-      <TooltipProvider>
-        <div className="flex gap-1">
+      <TooltipProvider delayDuration={300}>
+        <div className="pb-toolbar-group">
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
+              <button
+                className="pb-tool-btn"
                 onClick={onUndo}
                 disabled={!canUndo}
               >
-                <ArrowUUpLeft size={20} />
-              </Button>
+                <ArrowUUpLeft size={18} weight="bold" />
+              </button>
             </TooltipTrigger>
-            <TooltipContent>Undo (Ctrl+Z)</TooltipContent>
+            <TooltipContent className="pb-tooltip">
+              Undo <span className="pb-tooltip-shortcut">Ctrl+Z</span>
+            </TooltipContent>
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
+              <button
+                className="pb-tool-btn"
                 onClick={onRedo}
                 disabled={!canRedo}
               >
-                <ArrowUUpRight size={20} />
-              </Button>
+                <ArrowUUpRight size={18} weight="bold" />
+              </button>
             </TooltipTrigger>
-            <TooltipContent>Redo (Ctrl+Y)</TooltipContent>
+            <TooltipContent className="pb-tooltip">
+              Redo <span className="pb-tooltip-shortcut">Ctrl+Y</span>
+            </TooltipContent>
           </Tooltip>
         </div>
-      </TooltipProvider>
 
-      <Separator orientation="vertical" className="h-8" />
+        <div className="pb-toolbar-divider" />
 
-      {/* Drawing Tools */}
-      <TooltipProvider>
-        <div className="flex gap-1">
+        {/* Drawing Tools */}
+        <div className="pb-toolbar-group">
           {tools.map(tool => (
             <Tooltip key={tool.id}>
               <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className={currentTool === tool.id ? 'tool-button active' : ''}
+                <button
+                  className={`pb-tool-btn ${currentTool === tool.id ? 'active' : ''}`}
                   onClick={() => onToolChange(tool.id)}
                 >
                   {tool.icon}
-                </Button>
+                </button>
               </TooltipTrigger>
-              <TooltipContent>
-                {tool.label} ({tool.shortcut})
+              <TooltipContent className="pb-tooltip">
+                {tool.label} <span className="pb-tooltip-shortcut">{tool.shortcut}</span>
               </TooltipContent>
             </Tooltip>
           ))}
         </div>
-      </TooltipProvider>
 
-      <Separator orientation="vertical" className="h-8" />
+        <div className="pb-toolbar-divider" />
 
-      <Button variant="ghost" size="sm" onClick={onGridToggle}>
-        Grid {gridVisible ? 'On' : 'Off'} (G)
-      </Button>
+        {/* Grid Toggle */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              className={`pb-tool-btn ${gridVisible ? 'active' : ''}`}
+              onClick={onGridToggle}
+            >
+              <GridFour size={18} weight="bold" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent className="pb-tooltip">
+            Toggle Grid <span className="pb-tooltip-shortcut">G</span>
+          </TooltipContent>
+        </Tooltip>
 
-      <Separator orientation="vertical" className="h-8" />
+        <div className="pb-toolbar-divider" />
 
-      {/* Zoom Controls */}
-      <TooltipProvider>
-        <div className="flex gap-1 items-center">
+        {/* Zoom Controls */}
+        <div className="pb-toolbar-group">
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" onClick={onZoomOut}>
-                <MagnifyingGlassMinus size={20} />
-              </Button>
+              <button className="pb-tool-btn" onClick={onZoomOut}>
+                <MagnifyingGlassMinus size={18} weight="bold" />
+              </button>
             </TooltipTrigger>
-            <TooltipContent>Zoom Out (Ctrl+-)</TooltipContent>
+            <TooltipContent className="pb-tooltip">
+              Zoom Out <span className="pb-tooltip-shortcut">Ctrl+-</span>
+            </TooltipContent>
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
+              <button
+                className="pb-tool-btn px-2 min-w-[52px] font-mono text-xs"
                 onClick={onZoomReset}
-                className="min-w-[60px] font-mono"
               >
                 {Math.round(zoom * 100)}%
-              </Button>
+              </button>
             </TooltipTrigger>
-            <TooltipContent>Reset Zoom (Ctrl+0)</TooltipContent>
+            <TooltipContent className="pb-tooltip">
+              Reset Zoom <span className="pb-tooltip-shortcut">Ctrl+0</span>
+            </TooltipContent>
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" onClick={onZoomIn}>
-                <MagnifyingGlassPlus size={20} />
-              </Button>
+              <button className="pb-tool-btn" onClick={onZoomIn}>
+                <MagnifyingGlassPlus size={18} weight="bold" />
+              </button>
             </TooltipTrigger>
-            <TooltipContent>Zoom In (Ctrl+=)</TooltipContent>
+            <TooltipContent className="pb-tooltip">
+              Zoom In <span className="pb-tooltip-shortcut">Ctrl+=</span>
+            </TooltipContent>
+          </Tooltip>
+        </div>
+
+        {/* Right side: Save & Export */}
+        <div className="ml-auto pb-toolbar-group">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button className="pb-btn pb-btn-icon" onClick={onSave}>
+                <FloppyDisk size={16} weight="bold" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent className="pb-tooltip">
+              Save <span className="pb-tooltip-shortcut">Ctrl+S</span>
+            </TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button className="pb-btn pb-btn-primary pb-btn-icon" onClick={onExport}>
+                <Export size={16} weight="bold" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent className="pb-tooltip">
+              Export <span className="pb-tooltip-shortcut">Ctrl+E</span>
+            </TooltipContent>
           </Tooltip>
         </div>
       </TooltipProvider>
-
-      <div className="ml-auto flex gap-2">
-        <Button variant="secondary" size="sm" onClick={onSave}>
-          Save (Ctrl+S)
-        </Button>
-        <Button variant="default" size="sm" onClick={onExport} className="bg-accent text-accent-foreground hover:bg-accent/90">
-          Export (Ctrl+E)
-        </Button>
-      </div>
     </div>
   )
 }
