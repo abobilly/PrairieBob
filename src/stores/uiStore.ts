@@ -155,7 +155,7 @@ export const useUIStore = create<UIState & UIActions>()(
             maxSize: 500,
           },
         },
-        tilesetZoom: 2,      // 2x default (good for 32px tiles)
+        tilesetZoom: 1,      // 1x default for compact panel
         statusBarVisible: true,
         theme: 'dark',
         recentProjects: [],

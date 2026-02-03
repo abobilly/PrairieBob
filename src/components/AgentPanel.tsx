@@ -413,96 +413,94 @@ export function AgentPanel() {
   };
 
   return (
-    <div className="h-full flex flex-col bg-[#1a1a2e] border-l border-[#2a2a4a]">
+    <div className="h-full flex flex-col pb-compact-panel">
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'chat' | 'terminal')} className="flex flex-col h-full">
-        <TabsList className="w-full justify-start rounded-none border-b border-[#2a2a4a] bg-[#12121f] px-2">
-          <TabsTrigger value="chat" className="gap-2 data-[state=active]:bg-[#1a1a2e]">
-            <Bot size={14} />
+        {/* Compact console tabs */}
+        <div className="pb-console-tabs">
+          <button
+            onClick={() => setActiveTab('chat')}
+            className={`pb-console-tab ${activeTab === 'chat' ? 'active' : ''}`}
+          >
+            <Bot size={10} className="inline mr-1" />
             Agent
-          </TabsTrigger>
-          <TabsTrigger value="terminal" className="gap-2 data-[state=active]:bg-[#1a1a2e]">
-            <TerminalIcon size={14} />
-            Terminal
-          </TabsTrigger>
-          <div className="ml-auto flex items-center gap-2 pr-2">
-            <Button
-              variant="ghost"
-              size="sm"
+          </button>
+          <button
+            onClick={() => setActiveTab('terminal')}
+            className={`pb-console-tab ${activeTab === 'terminal' ? 'active' : ''}`}
+          >
+            <TerminalIcon size={10} className="inline mr-1" />
+            Term
+          </button>
+          <div className="ml-auto flex items-center pr-2">
+            <button
               onClick={connectAgent}
               disabled={isConnected || isLoading}
-              className="h-6 px-2 text-xs"
+              className="pb-icon-btn-xs"
+              title={isConnected ? 'Connected' : 'Connect to agent'}
             >
               {isConnected ? (
-                <><PlugZap size={12} className="mr-1 text-green-500" /> Connected</>
+                <PlugZap size={10} className="text-green-500" />
               ) : (
-                <><Plug size={12} className="mr-1" /> Connect</>
+                <Plug size={10} />
               )}
-            </Button>
+            </button>
           </div>
-        </TabsList>
+        </div>
 
         <TabsContent value="chat" className="flex-1 flex flex-col m-0 overflow-hidden">
-          <ScrollArea className="flex-1 p-3">
-            <div className="space-y-3">
-              {messages.length === 0 && !isConnected && (
-                <div className="text-center text-gray-500 text-sm py-8">
-                  <Bot size={32} className="mx-auto mb-2 opacity-50" />
-                  <p>Click "Connect" or send a message to start.</p>
-                  <p className="text-xs mt-1">Requires Copilot CLI installed.</p>
-                </div>
-              )}
-              {messages.map((msg, i) => (
-                <div
-                  key={i}
-                  className={`rounded-lg p-3 text-sm ${msg.role === 'user'
-                    ? 'bg-[#f97316] text-white ml-8'
-                    : msg.role === 'assistant'
-                      ? 'bg-[#2a2a4a] text-gray-100 mr-8'
-                      : msg.role === 'tool'
-                        ? 'bg-[#1f2f1f] text-green-300 text-xs mr-8 font-mono'
-                        : 'bg-[#1f1f3a] text-gray-400 text-xs italic'
-                    }`}
-                >
-                  {msg.role === 'tool' && msg.toolName && (
-                    <span className="text-green-500 font-bold">⚙ </span>
-                  )}
-                  <pre className="whitespace-pre-wrap font-sans">{msg.content}</pre>
-                </div>
-              ))}
-              {/* Streaming content */}
-              {streamingContent && (
-                <div className="bg-[#2a2a4a] rounded-lg p-3 mr-8 text-gray-100 text-sm">
-                  <pre className="whitespace-pre-wrap font-sans">{streamingContent}</pre>
-                  <span className="inline-block w-2 h-4 bg-gray-400 animate-pulse ml-1" />
-                </div>
-              )}
-              {isLoading && !streamingContent && (
-                <div className="bg-[#2a2a4a] rounded-lg p-3 mr-8 flex items-center gap-2 text-gray-400">
-                  <Loader2 size={14} className="animate-spin" />
-                  Thinking...
-                </div>
-              )}
-              <div ref={messagesEndRef} />
-            </div>
-          </ScrollArea>
-
-          <div className="p-3 border-t border-[#2a2a4a]">
-            <div className="flex gap-2">
-              <Textarea
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder={isConnected ? "Ask me to paint tiles, place entities, export..." : "Type a message to connect..."}
-                className="min-h-[60px] max-h-[120px] bg-[#12121f] border-[#2a2a4a] text-gray-100 placeholder:text-gray-500 resize-none"
-              />
-              <Button
-                onClick={handleSendMessage}
-                disabled={!input.trim() || isLoading}
-                className="bg-[#f97316] hover:bg-[#ea580c] self-end"
+          {/* Compact messages area */}
+          <div className="pb-console-messages flex-1 overflow-y-auto">
+            {messages.length === 0 && !isConnected && (
+              <div className="text-center text-[10px] py-4 opacity-50">
+                <Bot size={16} className="mx-auto mb-1" />
+                <p>Connect to agent</p>
+              </div>
+            )}
+            {messages.map((msg, i) => (
+              <div
+                key={i}
+                className={`pb-console-msg ${msg.role}`}
               >
-                <Send size={16} />
-              </Button>
-            </div>
+                {msg.role === 'tool' && msg.toolName && (
+                  <span className="text-green-500">⚙ </span>
+                )}
+                <span className="whitespace-pre-wrap">{msg.content}</span>
+              </div>
+            ))}
+            {streamingContent && (
+              <div className="pb-console-msg assistant">
+                <span className="whitespace-pre-wrap">{streamingContent}</span>
+                <span className="inline-block w-1 h-3 bg-accent animate-pulse ml-1" />
+              </div>
+            )}
+            {isLoading && !streamingContent && (
+              <div className="pb-console-msg system flex items-center gap-1">
+                <Loader2 size={10} className="animate-spin" />
+                <span>Thinking...</span>
+              </div>
+            )}
+            <div ref={messagesEndRef} />
+          </div>
+
+          {/* Compact input */}
+          <div className="pb-console-input-area">
+            <textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Ask the agent..."
+              title="Message input"
+              className="pb-console-input"
+              rows={1}
+            />
+            <button
+              onClick={handleSendMessage}
+              disabled={!input.trim() || isLoading}
+              className="pb-console-send-btn"
+              title="Send message"
+            >
+              <Send size={10} />
+            </button>
           </div>
         </TabsContent>
 

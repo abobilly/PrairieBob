@@ -46,10 +46,45 @@ call npm install
 
 if %ERRORLEVEL% NEQ 0 (
     echo.
-    echo [ERROR] Installation failed!
+    echo [ERROR] npm install failed!
     echo Try running this script as Administrator.
     pause
     exit /b 1
+)
+
+echo.
+echo ----------------------------------------
+echo  Building Electron app...
+echo ----------------------------------------
+echo.
+call npm run build
+
+if %ERRORLEVEL% NEQ 0 (
+    echo.
+    echo [WARN] Build had issues, but app may still work.
+)
+
+echo.
+echo ----------------------------------------
+echo  Checking for Go CLI (optional)...
+echo ----------------------------------------
+echo.
+
+:: Check if Go is installed for CLI
+where go >nul 2>nul
+if %ERRORLEVEL% EQU 0 (
+    echo [OK] Go is installed, building CLI...
+    cd cli
+    go build -o pb.exe .
+    if %ERRORLEVEL% EQU 0 (
+        echo [OK] PrairieBob CLI built: cli\pb.exe
+    ) else (
+        echo [WARN] CLI build failed, but editor will still work.
+    )
+    cd ..
+) else (
+    echo [INFO] Go not installed. CLI tool is optional.
+    echo        Install Go from https://go.dev/ to enable CLI features.
 )
 
 echo.

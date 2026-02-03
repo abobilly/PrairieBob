@@ -40,6 +40,22 @@ if not exist "node_modules" (
     echo.
 )
 
+:: Check if dist folder exists, if not build
+if not exist "dist" (
+    echo [INFO] Building app for first time...
+    echo.
+    call npm run build
+    echo.
+)
+
+:: Check if dist-electron folder exists, if not compile electron
+if not exist "dist-electron\main.cjs" (
+    echo [INFO] Compiling Electron main process...
+    echo.
+    call npm run electron:compile
+    echo.
+)
+
 echo [INFO] Starting PrairieBob...
 echo.
 echo TIP: Press Ctrl+C in this window to stop the app.

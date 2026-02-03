@@ -55,131 +55,97 @@ export function TilesetPanel({
   }, [activeTilesetId, tilesets, onTilesetSelect])
 
   return (
-    <Card className="h-full flex flex-col">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm flex justify-between items-center">
-          <span>Tilesets</span>
-          <div className="flex items-center gap-2">
-            {/* Zoom slider (Tiled-style) */}
-            <div className="flex items-center gap-1" title="Tile display size">
-              <ZoomIn className="h-3 w-3 text-muted-foreground" />
-              <Slider
-                value={[tilesetZoom]}
-                onValueChange={([v]) => onTilesetZoomChange(v)}
-                min={1}
-                max={4}
-                step={0.5}
-                className="w-16 h-4"
-              />
-              <span className="text-xs text-muted-foreground w-6">{tilesetZoom}x</span>
-            </div>
-            <Button
-              size="icon"
-              variant="ghost"
-              className="h-6 w-6"
-              onClick={onAddTileset}
-              title="Add tileset"
-            >
-              <Plus className="h-4 w-4" />
-            </Button>
+    <div className="pb-compact-panel h-full flex flex-col">
+      {/* Compact header */}
+      <div className="pb-compact-header">
+        <span className="pb-compact-title">Tilesets</span>
+        <div className="flex items-center gap-2">
+          {/* Compact zoom control */}
+          <div className="pb-zoom-control">
+            <ZoomIn className="h-3 w-3" />
+            <Slider
+              value={[tilesetZoom]}
+              onValueChange={([v]) => onTilesetZoomChange(v)}
+              min={1}
+              max={4}
+              step={0.5}
+              className="w-10 h-[3px]"
+            />
+            <span className="w-4">{tilesetZoom}x</span>
           </div>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="p-2 min-h-[200px]">
+          <button
+            className="pb-icon-btn-xs"
+            onClick={onAddTileset}
+            title="Add tileset"
+          >
+            <Plus className="h-3 w-3" />
+          </button>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 overflow-hidden p-1">
         {tilesets.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-            <p className="text-sm">No tilesets loaded</p>
-            <p className="text-xs mt-1">Add a tileset to start painting.</p>
-            <Button variant="outline" size="sm" className="mt-2" onClick={onAddTileset}>
-              <Plus className="h-4 w-4 mr-1" />
-              Add Tileset
-            </Button>
+            <p className="text-[10px]">No tilesets</p>
+            <button className="pb-icon-btn-xs mt-1" onClick={onAddTileset} title="Add tileset">
+              <Plus className="h-3 w-3" />
+            </button>
           </div>
         ) : (
-          <Tabs
-            value={effectiveActiveId || ''}
-            onValueChange={onTilesetSelect}
-            className="flex flex-col"
-          >
-            {/* Tileset Tabs - Tiled-style pinned tabs */}
-            <div className="flex items-center gap-1 mb-2">
-              <TabsList className="flex-1 h-auto flex-wrap justify-start">
-                {tilesets.map(ts => (
-                  <TabsTrigger
-                    key={ts.id}
-                    value={ts.id}
-                    className="text-xs px-2 py-1 relative group"
-                  >
-                    {ts.name}
-                    {ts.id !== DEBUG_TILESET_ID && onRemoveTileset && (
-                      <span
-                        role="button"
-                        tabIndex={0}
-                        aria-label={`Remove tileset ${ts.name}`}
-                        className="absolute -top-1 -right-1 hidden group-hover:flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-destructive-foreground cursor-pointer"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          onRemoveTileset(ts.id)
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault()
-                            e.stopPropagation()
-                            onRemoveTileset(ts.id)
-                          }
-                        }}
-                        title="Remove tileset"
-                      >
-                        <X className="h-3 w-3" />
-                      </span>
-                    )}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
+          <div className="flex flex-col h-full">
+            {/* Compact tileset tabs */}
+            <div className="pb-tileset-tabs">
+              {tilesets.map(ts => (
+                <button
+                  key={ts.id}
+                  onClick={() => onTilesetSelect(ts.id)}
+                  className={`pb-tileset-tab ${effectiveActiveId === ts.id ? 'active' : ''}`}
+                  title={ts.name}
+                >
+                  {ts.name}
+                </button>
+              ))}
             </div>
 
-            {/* LDtk-style Tileset Inspector - always visible metadata */}
+            {/* Tileset info bar */}
             {activeTileset && activeTileset.status === 'ready' && (
-              <div className="px-2 py-1 bg-secondary/30 text-xs flex gap-3 border-b mb-1">
-                <span title="Tile size">{activeTileset.tileSize}×{activeTileset.tileSize}px</span>
-                <span title="Grid size">{activeTileset.tilesPerRow}×{Math.ceil(activeTileset.totalTiles / activeTileset.tilesPerRow)}</span>
-                <span title="Total tiles" className="text-muted-foreground">{activeTileset.totalTiles} tiles</span>
+              <div className="pb-tileset-info">
+                <span>{activeTileset.tileSize}px</span>
+                <span>{activeTileset.tilesPerRow}×{Math.ceil(activeTileset.totalTiles / activeTileset.tilesPerRow)}</span>
+                <span>{activeTileset.totalTiles} tiles</span>
               </div>
             )}
 
-            {tilesets.map(ts => (
-              <TabsContent
-                key={ts.id}
-                value={ts.id}
-                className="mt-0 min-h-[150px] max-h-[400px] overflow-y-auto"
-              >
-                {ts.status === 'loading' && (
-                  <div className="flex items-center justify-center h-32">
-                    <p className="text-muted-foreground">Loading...</p>
+            {/* Tileset grid */}
+            <div className="pb-tileset-scroll flex-1 min-h-0">
+              {tilesets.map(ts => (
+                ts.id === effectiveActiveId && (
+                  <div key={ts.id} className="h-full flex flex-col">
+                    {ts.status === 'loading' && (
+                      <div className="text-[10px] text-muted-foreground p-2">Loading...</div>
+                    )}
+                    {ts.status === 'error' && (
+                      <div className="text-[10px] text-red-400 p-2">Error: {ts.error}</div>
+                    )}
+                    {ts.status === 'ready' && (
+                      <TileGrid
+                        tileset={ts}
+                        selectedGlobalTileId={selectedTileId}
+                        stamp={stamp}
+                        tilesetZoom={tilesetZoom}
+                        onTileSelect={onTileSelect}
+                        onStampSelect={onStampSelect}
+                      />
+                    )}
                   </div>
-                )}
-                {ts.status === 'error' && (
-                  <div className="flex flex-col items-center justify-center h-32 text-destructive">
-                    <p className="text-sm">Failed to load tileset</p>
-                    <p className="text-xs mt-1">{ts.error}</p>
-                  </div>
-                )}
-                {ts.status === 'ready' && (
-                  <TileGrid
-                    tileset={ts}
-                    selectedGlobalTileId={selectedTileId}
-                    stamp={stamp}
-                    tilesetZoom={tilesetZoom}
-                    onTileSelect={onTileSelect}
-                    onStampSelect={onStampSelect}
-                  />
-                )}
-              </TabsContent>
-            ))}
-          </Tabs>
+                )
+              ))}
+            </div>
+          </div>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   )
 }
 
@@ -381,9 +347,9 @@ function TileGrid({
   }, [highlightedTile, onTileSelect])
 
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col h-full">
       {/* Search input (stolen from YATE) */}
-      <div className="p-2 border-b flex gap-1 items-center">
+      <div className="p-2 border-b flex gap-1 items-center shrink-0">
         <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
         <Input
           type="text"
@@ -405,7 +371,7 @@ function TileGrid({
         )}
       </div>
 
-      <div className="overflow-y-auto max-h-[350px]" ref={scrollRef}>
+      <div className="flex-1 overflow-y-auto min-h-0" ref={scrollRef}>
         <div
           ref={containerRef}
           className="grid gap-0.5 p-1 select-none"
