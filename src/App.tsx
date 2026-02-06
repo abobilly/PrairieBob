@@ -231,6 +231,7 @@ function App() {
     deleteEntity,
     initTilesets,
     addTileset,
+    loadRoomTilesets,
     removeTileset,
     saveMap,
   } = useProjectStore()
@@ -553,6 +554,24 @@ function App() {
         void (async () => {
           try {
             const loaded = await loadRoomDataFromContent(path, content, window.electron?.fs?.readFile)
+            if (loaded.tilesets.length > 0) {
+              const importedTilesets = await loadRoomTilesets(loaded.tilesets, {
+                replaceExisting: true,
+                persist: false,
+              })
+
+              const firstRoomTileset = importedTilesets[0]
+              if (firstRoomTileset) {
+                setActiveTilesetId(firstRoomTileset.id)
+                setSelectedTileId(firstRoomTileset.firstGid)
+                setTileStamp({
+                  width: 1,
+                  height: 1,
+                  tiles: [[firstRoomTileset.firstGid]],
+                  tilesetId: firstRoomTileset.id,
+                })
+              }
+            }
             setMapData(loaded.data, false)
             setCurrentRoomPath(path)
             setHasUnsavedChanges(false)
@@ -577,7 +596,20 @@ function App() {
     ]
 
     return () => cleanups.forEach(cleanup => cleanup())
-  }, [handleSave, undo, redo, mapData, fsAdapter, setMapData, setCurrentRoomPath, setHasUnsavedChanges, handleAgentToolCall])
+  }, [
+    handleSave,
+    undo,
+    redo,
+    mapData,
+    fsAdapter,
+    setMapData,
+    setCurrentRoomPath,
+    setHasUnsavedChanges,
+    handleAgentToolCall,
+    loadRoomTilesets,
+    setActiveTilesetId,
+    setSelectedTileId,
+  ])
 
   const handleLayerToggle = useCallback((index: number, prop: 'visible' | 'locked') => {
     if (prop === 'visible') {

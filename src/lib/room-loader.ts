@@ -4,8 +4,19 @@ export type RoomSourceFormat = 'spudtile-json' | 'tiled-json' | 'ldtk' | 'tmx'
 
 export type ReadFileFn = (path: string) => Promise<string>
 
+export interface RoomTilesetReference {
+  id: string
+  name: string
+  sourcePath: string
+  tileSize: number
+  firstGid: number
+  tileCount?: number
+  columns?: number
+}
+
 export interface RoomLoadResult {
   data: LevelData
+  tilesets: RoomTilesetReference[]
   sourceFormat: RoomSourceFormat
   warnings: string[]
 }
@@ -43,8 +54,10 @@ export async function loadRoomDataFromContent(
   }
 
   if (extension === 'tmx' || looksLikeXml(trimmed)) {
+    const parsed = await parseTmx(path, trimmed, readFile)
     return {
-      data: parseTmx(path, trimmed),
+      data: parsed.data,
+      tilesets: parsed.tilesets,
       sourceFormat: 'tmx',
       warnings: [],
     }
@@ -60,6 +73,7 @@ export async function loadRoomDataFromContent(
   if (isSpudTileLevel(parsed)) {
     return {
       data: normalizeSpudTileLevel(parsed),
+      tilesets: [],
       sourceFormat: 'spudtile-json',
       warnings: [],
     }
@@ -68,15 +82,18 @@ export async function loadRoomDataFromContent(
   if (isLdtkProjectJson(parsed)) {
     const result = await parseLdtkProject(path, parsed, readFile)
     return {
-      data: result,
+      data: result.data,
+      tilesets: result.tilesets,
       sourceFormat: 'ldtk',
       warnings: [],
     }
   }
 
   if (isTiledJsonMap(parsed)) {
+    const result = await parseTiledJson(path, parsed, readFile)
     return {
-      data: parseTiledJson(path, parsed),
+      data: result.data,
+      tilesets: result.tilesets,
       sourceFormat: 'tiled-json',
       warnings: [],
     }
@@ -260,9 +277,45 @@ function resolvePath(baseFilePath: string, relativePath: string): string {
   return `${prefix}${normalizedParts.join('/')}`
 }
 
-async function parseLdtkProject(path: string, value: Record<string, unknown>, readFile?: ReadFileFn): Promise<LevelData> {
+async function parseLdtkProject(
+  path: string,
+  value: Record<string, unknown>,
+  readFile?: ReadFileFn
+): Promise<{ data: LevelData; tilesets: RoomTilesetReference[] }> {
   const worlds = Array.isArray(value.worlds) ? value.worlds : []
   const rootLevels = Array.isArray(value.levels) ? value.levels : []
+  const ldtkDefs = isRecord(value.defs) ? value.defs : {}
+  const ldtkTilesets = Array.isArray(ldtkDefs.tilesets) ? ldtkDefs.tilesets : []
+  const tilesets: RoomTilesetReference[] = []
+  const ldtkTilesetFirstGidByUid = new Map<number, number>()
+  let nextFirstGid = 1
+
+  for (const [index, rawTileset] of ldtkTilesets.entries()) {
+    if (!isRecord(rawTileset)) continue
+    const uid = toInt(rawTileset.uid, 0)
+    const relPath = typeof rawTileset.relPath === 'string' ? rawTileset.relPath : null
+    if (!relPath || uid <= 0) continue
+
+    const tileSize = Math.max(1, toInt(rawTileset.tileGridSize, 16))
+    const columns = Math.max(1, toInt(rawTileset.cWid, 0))
+    const rows = Math.max(1, toInt(rawTileset.cHei, 0))
+    const tileCount = Math.max(1, columns * rows)
+    const firstGid = nextFirstGid
+    nextFirstGid += tileCount
+
+    ldtkTilesetFirstGidByUid.set(uid, firstGid)
+    tilesets.push({
+      id: `ldtk_${uid}`,
+      name: typeof rawTileset.identifier === 'string' && rawTileset.identifier.length > 0
+        ? rawTileset.identifier
+        : `ldtk_tileset_${index + 1}`,
+      sourcePath: resolvePath(path, relPath),
+      tileSize,
+      firstGid,
+      tileCount,
+      columns,
+    })
+  }
 
   let levelCandidate: Record<string, unknown> | null = null
 
@@ -371,7 +424,10 @@ async function parseLdtkProject(path: string, value: Record<string, unknown>, re
         const x = Math.floor(toNumber(px[0], 0) / tileSize)
         const y = Math.floor(toNumber(px[1], 0) / tileSize)
         if (x < 0 || x >= width || y < 0 || y >= height) continue
-        data[y * width + x] = stripTileFlags(toInt(tile.t, 0))
+        const localTileId = stripTileFlags(toInt(tile.t, 0))
+        const tilesetUid = toInt(rawLayer.__tilesetDefUid, 0)
+        const layerFirstGid = ldtkTilesetFirstGidByUid.get(tilesetUid) ?? 1
+        data[y * width + x] = layerFirstGid + localTileId
       }
     }
 
@@ -386,14 +442,17 @@ async function parseLdtkProject(path: string, value: Record<string, unknown>, re
   }
 
   return {
-    id: typeof levelCandidate.identifier === 'string' && levelCandidate.identifier.length > 0
-      ? levelCandidate.identifier
-      : fileNameWithoutExtension(path),
-    width,
-    height,
-    tileSize,
-    layers,
-    metadata: makeMetadata('ldtk'),
+    data: {
+      id: typeof levelCandidate.identifier === 'string' && levelCandidate.identifier.length > 0
+        ? levelCandidate.identifier
+        : fileNameWithoutExtension(path),
+      width,
+      height,
+      tileSize,
+      layers,
+      metadata: makeMetadata('ldtk'),
+    },
+    tilesets,
   }
 }
 
@@ -402,11 +461,16 @@ function isTiledJsonMap(value: unknown): value is Record<string, unknown> {
   return Array.isArray(value.layers) && ('tilewidth' in value || 'tileheight' in value || 'tilesets' in value)
 }
 
-function parseTiledJson(path: string, value: Record<string, unknown>): LevelData {
+async function parseTiledJson(
+  path: string,
+  value: Record<string, unknown>,
+  readFile?: ReadFileFn
+): Promise<{ data: LevelData; tilesets: RoomTilesetReference[] }> {
   const width = Math.max(1, toInt(value.width, 1))
   const height = Math.max(1, toInt(value.height, 1))
   const tileSize = Math.max(1, toInt(value.tilewidth, 16))
   const rawLayers = Array.isArray(value.layers) ? value.layers : []
+  const tilesets = await parseTiledJsonTilesets(path, value, tileSize, readFile)
 
   const layers: Layer[] = rawLayers
     .filter((layer) => isRecord(layer))
@@ -479,12 +543,15 @@ function parseTiledJson(path: string, value: Record<string, unknown>): LevelData
     })
 
   return {
-    id: typeof value.name === 'string' && value.name.length > 0 ? value.name : fileNameWithoutExtension(path),
-    width,
-    height,
-    tileSize,
-    layers,
-    metadata: makeMetadata('tiled-json'),
+    data: {
+      id: typeof value.name === 'string' && value.name.length > 0 ? value.name : fileNameWithoutExtension(path),
+      width,
+      height,
+      tileSize,
+      layers,
+      metadata: makeMetadata('tiled-json'),
+    },
+    tilesets,
   }
 }
 
@@ -517,7 +584,198 @@ function parseCsvNumbers(raw: string): number[] {
     .map((item) => stripTileFlags(toInt(item, 0)))
 }
 
-function parseTmx(path: string, content: string): LevelData {
+function createTilesetIdFromPath(sourcePath: string, fallbackPrefix: string, index: number): string {
+  const baseName = fileNameWithoutExtension(sourcePath)
+  const safe = baseName.replace(/[^a-zA-Z0-9_]+/g, '_').replace(/^_+|_+$/g, '')
+  return safe.length > 0 ? safe.toLowerCase() : `${fallbackPrefix}_${index + 1}`
+}
+
+function parseTileCount(
+  tileCount: unknown,
+  columns: unknown,
+  imageWidth: unknown,
+  imageHeight: unknown,
+  tileSize: number
+): number | undefined {
+  const direct = toInt(tileCount, 0)
+  if (direct > 0) return direct
+  const cols = toInt(columns, 0)
+  if (cols > 0) {
+    const rows = Math.max(1, Math.floor(toInt(imageHeight, 0) / tileSize))
+    return cols * rows
+  }
+  const width = toInt(imageWidth, 0)
+  const height = toInt(imageHeight, 0)
+  if (width > 0 && height > 0) {
+    const c = Math.max(1, Math.floor(width / tileSize))
+    const r = Math.max(1, Math.floor(height / tileSize))
+    return c * r
+  }
+  return undefined
+}
+
+function parseInlineTmxTileset(
+  mapPath: string,
+  firstGid: number,
+  attrs: Record<string, string>,
+  body: string,
+  defaultTileSize: number,
+  index: number
+): RoomTilesetReference | null {
+  const imageMatch = body.match(/<image\b([^>]*)\/?>/i)
+  if (!imageMatch) return null
+  const imageAttrs = parseXmlAttributes(imageMatch[1])
+  const imageSource = imageAttrs.source
+  if (!imageSource) return null
+
+  const tileSize = Math.max(1, toInt(attrs.tilewidth, defaultTileSize))
+  const sourcePath = resolvePath(mapPath, imageSource)
+  const columns = Math.max(1, toInt(attrs.columns, Math.floor(toInt(imageAttrs.width, 0) / tileSize) || 1))
+  const tileCount = parseTileCount(attrs.tilecount, attrs.columns, imageAttrs.width, imageAttrs.height, tileSize)
+  const name = attrs.name && attrs.name.length > 0 ? attrs.name : fileNameWithoutExtension(sourcePath)
+
+  return {
+    id: createTilesetIdFromPath(sourcePath, 'tmx_tileset', index),
+    name,
+    sourcePath,
+    tileSize,
+    firstGid,
+    tileCount,
+    columns,
+  }
+}
+
+function parseTsxToTilesetReference(
+  tsxPath: string,
+  tsxContent: string,
+  firstGid: number,
+  defaultTileSize: number,
+  index: number
+): RoomTilesetReference | null {
+  const tsxMatch = tsxContent.match(/<tileset\b([^>]*)>/i)
+  if (!tsxMatch) return null
+  const tsxAttrs = parseXmlAttributes(tsxMatch[1])
+  const imageMatch = tsxContent.match(/<image\b([^>]*)\/?>/i)
+  if (!imageMatch) return null
+  const imageAttrs = parseXmlAttributes(imageMatch[1])
+  const imageSource = imageAttrs.source
+  if (!imageSource) return null
+
+  const tileSize = Math.max(1, toInt(tsxAttrs.tilewidth, defaultTileSize))
+  const sourcePath = resolvePath(tsxPath, imageSource)
+  const columns = Math.max(1, toInt(tsxAttrs.columns, Math.floor(toInt(imageAttrs.width, 0) / tileSize) || 1))
+  const tileCount = parseTileCount(tsxAttrs.tilecount, tsxAttrs.columns, imageAttrs.width, imageAttrs.height, tileSize)
+  const name = tsxAttrs.name && tsxAttrs.name.length > 0 ? tsxAttrs.name : fileNameWithoutExtension(sourcePath)
+
+  return {
+    id: createTilesetIdFromPath(sourcePath, 'tsx_tileset', index),
+    name,
+    sourcePath,
+    tileSize,
+    firstGid,
+    tileCount,
+    columns,
+  }
+}
+
+async function parseTmxTilesets(
+  mapPath: string,
+  mapXml: string,
+  defaultTileSize: number,
+  readFile?: ReadFileFn
+): Promise<RoomTilesetReference[]> {
+  const references: RoomTilesetReference[] = []
+  const tilesetRegex = /<tileset\b([^>]*?)(?:\/>|>([\s\S]*?)<\/tileset>)/gi
+  let match = tilesetRegex.exec(mapXml)
+  let index = 0
+  while (match) {
+    const attrs = parseXmlAttributes(match[1])
+    const body = match[2] ?? ''
+    const firstGid = Math.max(1, toInt(attrs.firstgid, 1))
+
+    if (attrs.source) {
+      const externalPath = resolvePath(mapPath, attrs.source)
+      if (readFile) {
+        try {
+          const tsxContent = await readFile(externalPath)
+          const ref = parseTsxToTilesetReference(externalPath, tsxContent, firstGid, defaultTileSize, index)
+          if (ref) references.push(ref)
+        } catch {
+          // Skip unreadable TSX references; map data can still load.
+        }
+      }
+    } else {
+      const ref = parseInlineTmxTileset(mapPath, firstGid, attrs, body, defaultTileSize, index)
+      if (ref) references.push(ref)
+    }
+
+    index += 1
+    match = tilesetRegex.exec(mapXml)
+  }
+
+  return references.sort((a, b) => a.firstGid - b.firstGid)
+}
+
+async function parseTiledJsonTilesets(
+  mapPath: string,
+  map: Record<string, unknown>,
+  defaultTileSize: number,
+  readFile?: ReadFileFn
+): Promise<RoomTilesetReference[]> {
+  const rawTilesets = Array.isArray(map.tilesets) ? map.tilesets : []
+  const references: RoomTilesetReference[] = []
+
+  for (const [index, rawTileset] of rawTilesets.entries()) {
+    if (!isRecord(rawTileset)) continue
+    const firstGid = Math.max(1, toInt(rawTileset.firstgid, 1))
+
+    if (typeof rawTileset.source === 'string' && rawTileset.source.length > 0) {
+      const tsxPath = resolvePath(mapPath, rawTileset.source)
+      if (!readFile) continue
+      try {
+        const tsxContent = await readFile(tsxPath)
+        const ref = parseTsxToTilesetReference(tsxPath, tsxContent, firstGid, defaultTileSize, index)
+        if (ref) references.push(ref)
+      } catch {
+        // Skip unreadable source tilesets.
+      }
+      continue
+    }
+
+    if (typeof rawTileset.image === 'string' && rawTileset.image.length > 0) {
+      const tileSize = Math.max(1, toInt(rawTileset.tilewidth, defaultTileSize))
+      const sourcePath = resolvePath(mapPath, rawTileset.image)
+      const columns = Math.max(1, toInt(rawTileset.columns, Math.floor(toInt(rawTileset.imagewidth, 0) / tileSize) || 1))
+      const tileCount = parseTileCount(
+        rawTileset.tilecount,
+        rawTileset.columns,
+        rawTileset.imagewidth,
+        rawTileset.imageheight,
+        tileSize
+      )
+      const name = typeof rawTileset.name === 'string' && rawTileset.name.length > 0
+        ? rawTileset.name
+        : fileNameWithoutExtension(sourcePath)
+      references.push({
+        id: createTilesetIdFromPath(sourcePath, 'tiled_tileset', index),
+        name,
+        sourcePath,
+        tileSize,
+        firstGid,
+        tileCount,
+        columns,
+      })
+    }
+  }
+
+  return references.sort((a, b) => a.firstGid - b.firstGid)
+}
+
+async function parseTmx(
+  path: string,
+  content: string,
+  readFile?: ReadFileFn
+): Promise<{ data: LevelData; tilesets: RoomTilesetReference[] }> {
   const mapMatch = content.match(/<map\b([^>]*)>/i)
   if (!mapMatch) {
     throw new Error('Invalid TMX map: missing <map> root element.')
@@ -527,6 +785,7 @@ function parseTmx(path: string, content: string): LevelData {
   const width = Math.max(1, toInt(mapAttrs.width, 1))
   const height = Math.max(1, toInt(mapAttrs.height, 1))
   const tileSize = Math.max(1, toInt(mapAttrs.tilewidth, 16))
+  const tilesets = await parseTmxTilesets(path, content, tileSize, readFile)
 
   const layers: Layer[] = []
 
@@ -642,12 +901,15 @@ function parseTmx(path: string, content: string): LevelData {
   }
 
   return {
-    id: fileNameWithoutExtension(path),
-    width,
-    height,
-    tileSize,
-    layers,
-    metadata: makeMetadata('tmx'),
+    data: {
+      id: fileNameWithoutExtension(path),
+      width,
+      height,
+      tileSize,
+      layers,
+      metadata: makeMetadata('tmx'),
+    },
+    tilesets,
   }
 }
 

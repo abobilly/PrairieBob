@@ -23,6 +23,7 @@ import {
   getNextFirstGid,
   tilesetToConfig,
 } from '@/lib/tileset'
+import type { RoomTilesetReference } from '@/lib/room-loader'
 import { toast } from 'sonner'
 
 const CONFIG_FILENAME = 'spudtile.config.json'
@@ -191,6 +192,10 @@ interface ProjectActions {
   // Tileset operations
   initTilesets: () => Promise<void>
   addTileset: (config: { name: string; sourcePath: string; tileSize: number }) => Promise<void>
+  loadRoomTilesets: (
+    references: RoomTilesetReference[],
+    options?: { replaceExisting?: boolean; persist?: boolean }
+  ) => Promise<LoadedTileset[]>
   removeTileset: (id: string) => Promise<void>
   saveTilesetsToConfig: () => Promise<void>
 }
@@ -821,6 +826,53 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
         } finally {
           set({ isLoadingTileset: false })
         }
+      },
+
+      loadRoomTilesets: async (references, options) => {
+        if (!window.electron || references.length === 0) {
+          return []
+        }
+
+        const replaceExisting = options?.replaceExisting ?? true
+        const persist = options?.persist ?? false
+        const sorted = [...references].sort((a, b) => a.firstGid - b.firstGid)
+        const loadedFromRoom: LoadedTileset[] = []
+
+        for (let index = 0; index < sorted.length; index += 1) {
+          const ref = sorted[index]
+          try {
+            const loaded = await loadTilesetFromPath(
+              {
+                id: ref.id || `room_tileset_${index + 1}`,
+                name: ref.name,
+                sourcePath: ref.sourcePath,
+                tileSize: ref.tileSize,
+                firstGid: ref.firstGid,
+              },
+              window.electron.fs.readFileBase64
+            )
+            loadedFromRoom.push(loaded)
+          } catch (err) {
+            console.warn(`Failed to load room tileset "${ref.name}" from ${ref.sourcePath}:`, err)
+          }
+        }
+
+        if (loadedFromRoom.length === 0) {
+          toast.error('Room opened, but tilesets could not be loaded')
+          return []
+        }
+
+        const nextTilesets = replaceExisting
+          ? loadedFromRoom
+          : [...get().tilesets.filter((ts) => ts.id !== DEBUG_TILESET_ID), ...loadedFromRoom]
+
+        set({ tilesets: nextTilesets })
+
+        if (persist) {
+          await get().saveTilesetsToConfig()
+        }
+
+        return loadedFromRoom
       },
 
       removeTileset: async (id) => {

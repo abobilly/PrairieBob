@@ -23,7 +23,18 @@ async function testSpudTileJson() {
 async function testLdtkJson() {
   const content = JSON.stringify({
     jsonVersion: '1.5.3',
-    defs: {},
+    defs: {
+      tilesets: [
+        {
+          uid: 1,
+          identifier: 'Terrain',
+          relPath: 'tilesets/terrain.png',
+          tileGridSize: 16,
+          cWid: 4,
+          cHei: 4,
+        },
+      ],
+    },
     worlds: [
       {
         identifier: 'World',
@@ -37,6 +48,7 @@ async function testLdtkJson() {
               {
                 __identifier: 'Floor',
                 __type: 'Tiles',
+                __tilesetDefUid: 1,
                 __gridSize: 16,
                 __opacity: 1,
                 visible: true,
@@ -57,12 +69,17 @@ async function testLdtkJson() {
   const result = await loadRoomDataFromContent('project.ldtk', content);
   assert.equal(result.data.id, 'Level_0');
   assert.equal(result.data.width, 4);
-  assert.equal(result.data.layers[0].data?.[0], 1);
+  assert.equal(result.data.layers[0].data?.[0], 2);
+  assert.equal(result.tilesets.length, 1);
+  assert.equal(result.tilesets[0].firstGid, 1);
 }
 
 async function testTmx() {
   const content = `<?xml version="1.0" encoding="UTF-8"?>
 <map width="3" height="2" tilewidth="16" tileheight="16">
+  <tileset firstgid="1" name="Terrain" tilewidth="16" tileheight="16" tilecount="16" columns="4">
+    <image source="tilesets/terrain.png" width="64" height="64" />
+  </tileset>
   <layer name="Floor" width="3" height="2">
     <data encoding="csv">1,2,3,4,5,6</data>
   </layer>
@@ -76,12 +93,77 @@ async function testTmx() {
   assert.equal(result.data.layers.length, 2);
   assert.equal(result.data.layers[0].data?.[5], 6);
   assert.equal(result.data.layers[1].objects?.[0]?.type, 'spawn_point');
+  assert.equal(result.tilesets.length, 1);
+  assert.ok(result.tilesets[0].sourcePath.toLowerCase().includes('tilesets/terrain.png'));
+}
+
+async function testTmxExternalTsx() {
+  const content = `<?xml version="1.0" encoding="UTF-8"?>
+<map width="2" height="2" tilewidth="16" tileheight="16">
+  <tileset firstgid="1" source="tilesets/terrain.tsx"/>
+  <layer name="Floor" width="2" height="2">
+    <data encoding="csv">1,2,3,4</data>
+  </layer>
+</map>`;
+
+  const tsx = `<?xml version="1.0" encoding="UTF-8"?>
+<tileset name="Terrain" tilewidth="16" tileheight="16" tilecount="16" columns="4">
+  <image source="terrain.png" width="64" height="64"/>
+</tileset>`;
+
+  const result = await loadRoomDataFromContent('maps/room.tmx', content, async (requestPath) => {
+    if (requestPath.toLowerCase().endsWith('terrain.tsx')) {
+      return tsx;
+    }
+    throw new Error(`Unexpected read path: ${requestPath}`);
+  });
+
+  assert.equal(result.tilesets.length, 1);
+  assert.ok(result.tilesets[0].sourcePath.toLowerCase().endsWith('/maps/tilesets/terrain.png'));
+}
+
+async function testTiledJsonExternalTsx() {
+  const content = JSON.stringify({
+    width: 2,
+    height: 2,
+    tilewidth: 16,
+    tileheight: 16,
+    layers: [
+      {
+        name: 'Floor',
+        type: 'tilelayer',
+        width: 2,
+        height: 2,
+        data: [1, 2, 3, 4],
+      },
+    ],
+    tilesets: [
+      { firstgid: 1, source: 'tilesets/main.tsx' },
+    ],
+  });
+
+  const tsx = `<?xml version="1.0" encoding="UTF-8"?>
+<tileset name="Main" tilewidth="16" tileheight="16" tilecount="16" columns="4">
+  <image source="main.png" width="64" height="64"/>
+</tileset>`;
+
+  const result = await loadRoomDataFromContent('maps/room.json', content, async (requestPath) => {
+    if (requestPath.toLowerCase().endsWith('main.tsx')) {
+      return tsx;
+    }
+    throw new Error(`Unexpected read path: ${requestPath}`);
+  });
+
+  assert.equal(result.tilesets.length, 1);
+  assert.ok(result.tilesets[0].sourcePath.toLowerCase().endsWith('/maps/tilesets/main.png'));
 }
 
 async function run() {
   await testSpudTileJson();
   await testLdtkJson();
   await testTmx();
+  await testTmxExternalTsx();
+  await testTiledJsonExternalTsx();
   console.log('room-loader tests: PASS');
 }
 
@@ -90,4 +172,3 @@ run().catch((err) => {
   console.error(err);
   process.exitCode = 1;
 });
-
