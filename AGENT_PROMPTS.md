@@ -1297,36 +1297,40 @@ export function validateProject(data: unknown): data is LDtkProjectJSON
 
 ---
 
-### T2-21: BobTile Adapter (Task 5C.4)
+### T2-21: Tileset Processing (Task 5C.4)
 
-**Goal**: Update BobTile adapter for LDtk tilesets
+**Goal**: Native tileset import/export/atlas processing within PrairieBob
 
 **Input Files**:
 
-- Existing: `bobtile/tools/BobTileAdapter.ts`
-- Existing: `src/lib/ldtk/types.ts` (TilesetDefinition)
+- Existing: `src/lib/ldtk/types.ts` (TilesetDef)
+- Existing: `src/lib/tileset.ts`
+- Reference: `bobtile/src/BobTile.Core/` (scrap for algorithms)
 
 **Output**:
 
-- Update `bobtile/tools/BobTileAdapter.ts`
+- `src/lib/ldtk/tileset-processing.ts`
 
 **Requirements**:
 
-- Convert LDtk tileset to BobTile format
-- Handle tile spacing, padding
-- Export for C# consumption
+- Import tileset images and auto-detect grid parameters
+- Slice tileset into individual tiles (canvas-based)
+- Export tileset as atlas PNG with metadata JSON
+- Handle spacing, padding, margins during import/export
+- Validate tileset dimensions against grid size
 
 **Key Patterns**:
 
-- Keep existing BobTile schema
-- Map LDtk tileset properties
-- Generate metadata file
+- Use HTML Canvas for image processing (no .NET dependency)
+- Integrate with existing TilesetDef type from types.ts
+- Electron IPC for file read/write
+- BobTile .NET project is deprecated — all functionality absorbed into PrairieBob
 
 **Acceptance**:
 
 - [ ] Build passes
-- [ ] BobTile integration works
-- [ ] No C# compile errors
+- [ ] Can import tileset image and detect grid
+- [ ] Can export atlas with metadata
 
 ---
 

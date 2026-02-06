@@ -46,7 +46,7 @@
 
 | Task | Source (Lines) | Target | Est. Lines | Status |
 |------|----------------|--------|------------|--------|
-| 2C.1 WorldRender | `display/WorldRender.hx` (985) | `src/components/WorldCanvas.tsx` | ~500 | ⬜ |
+| 2C.1 WorldRender | `display/WorldRender.hx` (985) | `src/components/WorldCanvas.tsx` | ~500 | ✅ |
 | 2C.2 Rulers | `display/Rulers.hx` (280) | `src/components/Rulers.tsx` | ~150 | ✅ |
 
 ---
@@ -97,7 +97,7 @@
 | Task | Source (Lines) | Target | Est. Lines | Status |
 |------|----------------|--------|------------|--------|
 | 4B.1 EntityInstanceEditor | `ui/EntityInstanceEditor.hx` (420) | `src/components/EntityEditor.tsx` | ~280 | ✅ |
-| 4B.2 FieldInstancesForm | `ui/FieldInstancesForm.hx` (827) | `src/components/FieldsForm.tsx` | ~500 | ⬜ |
+| 4B.2 FieldInstancesForm | `ui/FieldInstancesForm.hx` (827) | `src/components/FieldsForm.tsx` | ~500 | ✅ |
 | 4B.3 LevelInstanceForm | `ui/LevelInstanceForm.hx` (380) | `src/components/LevelEditor.tsx` | ~250 | ✅ |
 | 4B.4 RulePatternEditor | `ui/RulePatternEditor.hx` (253) | `src/components/RulePatternEditor.tsx` | ~200 | ✅ |
 
@@ -129,9 +129,9 @@
 | Task | Source (Lines) | Target | Est. Lines | Status |
 |------|----------------|--------|------------|--------|
 | 4F.1 EditLayerDefs | `ui/modal/panel/EditLayerDefs.hx` (842) | `src/components/panels/LayerDefsPanel.tsx` | ~500 | ⬜ |
-| 4F.2 EditEntityDefs | `ui/modal/panel/EditEntityDefs.hx` (601) | `src/components/panels/EntityDefsPanel.tsx` | ~350 | ⬜ |
-| 4F.3 EditTilesetDefs | `ui/modal/panel/EditTilesetDefs.hx` (420) | `src/components/panels/TilesetDefsPanel.tsx` | ~280 | ⬜ |
-| 4F.4 EditEnumDefs | `ui/modal/panel/EditEnumDefs.hx` (486) | `src/components/panels/EnumDefsPanel.tsx` | ~300 | ⬜ |
+| 4F.2 EditEntityDefs | `ui/modal/panel/EditEntityDefs.hx` (601) | `src/components/panels/EntityDefsPanel.tsx` | ~350 | ✅ |
+| 4F.3 EditTilesetDefs | `ui/modal/panel/EditTilesetDefs.hx` (420) | `src/components/panels/TilesetDefsPanel.tsx` | ~280 | ✅ |
+| 4F.4 EditEnumDefs | `ui/modal/panel/EditEnumDefs.hx` (486) | `src/components/panels/EnumDefsPanel.tsx` | ~300 | ✅ |
 | 4F.5 EditAllAutoLayerRules | `ui/modal/panel/EditAllAutoLayerRules.hx` (975) | `src/components/panels/AutoRulesPanel.tsx` | ~600 | ⬜ |
 
 ---
@@ -150,7 +150,7 @@
 | Task | Source (Lines) | Target | Est. Lines | Status |
 |------|----------------|--------|------------|--------|
 | 5B.1 ProjectLoader | `ui/ProjectLoader.hx` (420) | `src/lib/ldtk/project-loader.ts` | ~250 | ✅ |
-| 5B.2 ProjectSaver | `ui/ProjectSaver.hx` (660) | `src/lib/ldtk/project-saver.ts` | ~400 | ⬜ |
+| 5B.2 ProjectSaver | `ui/ProjectSaver.hx` (660) | `src/lib/ldtk/project-saver.ts` | ~400 | ✅ |
 
 ### 5C. PrairieBob Feature Re-integration
 
@@ -159,7 +159,7 @@
 | 5C.1 Agent integration | `src/lib/agent-service.ts` | Update for LDtk model | ~100 | ⬜ |
 | 5C.2 Project linking | `prairiebob.config.json` | Bridge to LDtk Project | ~80 | ✅ |
 | 5C.3 Live previews | `src/components/PropertiesPanel.tsx` | Port door state system | ~150 | ⬜ |
-| 5C.4 BobTile adapter | `bobtile/tools/BobTileAdapter.ts` | Update for LDtk tilesets | ~100 | ⬜ |
+| 5C.4 Tileset processing | `src/lib/tileset.ts` | `src/lib/ldtk/tileset-processing.ts` | ~100 | ⬜ |
 
 ---
 
@@ -201,7 +201,7 @@
 - ✅ 5B.1 ProjectLoader
 - ⬜ 5C.1 Agent integration
 - ⬜ 5C.3 Live previews
-- ⬜ 5C.4 BobTile adapter
+- ⬜ 5C.4 Tileset processing
 
 **Tier 3 - Complex (300-500 lines, many deps)**
 
