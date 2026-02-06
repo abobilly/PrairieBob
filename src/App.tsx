@@ -346,6 +346,7 @@ function App() {
     openProjectSelector,
     openImportDialog,
     closeImportDialog,
+    setPanelSize,
     setTheme,
     togglePanelCollapsed,
     setTilesetZoom,
@@ -376,6 +377,15 @@ function App() {
   const leftPanelOpen = !panels.left.collapsed
   const rightPanelOpen = !panels.right.collapsed
   const bottomPanelOpen = !panels.bottom.collapsed
+  const leftPanelDefaultSize = Math.max(260, panels.left.size || 280)
+  const leftPanelMinSize = Math.max(220, panels.left.minSize || 200)
+  const leftPanelMaxSize = Math.max(640, panels.left.maxSize || 400)
+  const rightPanelDefaultSize = Math.max(260, panels.right.size || 280)
+  const rightPanelMinSize = Math.max(220, panels.right.minSize || 200)
+  const rightPanelMaxSize = Math.max(640, panels.right.maxSize || 400)
+  const bottomPanelDefaultSize = Math.max(180, panels.bottom.size || 220)
+  const bottomPanelMinSize = Math.max(150, panels.bottom.minSize || 150)
+  const bottomPanelMaxSize = Math.max(520, panels.bottom.maxSize || 500)
   const resolvedTheme = useMemo<'dark' | 'light'>(() => {
     if (theme === 'light' || theme === 'dark') return theme
     if (typeof window !== 'undefined' && window.matchMedia) {
@@ -386,6 +396,15 @@ function App() {
   const handleToggleTheme = useCallback(() => {
     setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')
   }, [resolvedTheme, setTheme])
+  const handleLeftPanelResize = useCallback((size: { inPixels: number }) => {
+    setPanelSize('left', Math.round(size.inPixels))
+  }, [setPanelSize])
+  const handleRightPanelResize = useCallback((size: { inPixels: number }) => {
+    setPanelSize('right', Math.round(size.inPixels))
+  }, [setPanelSize])
+  const handleBottomPanelResize = useCallback((size: { inPixels: number }) => {
+    setPanelSize('bottom', Math.round(size.inPixels))
+  }, [setPanelSize])
 
   // Guard against multiple initTilesets calls
   const tilesetsInitRef = useRef(false)
@@ -1070,10 +1089,10 @@ function App() {
             {leftPanelOpen ? (
               <Panel
                 id="left-sidebar"
-                defaultSize={31}
-                minSize={20}
-                maxSize={58}
-                style={{ minWidth: 300 }}
+                defaultSize={leftPanelDefaultSize}
+                minSize={leftPanelMinSize}
+                maxSize={leftPanelMaxSize}
+                onResize={handleLeftPanelResize}
                 className="pb-panel pb-panel-palette border-r border-[var(--pb-border)]"
               >
                 <div className="pb-panel-header pb-panel-header-palette">
@@ -1114,7 +1133,7 @@ function App() {
                 </div>
               </Panel>
             ) : (
-              <Panel id="left-collapsed" defaultSize={4} minSize={3} maxSize={6}>
+              <Panel id="left-collapsed" defaultSize={44} minSize={38} maxSize={64}>
                 <button
                   onClick={() => togglePanelCollapsed('left')}
                   className="pb-panel-toggle pb-panel-toggle-side h-full border-r border-[var(--pb-border)]"
@@ -1146,10 +1165,10 @@ function App() {
             {rightPanelOpen ? (
               <Panel
                 id="right-sidebar"
-                defaultSize={31}
-                minSize={20}
-                maxSize={58}
-                style={{ minWidth: 300 }}
+                defaultSize={rightPanelDefaultSize}
+                minSize={rightPanelMinSize}
+                maxSize={rightPanelMaxSize}
+                onResize={handleRightPanelResize}
                 className="pb-panel pb-panel-inspector border-l border-[var(--pb-border)]"
               >
                 <div className="pb-panel-header pb-panel-header-inspector">
@@ -1210,7 +1229,7 @@ function App() {
                 </div>
               </Panel>
             ) : (
-              <Panel id="right-collapsed" defaultSize={4} minSize={3} maxSize={6}>
+              <Panel id="right-collapsed" defaultSize={44} minSize={38} maxSize={64}>
                 <button
                   onClick={() => togglePanelCollapsed('right')}
                   className="pb-panel-toggle pb-panel-toggle-side h-full border-l border-[var(--pb-border)]"
@@ -1229,9 +1248,10 @@ function App() {
             <PanelResizeHandle className="panel-resize-handle" />
             <Panel
               id="bottom-panel"
-              defaultSize={18}
-              minSize={10}
-              maxSize={40}
+              defaultSize={bottomPanelDefaultSize}
+              minSize={bottomPanelMinSize}
+              maxSize={bottomPanelMaxSize}
+              onResize={handleBottomPanelResize}
               className="pb-panel pb-panel-agent border-t border-[var(--pb-border)]"
             >
               <div className="pb-panel-header pb-panel-header-agent">

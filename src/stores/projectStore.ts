@@ -388,6 +388,18 @@ function normalizeProjectAssetPaths(paths: ProjectConfig['paths']): ProjectAsset
   }
 }
 
+function isSupportedRoomFileName(name: string): boolean {
+  const lowered = name.toLowerCase()
+  return lowered.endsWith('.tmx') || lowered.endsWith('.ldtk') || lowered.endsWith('.json')
+}
+
+function roomFilePriority(name: string): number {
+  const lowered = name.toLowerCase()
+  if (lowered.endsWith('.tmx')) return 0
+  if (lowered.endsWith('.ldtk')) return 1
+  return 2
+}
+
 async function loadJsonDefinitionFiles<T extends { id: string }>(
   dirPath: string,
   parser: (value: unknown) => T | null,
@@ -504,20 +516,64 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
             }
           }
 
-          // Load first map in the maps folder
+          // Load first supported map in the maps folder (.tmx, .ldtk, .json)
           const mapsPath = `${projectPath}/${normalizedPaths.maps}`
-          const mapEntries = await window.electron.fs.readDir(mapsPath)
-          const jsonFiles = mapEntries
-            .filter(entry => !entry.isDirectory && entry.name.endsWith('.json'))
-            .map(entry => entry.name)
-
           let mapData = DEFAULT_MAP
           let mapPath: string | null = null
+          let mapTilesetReferences: RoomTilesetReference[] = []
 
-          if (jsonFiles.length > 0) {
-            mapPath = `${mapsPath}/${jsonFiles[0]}`
-            const mapContent = await window.electron.fs.readFile(mapPath)
-            mapData = ensureCollisionLayer(JSON.parse(mapContent))
+          try {
+            const mapEntries = await window.electron.fs.readDir(mapsPath)
+            const roomFiles = mapEntries
+              .filter((entry) => !entry.isDirectory && isSupportedRoomFileName(entry.name))
+              .map((entry) => entry.name)
+              .sort((a, b) => roomFilePriority(a) - roomFilePriority(b) || a.localeCompare(b))
+
+            for (const roomFile of roomFiles) {
+              const candidatePath = `${mapsPath}/${roomFile}`
+              try {
+                const loaded = await loadRoomDataFromFile(candidatePath, window.electron.fs.readFile)
+                mapData = ensureCollisionLayer(loaded.data)
+                mapPath = candidatePath
+                mapTilesetReferences = loaded.tilesets
+                console.log(`[projectStore] Loaded room map: ${roomFile} (${loaded.sourceFormat})`)
+                break
+              } catch (err) {
+                console.warn(`[projectStore] Skipping room candidate "${roomFile}":`, err)
+              }
+            }
+          } catch (err) {
+            console.warn(`[projectStore] Failed to read maps directory "${mapsPath}":`, err)
+          }
+
+          let effectiveTilesets = loadedTilesets
+          if (mapTilesetReferences.length > 0) {
+            const sortedRoomTilesets = [...mapTilesetReferences].sort((a, b) => a.firstGid - b.firstGid)
+            const loadedRoomTilesets: LoadedTileset[] = []
+
+            for (const ref of sortedRoomTilesets) {
+              try {
+                const loaded = await loadTilesetFromPath(
+                  {
+                    id: ref.id,
+                    name: ref.name,
+                    sourcePath: ref.sourcePath,
+                    tileSize: ref.tileSize,
+                    firstGid: ref.firstGid,
+                  },
+                  window.electron.fs.readFileBase64
+                )
+                loadedRoomTilesets.push(loaded)
+              } catch (err) {
+                console.warn(`[projectStore] Failed to load room tileset "${ref.name}" from ${ref.sourcePath}:`, err)
+              }
+            }
+
+            if (loadedRoomTilesets.length > 0) {
+              effectiveTilesets = loadedRoomTilesets
+            } else {
+              console.warn('[projectStore] Room map parsed, but no room tilesets could be loaded. Falling back to project.json tilesets.')
+            }
           }
 
           const { entityDefinitions, interactionDefinitions } = await loadProjectDefinitions(
@@ -529,7 +585,7 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
             projectPath,
             projectName: config.name,
             projectConfig: config,
-            tilesets: loadedTilesets,
+            tilesets: effectiveTilesets,
             entityDefinitions,
             interactionDefinitions,
             mapData,
@@ -542,7 +598,7 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
           })
 
           console.log('[projectStore] Project loaded:', config.name)
-          console.log('[projectStore] Tilesets loaded:', loadedTilesets.length)
+          console.log('[projectStore] Tilesets loaded:', effectiveTilesets.length)
           console.log('[projectStore] Entity definitions loaded:', Object.keys(entityDefinitions).length)
           console.log('[projectStore] Interaction definitions loaded:', Object.keys(interactionDefinitions).length)
           console.log('[projectStore] MapData:', mapData?.id)
