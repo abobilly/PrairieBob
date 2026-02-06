@@ -25,11 +25,34 @@ import {
 } from '@/lib/tileset'
 import { toast } from 'sonner'
 
-// Config file path
-const CONFIG_PATH = 'c:/Users/andre/lawchuck/artbob/SpudTile/spudtile.config.json'
+const CONFIG_FILENAME = 'spudtile.config.json'
+const LEGACY_CONFIG_FILENAME = 'prairiebob.config.json'
+const SAMPLE_PROJECT_RELATIVE_PATH = 'samples/cottage'
 
-// Sample project path fallback (dev)
-const SAMPLE_PROJECT_PATH = 'c:/Users/andre/lawchuck/artbob/SpudTile/samples/cottage'
+async function resolveWritableConfigPath(): Promise<string> {
+  if (window.electron?.app?.getPaths) {
+    const { appPath, resourcesPath, isPackaged } = await window.electron.app.getPaths()
+    const basePath = isPackaged ? resourcesPath : appPath
+    return `${basePath}/${CONFIG_FILENAME}`
+  }
+  return CONFIG_FILENAME
+}
+
+async function resolveReadableConfigPath(): Promise<string> {
+  const writablePath = await resolveWritableConfigPath()
+  if (!window.electron?.fs) return writablePath
+
+  if (await window.electron.fs.exists(writablePath)) {
+    return writablePath
+  }
+
+  const legacyPath = writablePath.replace(CONFIG_FILENAME, LEGACY_CONFIG_FILENAME)
+  if (await window.electron.fs.exists(legacyPath)) {
+    return legacyPath
+  }
+
+  return writablePath
+}
 
 async function resolveSampleProjectPath(): Promise<string> {
   if (window.electron?.app?.getPaths) {
@@ -38,7 +61,7 @@ async function resolveSampleProjectPath(): Promise<string> {
       ? `${resourcesPath}/samples/cottage`
       : `${appPath}/samples/cottage`
   }
-  return SAMPLE_PROJECT_PATH
+  return SAMPLE_PROJECT_RELATIVE_PATH
 }
 
 const MAX_HISTORY = 100
@@ -721,10 +744,11 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
 
         try {
           if (window.electron) {
-            const configExists = await window.electron.fs.exists(CONFIG_PATH)
-            console.log('[projectStore] Config exists:', configExists, 'at', CONFIG_PATH)
+            const configPath = await resolveReadableConfigPath()
+            const configExists = await window.electron.fs.exists(configPath)
+            console.log('[projectStore] Config exists:', configExists, 'at', configPath)
             if (configExists) {
-              const configContent = await window.electron.fs.readFile(CONFIG_PATH)
+              const configContent = await window.electron.fs.readFile(configPath)
               const config = JSON.parse(configContent)
 
               if (config.tilesets && Array.isArray(config.tilesets)) {
@@ -819,10 +843,12 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
         try {
           const { tilesets } = get()
           let config: Record<string, unknown> = {}
+          const readConfigPath = await resolveReadableConfigPath()
+          const writeConfigPath = await resolveWritableConfigPath()
 
-          const configExists = await window.electron.fs.exists(CONFIG_PATH)
+          const configExists = await window.electron.fs.exists(readConfigPath)
           if (configExists) {
-            const content = await window.electron.fs.readFile(CONFIG_PATH)
+            const content = await window.electron.fs.readFile(readConfigPath)
             config = JSON.parse(content)
           }
 
@@ -832,8 +858,8 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
 
           config.tilesets = tilesetConfigs
 
-          await window.electron.fs.writeFile(CONFIG_PATH, JSON.stringify(config, null, 4))
-          console.log('Saved tilesets to config')
+          await window.electron.fs.writeFile(writeConfigPath, JSON.stringify(config, null, 4))
+          console.log('Saved tilesets to config at', writeConfigPath)
         } catch (err) {
           console.error('Failed to save tilesets to config:', err)
         }

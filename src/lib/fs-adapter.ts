@@ -87,6 +87,14 @@ export class ElectronFSAdapter implements FileSystemAdapter {
             const content = await this.readFile(configPath);
             return JSON.parse(content);
         }
+
+        // Backward compatibility for projects not migrated to the new config file name yet.
+        const legacyConfigPath = `${projectPath}/prairiebob.config.json`;
+        if (await this.exists(legacyConfigPath)) {
+            const content = await this.readFile(legacyConfigPath);
+            return JSON.parse(content);
+        }
+
         return null;
     }
 

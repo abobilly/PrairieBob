@@ -121,7 +121,7 @@
         "publish": {
             "provider": "github",
             "owner": "abobilly",
-            "repo": "SpudTile"
+            "repo": "PrairieBob"
         },
         "win": {
             "target": [

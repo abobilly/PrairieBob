@@ -40,7 +40,10 @@ export interface SpudTileConfig {
     [key: string]: unknown
 }
 
-export type LDtkProject = Project & { prairieBobConfig: SpudTileConfig }
+export type LDtkProject = Project & { spudTileConfig: SpudTileConfig }
+
+const CONFIG_FILENAME = 'spudtile.config.json'
+const LEGACY_CONFIG_FILENAME = 'prairiebob.config.json'
 
 const DEFAULT_TILES_PER_LEVEL =
     PROJECT_DEFAULTS.LEVEL_WIDTH / PROJECT_DEFAULTS.GRID_SIZE
@@ -70,12 +73,33 @@ function assertNumber(value: unknown, label: string): number {
     return value
 }
 
-function normalizeConfigPath(path: string): string {
+function normalizeConfigPath(path: string, fileName = CONFIG_FILENAME): string {
     if (path.toLowerCase().endsWith('.json')) {
         return path
     }
     const trimmed = path.replace(/[\\/]+$/, '')
-    return `${trimmed}/spudtile.config.json`
+    return `${trimmed}/${fileName}`
+}
+
+async function resolveReadableConfigPath(
+    fs: NonNullable<Window['electron']>['fs'],
+    path: string
+): Promise<string> {
+    const primaryPath = normalizeConfigPath(path, CONFIG_FILENAME)
+    if (path.toLowerCase().endsWith('.json')) {
+        return primaryPath
+    }
+
+    if (await fs.exists(primaryPath)) {
+        return primaryPath
+    }
+
+    const legacyPath = normalizeConfigPath(path, LEGACY_CONFIG_FILENAME)
+    if (await fs.exists(legacyPath)) {
+        return legacyPath
+    }
+
+    return primaryPath
 }
 
 function validateSpudTileConfig(value: unknown): SpudTileConfig {
@@ -190,13 +214,13 @@ export function syncSpudTileConfig(
         updateWorldDefaults(project, linkedProject, tileSize)
     }
 
-    project.prairieBobConfig = validated
+    project.spudTileConfig = validated
     return project
 }
 
 export async function loadSpudTileProject(path: string): Promise<LDtkProject> {
     const fs = assertElectronFs()
-    const configPath = normalizeConfigPath(path)
+    const configPath = await resolveReadableConfigPath(fs, path)
 
     const configContent = await fs.readFile(configPath)
     const config = validateSpudTileConfig(JSON.parse(configContent))
@@ -212,7 +236,7 @@ export async function loadSpudTileProject(path: string): Promise<LDtkProject> {
     }
 
     const bridgedProject = Object.assign(project, {
-        prairieBobConfig: config,
+        spudTileConfig: config,
     }) as LDtkProject
 
     return syncSpudTileConfig(bridgedProject, config)
@@ -223,9 +247,9 @@ export async function saveSpudTileProject(
     path: string
 ): Promise<void> {
     const fs = assertElectronFs()
-    const configPath = normalizeConfigPath(path)
+    const configPath = normalizeConfigPath(path, CONFIG_FILENAME)
 
-    const configSource = project.prairieBobConfig ?? null
+    const configSource = project.spudTileConfig ?? null
     if (!configSource) {
         throw new Error('Missing SpudTile config on project')
     }
