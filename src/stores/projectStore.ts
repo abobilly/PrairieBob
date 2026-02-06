@@ -19,6 +19,7 @@ import {
   InteractionDefinitionFile,
   LayerGroup,
   TileActionGroup,
+  TileActionAssignment,
 } from '@/lib/types'
 import type { LDtkProject } from '@/lib/ldtk/project'
 import {
@@ -276,6 +277,9 @@ interface ProjectState {
   customTileActionGroups: TileActionGroup[]
   customTileActionGroupsDirty: boolean
 
+  /** Per-cell tile action assignments, keyed by "layerName:x:y". */
+  tileActionAssignments: Record<string, TileActionAssignment>
+
   // Room registry (multi-room / world view)
   roomRegistry: RoomFileEntry[]
   worldLayout: WorldLayout
@@ -378,6 +382,9 @@ interface ProjectActions {
   addTileActionGroup: (group: TileActionGroup) => void
   updateTileActionGroup: (id: string, group: Partial<TileActionGroup>) => void
   deleteTileActionGroup: (id: string) => void
+  assignTileAction: (layerName: string, x: number, y: number, actionGroupId: string) => void
+  removeTileAction: (layerName: string, x: number, y: number) => void
+  clearTileActionsForLayer: (layerName: string) => void
 
   // Room registry / world layout
   scanRoomFiles: () => Promise<void>
@@ -828,6 +835,7 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
       tileActionGroups: [],
       customTileActionGroups: [],
       customTileActionGroupsDirty: false,
+      tileActionAssignments: {},
       roomRegistry: [],
       worldLayout: createEmptyLayout(),
       canUndo: false,
@@ -975,6 +983,7 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
             tileActionGroups: defaultTileActionGroups,
             customTileActionGroups: persistedCustomTileActionGroups,
             customTileActionGroupsDirty: false,
+            tileActionAssignments: mapData.tileActionAssignments ?? {},
             mapData,
             currentRoomPath: mapPath,
             hasUnsavedChanges: false,
@@ -1113,6 +1122,7 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
             tileActionGroups: [],
             customTileActionGroups: [],
             customTileActionGroupsDirty: false,
+            tileActionAssignments: mapData.tileActionAssignments ?? {},
             mapData,
             currentRoomPath: mapPath,
             hasUnsavedChanges: false,
@@ -1315,6 +1325,7 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
             deletedInteractionDefinitionIds.length > 0
           set({
             mapData,
+            tileActionAssignments: mapData.tileActionAssignments ?? {},
             layerGroups: mergeAutoLayerGroups(layerGroups, mapData),
             tileActionGroups: combineTileActionGroups(
               interactionDefinitions,
@@ -1351,12 +1362,15 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
           customTileActionGroupsDirty,
           layerGroups,
           layerGroupsDirty,
+          tileActionAssignments,
         } = get()
         if (!window.electron || !mapData) return
 
-        // Update metadata
+        // Update metadata — include tile action assignments in map data
+        const hasAssignments = Object.keys(tileActionAssignments).length > 0
         const updatedMap = {
           ...mapData,
+          ...(hasAssignments ? { tileActionAssignments } : {}),
           metadata: {
             ...mapData.metadata,
             editedAt: new Date().toISOString(),
@@ -1506,6 +1520,7 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
           const previousLayerGroups = get().layerGroups
           set({
             mapData: refreshedMapData,
+            tileActionAssignments: refreshedMapData.tileActionAssignments ?? {},
             entityDefinitions,
             interactionDefinitions,
             layerGroups: mergeAutoLayerGroups(previousLayerGroups, refreshedMapData),
@@ -2209,6 +2224,36 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
               state.hasUnsavedChanges = true
             }
           }
+        })
+      },
+
+      // ============== Tile Action Assignments ==============
+
+      assignTileAction: (layerName: string, x: number, y: number, actionGroupId: string) => {
+        set((state) => {
+          const key = `${layerName}:${x}:${y}`
+          state.tileActionAssignments[key] = { actionGroupId }
+          state.hasUnsavedChanges = true
+        })
+      },
+
+      removeTileAction: (layerName: string, x: number, y: number) => {
+        set((state) => {
+          const key = `${layerName}:${x}:${y}`
+          delete state.tileActionAssignments[key]
+          state.hasUnsavedChanges = true
+        })
+      },
+
+      clearTileActionsForLayer: (layerName: string) => {
+        set((state) => {
+          const prefix = `${layerName}:`
+          for (const key of Object.keys(state.tileActionAssignments)) {
+            if (key.startsWith(prefix)) {
+              delete state.tileActionAssignments[key]
+            }
+          }
+          state.hasUnsavedChanges = true
         })
       },
 

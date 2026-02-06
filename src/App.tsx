@@ -66,6 +66,7 @@ import { BakeTilesetDialog } from '@/components/BakeTilesetDialog'
 import { WorldViewCanvas as SpudWorldViewCanvas } from '@/components/WorldViewCanvas'
 import { WorldMinimap } from '@/components/WorldMinimap'
 import { getFileSystemAdapter } from '@/lib/fs-adapter'
+import { deserializeBakedTileset } from '@/lib/tileset-baker'
 import { Toaster, toast } from 'sonner'
 import { NotificationContainer } from '@/components/Notification'
 import { DialogContainer } from '@/components/Dialog'
@@ -413,11 +414,11 @@ function App() {
   const leftPanelOpen = !panels.left.collapsed
   const rightPanelOpen = !panels.right.collapsed
   const bottomPanelOpen = !panels.bottom.collapsed
-  const leftPanelDefaultSize = Math.min(Math.max(panels.left.size || 24, 16), 38)
-  const leftPanelMinSize = Math.min(Math.max(panels.left.minSize || 16, 14), 45)
+  const leftPanelDefaultSize = Math.min(Math.max(panels.left.size || 24, 22), 40)
+  const leftPanelMinSize = Math.min(Math.max(panels.left.minSize || 16, 18), 48)
   const leftPanelMaxSize = Math.min(Math.max(panels.left.maxSize || 38, leftPanelMinSize), 60)
-  const rightPanelDefaultSize = Math.min(Math.max(panels.right.size || 24, 16), 38)
-  const rightPanelMinSize = Math.min(Math.max(panels.right.minSize || 16, 14), 45)
+  const rightPanelDefaultSize = Math.min(Math.max(panels.right.size || 24, 20), 40)
+  const rightPanelMinSize = Math.min(Math.max(panels.right.minSize || 16, 16), 48)
   const rightPanelMaxSize = Math.min(Math.max(panels.right.maxSize || 38, rightPanelMinSize), 60)
   const bottomPanelDefaultSize = Math.min(Math.max(panels.bottom.size || 24, 12), 45)
   const bottomPanelMinSize = Math.min(Math.max(panels.bottom.minSize || 14, 8), 40)
@@ -550,14 +551,75 @@ function App() {
     }
 
     const result = await window.electron.dialog.openFile({
-      title: 'Open Tileset Image',
-      filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'] }],
+      title: 'Open Tileset',
+      filters: [
+        { name: 'All Tilesets', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'spudtile'] },
+        { name: 'SpudTile Package', extensions: ['spudtile'] },
+        { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'] },
+      ],
     })
 
     if (result.canceled || !result.filePath) return
 
-    openImportDialog(result.filePath)
-  }, [openImportDialog])
+    // Branch: .spudtile import vs raw image
+    if (result.filePath.toLowerCase().endsWith('.spudtile')) {
+      try {
+        const json = await window.electron.fs.readFile(result.filePath)
+        const baked = deserializeBakedTileset(json)
+        if (!baked) {
+          toast.error('Invalid .spudtile file')
+          return
+        }
+
+        // Extract embedded PNG to project tilesets directory
+        const { projectPath, projectConfig } = useProjectStore.getState()
+        const tilesetsDir = projectPath && projectConfig?.paths
+          ? `${projectPath}/${projectConfig.paths.tilesets ?? 'tilesets'}`
+          : null
+
+        // Sanitize name for filename
+        const safeName = baked.name.replace(/[^a-zA-Z0-9_-]/g, '_')
+        const targetDir = tilesetsDir ?? (result.filePath.replace(/[/\\][^/\\]+$/, ''))
+        const pngPath = `${targetDir}/${safeName}.png`
+
+        // Write embedded image as PNG
+        const base64Data = baked.imageDataUrl.split(',')[1]
+        if (!base64Data) {
+          toast.error('No image data in .spudtile file')
+          return
+        }
+        await window.electron.fs.writeFileBase64(pngPath, base64Data)
+
+        // Import via existing addTileset flow (uses the extracted PNG on disk)
+        await addTileset({
+          name: baked.name,
+          sourcePath: pngPath,
+          tileSize: baked.tileWidth,
+        })
+
+        // Select the newly added tileset
+        const newTileset = useProjectStore.getState().tilesets.slice(-1)[0]
+        if (newTileset) {
+          const nextTileId = applyFlipToTileId(newTileset.firstGid, tileFlipX, tileFlipY)
+          setActiveTilesetId(newTileset.id)
+          setSelectedTileId(nextTileId)
+          setTileStamp({
+            width: 1,
+            height: 1,
+            tiles: [[nextTileId]],
+            tilesetId: newTileset.id,
+          })
+        }
+
+        toast.success(`Imported .spudtile: ${baked.name}`)
+      } catch (err) {
+        console.error('Failed to import .spudtile:', err)
+        toast.error('Failed to import .spudtile file')
+      }
+    } else {
+      openImportDialog(result.filePath)
+    }
+  }, [openImportDialog, addTileset, tileFlipX, tileFlipY, setActiveTilesetId, setSelectedTileId])
 
   const handleImportConfirm = useCallback(async (importResult: TilesetImportResult) => {
     if (!pendingImportPath) return
@@ -1197,11 +1259,11 @@ function App() {
                     <PanelLeftClose className="w-4 h-4" />
                   </button>
                 </div>
-                <div className="pb-panel-content h-full min-h-0 flex flex-col gap-3">
-                  <div className="min-h-[220px] max-h-[320px] flex-shrink-0">
+                <div className="pb-panel-content h-full min-h-0 flex flex-col gap-3 overflow-hidden">
+                  <div className="min-h-[240px] max-h-[340px] flex-shrink-0 overflow-hidden">
                     <ToolPalette />
                   </div>
-                  <div className="flex-1 min-h-[280px]">
+                  <div className="flex-1 min-h-[280px] overflow-hidden">
                     <TilesetPanel
                       tilesets={tilesets}
                       activeTilesetId={activeTilesetId}

@@ -65,6 +65,8 @@ export interface LevelData {
   height: number
   tileSize: number
   layers: Layer[]
+  /** Per-cell tile action assignments, keyed by "layerName:x:y". */
+  tileActionAssignments?: Record<string, TileActionAssignment>
   metadata: {
     editedAt: string
     exportedFrom: string
@@ -271,6 +273,14 @@ export interface TileActionGroup {
   defaultState: string
   triggers: TileTrigger[]
   effects: TileEffect[]
+}
+
+/** Assignment of an action group to a specific placed tile position. */
+export interface TileActionAssignment {
+  /** ID of the TileActionGroup to apply at this position. */
+  actionGroupId: string
+  /** Current state name (defaults to the group's defaultState if omitted). */
+  currentState?: string
 }
 
 // ============== Baked Tileset ==============

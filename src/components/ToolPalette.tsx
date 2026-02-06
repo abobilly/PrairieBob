@@ -87,16 +87,16 @@ export function ToolPalette() {
                 variant="outline"
                 size="sm"
                 className={cn(
-                  'justify-start gap-2 text-xs',
+                  'w-full min-w-0 justify-start gap-2 text-xs overflow-hidden',
                   isActive && 'border-primary bg-primary/10 text-primary'
                 )}
                 onClick={() => setActiveToolId(tool.id)}
                 title={`${tool.name}: ${TOOL_HELP[tool.id] ?? ''}`}
               >
                 {TOOL_ICONS[tool.id] ?? <span className="text-xs font-semibold">{tool.name.slice(0, 1)}</span>}
-                <span className="flex-1 text-left">{tool.name}</span>
+                <span className="flex-1 min-w-0 text-left truncate">{tool.name}</span>
                 {tool.shortcut ? (
-                  <span className="text-[10px] text-muted-foreground">{tool.shortcut}</span>
+                  <span className="shrink-0 text-[10px] text-muted-foreground">{tool.shortcut}</span>
                 ) : null}
               </Button>
             )
@@ -106,7 +106,7 @@ export function ToolPalette() {
             variant="outline"
             size="sm"
             className={cn(
-              'justify-start gap-2 text-xs',
+              'w-full min-w-0 justify-start gap-2 text-xs overflow-hidden',
               collisionActive && 'border-primary bg-primary/10 text-primary'
             )}
             onClick={handleActivateCollision}
@@ -116,7 +116,7 @@ export function ToolPalette() {
               : `Collision: ${TOOL_HELP.collision}`}
           >
             <span className="text-xs font-semibold">C</span>
-            <span className="flex-1 text-left">Collision</span>
+            <span className="flex-1 min-w-0 text-left truncate">Collision</span>
           </Button>
         </div>
 
