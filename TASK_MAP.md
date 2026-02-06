@@ -30,8 +30,8 @@
 
 | Task | Source (Lines) | Target | Est. Lines | Status |
 |------|----------------|--------|------------|--------|
-| 2A.1 Camera | `display/Camera.hx` (392) | `src/lib/ldtk/camera.ts` | ~200 | ⬜ |
-| 2A.2 Viewport hooks | - | `src/hooks/useViewport.ts` | ~100 | ⬜ |
+| 2A.1 Camera | `display/Camera.hx` (392) | `src/lib/ldtk/camera.ts` | ~200 | ✅ |
+| 2A.2 Viewport hooks | - | `src/hooks/useViewport.ts` | ~100 | ✅ |
 
 ### 2B. Level Rendering
 
@@ -57,8 +57,8 @@
 
 | Task | Source (Lines) | Target | Est. Lines | Status |
 |------|----------------|--------|------------|--------|
-| 3A.1 Base Tool | `Tool.hx` (373) | `src/lib/ldtk/tools/tool.ts` | ~200 | ⬜ |
-| 3A.2 Tool Registry | - | `src/lib/ldtk/tools/registry.ts` | ~80 | ⬜ |
+| 3A.1 Base Tool | `Tool.hx` (373) | `src/lib/ldtk/tools/tool.ts` | ~200 | ✅ |
+| 3A.2 Tool Registry | - | `src/lib/ldtk/tools/registry.ts` | ~80 | ✅ |
 | 3A.3 Tool Store | - | `src/stores/toolStore.ts` | ~150 | ⬜ |
 
 ### 3B. Layer Tools
@@ -74,10 +74,10 @@
 
 | Task | Source (Lines) | Target | Est. Lines | Status |
 |------|----------------|--------|------------|--------|
-| 3C.1 PanView | `tool/PanView.hx` (120) | `src/lib/ldtk/tools/pan-tool.ts` | ~60 | ⬜ |
+| 3C.1 PanView | `tool/PanView.hx` (120) | `src/lib/ldtk/tools/pan-tool.ts` | ~60 | ✅ |
 | 3C.2 SelectionTool | `tool/SelectionTool.hx` (280) | `src/lib/ldtk/tools/selection-tool.ts` | ~150 | ⬜ |
 | 3C.3 ResizeTool | `tool/ResizeTool.hx` (200) | `src/lib/ldtk/tools/resize-tool.ts` | ~100 | ⬜ |
-| 3C.4 PickPoint | `tool/PickPoint.hx` (150) | `src/lib/ldtk/tools/pick-tool.ts` | ~80 | ⬜ |
+| 3C.4 PickPoint | `tool/PickPoint.hx` (150) | `src/lib/ldtk/tools/pick-tool.ts` | ~80 | ✅ |
 
 ---
 
@@ -113,15 +113,15 @@
 |------|----------------|--------|------------|--------|
 | 4D.1 CommandPalette | `ui/CommandPalette.hx` (320) | `src/components/CommandPalette.tsx` | ~200 | ⬜ |
 | 4D.2 QuickSearch | `ui/QuickSearch.hx` (180) | `src/components/QuickSearch.tsx` | ~120 | ⬜ |
-| 4D.3 Notification | `ui/Notification.hx` (150) | `src/components/Notification.tsx` | ~100 | ⬜ |
+| 4D.3 Notification | `ui/Notification.hx` (150) | `src/components/Notification.tsx` | ~100 | ✅ |
 | 4D.4 Cursor | `ui/Cursor.hx` (200) | `src/components/Cursor.tsx` | ~120 | ⬜ |
 
 ### 4E. Modals & Dialogs
 
 | Task | Source (Lines) | Target | Est. Lines | Status |
 |------|----------------|--------|------------|--------|
-| 4E.1 Modal base | `ui/Modal.hx` (280) | `src/components/Modal.tsx` | ~150 | ⬜ |
-| 4E.2 Dialog base | `ui/modal/Dialog.hx` (180) | `src/components/Dialog.tsx` | ~100 | ⬜ |
+| 4E.1 Modal base | `ui/Modal.hx` (280) | `src/components/Modal.tsx` | ~150 | ✅ |
+| 4E.2 Dialog base | `ui/modal/Dialog.hx` (180) | `src/components/Dialog.tsx` | ~100 | ✅ |
 | 4E.3 ContextMenu | `ui/modal/ContextMenu.hx` (220) | `src/components/ContextMenu.tsx` | ~140 | ⬜ |
 
 ### 4F. Definition Editors (Lower Priority)
@@ -169,54 +169,54 @@
 
 **Tier 1 - Simple (< 150 lines, isolated)**
 
-- 2A.2 Viewport hooks
-- 3A.2 Tool Registry
-- 3C.1 PanView
-- 3C.4 PickPoint
-- 4A.1 ToolPalette
-- 4D.3 Notification
-- 4E.1 Modal base
-- 4E.2 Dialog base
-- 5C.2 Project linking
+- ✅ 2A.2 Viewport hooks
+- ✅ 3A.2 Tool Registry
+- ✅ 3C.1 PanView
+- ✅ 3C.4 PickPoint
+- ⬜ 4A.1 ToolPalette
+- ✅ 4D.3 Notification
+- ✅ 4E.1 Modal base
+- ✅ 4E.2 Dialog base
+- ⬜ 5C.2 Project linking
 
 **Tier 2 - Medium (150-300 lines, some deps)**
 
-- 2A.1 Camera
-- 2B.3 EntityRender
-- 2C.2 Rulers
-- 3A.1 Base Tool
-- 3A.3 Tool Store
-- 3B.1 LayerTool base
-- 3B.2 IntGridTool
-- 3B.4 EntityTool
-- 3C.2 SelectionTool
-- 3C.3 ResizeTool
-- 4A.3 EntityPalette
-- 4A.4 IntGridPalette
-- 4B.4 RulePatternEditor
-- 4D.1 CommandPalette
-- 4D.2 QuickSearch
-- 4D.4 Cursor
-- 4E.3 ContextMenu
-- 5B.1 ProjectLoader
-- 5C.1 Agent integration
-- 5C.3 Live previews
-- 5C.4 BobTile adapter
+- ✅ 2A.1 Camera
+- ⬜ 2B.3 EntityRender
+- ⬜ 2C.2 Rulers
+- ✅ 3A.1 Base Tool
+- ⬜ 3A.3 Tool Store
+- ⬜ 3B.1 LayerTool base
+- ⬜ 3B.2 IntGridTool
+- ⬜ 3B.4 EntityTool
+- ⬜ 3C.2 SelectionTool
+- ⬜ 3C.3 ResizeTool
+- ✅ 4A.3 EntityPalette (exists, needs update)
+- ⬜ 4A.4 IntGridPalette
+- ⬜ 4B.4 RulePatternEditor
+- ⬜ 4D.1 CommandPalette
+- ⬜ 4D.2 QuickSearch
+- ⬜ 4D.4 Cursor
+- ⬜ 4E.3 ContextMenu
+- ⬜ 5B.1 ProjectLoader
+- ⬜ 5C.1 Agent integration
+- ⬜ 5C.3 Live previews
+- ⬜ 5C.4 BobTile adapter
 
 **Tier 3 - Complex (300-500 lines, many deps)**
 
-- 2B.1 LevelRender
-- 2B.2 LayerRender
-- 2B.4 FieldInstanceRender
-- 3B.3 TileTool
-- 4A.2 TilePalette
-- 4B.1 EntityInstanceEditor
-- 4B.3 LevelEditor
-- 4C.1 Tileset Panel
-- 4F.2 EditEntityDefs
-- 4F.3 EditTilesetDefs
-- 4F.4 EditEnumDefs
-- 5B.2 ProjectSaver
+- ⬜ 2B.1 LevelRender
+- ⬜ 2B.2 LayerRender
+- ⬜ 2B.4 FieldInstanceRender
+- ⬜ 3B.3 TileTool
+- ⬜ 4A.2 TilePalette
+- ⬜ 4B.1 EntityInstanceEditor
+- ⬜ 4B.3 LevelEditor
+- ⬜ 4C.1 Tileset Panel
+- ⬜ 4F.2 EditEntityDefs
+- ⬜ 4F.3 EditTilesetDefs
+- ⬜ 4F.4 EditEnumDefs
+- ⬜ 5B.2 ProjectSaver
 
 **Tier 4 - Major (500+ lines, core system)**
 

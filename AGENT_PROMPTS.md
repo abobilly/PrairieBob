@@ -1,8 +1,17 @@
 # Agent Prompts - PrairieBob LDtk Port
 
 > **Mission**: Port LDtk tile editor from Haxe to React/TypeScript
-> **Context**: Phase 1 (data model) complete. Phase 2-5 tasks below.
+> **Context**: Phase 1 (data model) complete. ~30% overall progress.
 > **Your role**: Implement assigned task, verify build passes, commit with clear message
+
+## Current Status
+
+| Tier | Complete | Remaining |
+|------|----------|-----------|
+| Tier 1 | 7/9 | T1-05 ToolPalette, T1-09 Project Bridge |
+| Tier 2 | 3/21 | Most tools, palettes, UI components |
+| Tier 3 | 0/12 | Renderers, editors, panels |
+| Tier 4 | 0/6 | Core systems |
 
 ---
 

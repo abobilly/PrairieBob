@@ -1,5 +1,6 @@
 node_modules/
 dist/
+dist-electron/
 .vite/
 .env
 .env.*
@@ -7,16 +8,22 @@ dist/
 .DS_Store
 Thumbs.db
 
-# Release binaries (too large for GitHub)
-release/*.exe
-release/*.blockmap
-release/win-unpacked/
+# Build outputs
+build-output/
+release/
 
 # IDE
 .vs/
 *.suo
 *.user
+*.sln.cache
+
+# Go binaries
+cli/*.exe
+
+# C# build outputs
+**/bin/
+**/obj/
 
 # Local editor references (do not commit large cloned editor repos)
 Tile-Editors_to-be-scrapped/
-build-output/

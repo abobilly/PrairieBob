@@ -82,14 +82,10 @@ The agent has access to these editor tools:
 
 ### SDK Setup
 
-All four Copilot SDKs are installed:
-
 | SDK | Location | Use |
 |-----|----------|-----|
 | Node.js | `package.json` | Editor UI integration |
 | Go | `cli/` | Standalone CLI tool |
-| Python | Global | Scripts/automation |
-| .NET | `CopilotApp/` | Future Unity tooling |
 
 ## Development
 
