@@ -125,21 +125,9 @@
         },
         "win": {
             "target": [
-                "nsis",
-                "portable"
+                "dir"
             ],
             "icon": "public/icons/spudtile.ico"
-        },
-        "nsis": {
-            "oneClick": true,
-            "perMachine": false,
-            "allowToChangeInstallationDirectory": false,
-            "createDesktopShortcut": true,
-            "createStartMenuShortcut": true,
-            "shortcutName": "SpudTile"
-        },
-        "portable": {
-            "artifactName": "${productName}-Portable-${version}.exe"
         }
     }
 }
