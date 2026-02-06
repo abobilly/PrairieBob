@@ -1,5 +1,14 @@
-import type { LevelData, Layer } from '@/lib/types'
-import { stripTileFlipFlags } from '@/lib/tileset'
+import type { LevelData, Layer } from './types'
+const TILE_FLIP_HORIZONTAL_FLAG = 0x80000000
+const TILE_FLIP_VERTICAL_FLAG = 0x40000000
+const TILE_FLIP_DIAGONAL_FLAG = 0x20000000
+const TILE_ALL_TRANSFORM_FLAGS =
+  TILE_FLIP_HORIZONTAL_FLAG | TILE_FLIP_VERTICAL_FLAG | TILE_FLIP_DIAGONAL_FLAG
+
+function stripTileFlipFlags(tileId: number): number {
+  const value = tileId >>> 0
+  return (value & ~TILE_ALL_TRANSFORM_FLAGS) >>> 0
+}
 
 export interface CollisionSourceConfig {
   linkedLayerNames: string[]

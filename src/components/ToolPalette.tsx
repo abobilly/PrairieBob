@@ -1,11 +1,13 @@
 import { useCallback, useMemo, type ReactNode } from 'react'
-import { CursorClick, GridFour, Hand, PaintBucket, User, LineSegment, Rectangle, Circle } from '@phosphor-icons/react'
+import { CursorClick, GridFour, Hand, PaintBucket, User, LineSegment, Rectangle, Circle, Shuffle, Rows, Stack } from '@phosphor-icons/react'
 import { toolRegistry } from '@/lib/ldtk'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useLdtkToolStore } from '@/stores/ldtkToolStore'
 import { useProjectStore, useEditorStore } from '@/stores'
 import { useToolStore } from '@/stores/toolStore'
+
+type StampMode = 'single' | 'rectangle' | 'random'
 
 const TOOL_ICONS: Record<string, ReactNode> = {
   tile: <GridFour size={16} weight="bold" />,
@@ -44,6 +46,8 @@ export function ToolPalette() {
   const activeLayerIndex = useEditorStore((state) => state.activeLayerIndex)
   const setActiveLayerIndex = useEditorStore((state) => state.setActiveLayerIndex)
   const setSelectedIntGridValue = useToolStore((state) => state.setSelectedIntGridValue)
+  const stampMode = useToolStore((state) => state.stampMode)
+  const setStampMode = useToolStore((state) => state.setStampMode)
 
   const tools = useMemo(
     () => TOOL_ORDER
@@ -74,7 +78,7 @@ export function ToolPalette() {
         <span className="pb-compact-title">Tools</span>
       </div>
       <div className="flex-1 p-2 min-h-0 overflow-y-auto">
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 gap-2">
           {tools.map((tool) => {
             const isActive = tool.id === activeToolId
             return (
@@ -102,7 +106,7 @@ export function ToolPalette() {
             variant="outline"
             size="sm"
             className={cn(
-              'justify-start gap-2 text-xs col-span-2',
+              'justify-start gap-2 text-xs',
               collisionActive && 'border-primary bg-primary/10 text-primary'
             )}
             onClick={handleActivateCollision}
@@ -115,6 +119,35 @@ export function ToolPalette() {
             <span className="flex-1 text-left">Collision</span>
           </Button>
         </div>
+
+        {/* Stamp mode options — shown when tile tool active */}
+        {activeToolId === 'tile' && (
+          <div className="mt-2">
+            <div className="text-[10px] text-[var(--pb-text-muted)] mb-1 px-1">Brush Mode</div>
+            <div className="flex gap-1">
+              {([
+                { mode: 'single' as StampMode, label: 'Single', icon: <Rows size={12} weight="bold" />, title: 'Paint one tile at a time' },
+                { mode: 'rectangle' as StampMode, label: 'Rect', icon: <Stack size={12} weight="bold" />, title: 'Drag to fill a rectangle' },
+                { mode: 'random' as StampMode, label: 'Random', icon: <Shuffle size={12} weight="bold" />, title: 'Randomly pick from selected tiles' },
+              ]).map(({ mode, label, icon, title }) => (
+                <Button
+                  key={mode}
+                  variant="outline"
+                  size="sm"
+                  className={cn(
+                    'flex-1 gap-1 text-[10px] px-1.5 py-1 h-auto',
+                    stampMode === mode && 'border-primary bg-primary/10 text-primary'
+                  )}
+                  onClick={() => setStampMode(mode)}
+                  title={title}
+                >
+                  {icon}
+                  {label}
+                </Button>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="mt-2 rounded border border-[var(--pb-border)] bg-[var(--pb-bg-input)] px-2 py-1 text-[10px] text-[var(--pb-text-secondary)]">
           {TOOL_HELP[collisionActive ? 'collision' : activeToolId] ?? 'Select a tool to edit the current map layer.'}

@@ -25,11 +25,15 @@ import {
   createDebugTileset,
   loadTilesetFromPath,
   getNextFirstGid,
-  stripTileFlipFlags,
   tilesetToConfig,
 } from '@/lib/tileset'
 import { deserializeActionGroups, serializeActionGroups } from '@/lib/tile-actions'
 import { loadRoomDataFromFile, type RoomTilesetReference } from '@/lib/room-loader'
+import {
+  isCollisionLayerName,
+  resolveCollisionSourcesFromMetadata,
+  withCollisionSourceConfig,
+} from '@/lib/collision-model'
 import {
   type WorldLayout,
   type RoomPosition,
@@ -155,60 +159,10 @@ function normalizeTileLayerData(data: number[] | undefined, width: number, heigh
   return [...data, ...new Array(expectedSize - data.length).fill(0)]
 }
 
-function isCollisionLayerName(name: string): boolean {
-  return name.trim().toLowerCase() === 'collision'
-}
-
-function hasBlockingTiles(data: number[]): boolean {
-  return data.some((tileId) => stripTileFlipFlags(tileId) > 0)
-}
-
-function generateCollisionOutlineData(level: LevelData): number[] {
-  const width = Math.max(1, level.width)
-  const height = Math.max(1, level.height)
-  const size = width * height
-  const occupied = new Array<boolean>(size).fill(false)
-
-  for (const layer of level.layers) {
-    if (layer.type !== 'tilelayer') continue
-    if (isCollisionLayerName(layer.name)) continue
-    const data = normalizeTileLayerData(layer.data, width, height)
-    for (let index = 0; index < size; index += 1) {
-      if (stripTileFlipFlags(data[index]) > 0) {
-        occupied[index] = true
-      }
-    }
-  }
-
-  const collision = new Array<number>(size).fill(0)
-  for (let y = 0; y < height; y += 1) {
-    for (let x = 0; x < width; x += 1) {
-      const index = y * width + x
-      if (!occupied[index]) continue
-      const neighbors = [
-        [x + 1, y],
-        [x - 1, y],
-        [x, y + 1],
-        [x, y - 1],
-      ]
-      const touchesExterior = neighbors.some(([nx, ny]) => {
-        if (nx < 0 || ny < 0 || nx >= width || ny >= height) return true
-        return !occupied[ny * width + nx]
-      })
-      if (touchesExterior) {
-        collision[index] = 1
-      }
-    }
-  }
-
-  return collision
-}
-
 function ensureCollisionLayer(level: LevelData): LevelData {
   const width = Math.max(1, level.width)
   const height = Math.max(1, level.height)
   const layers = [...level.layers]
-  const generatedOutline = generateCollisionOutlineData(level)
   const collisionLayerIndex = layers.findIndex(
     (layer) => layer.type === 'tilelayer' && isCollisionLayerName(layer.name)
   )
@@ -220,21 +174,22 @@ function ensureCollisionLayer(level: LevelData): LevelData {
       visible: true,
       locked: false,
       opacity: 1,
-      data: generatedOutline,
+      data: new Array(width * height).fill(0),
     })
-    return { ...level, layers }
+    const withLayer = { ...level, layers }
+    return withCollisionSourceConfig(withLayer, resolveCollisionSourcesFromMetadata(withLayer))
   }
 
   const existing = layers[collisionLayerIndex]
   const normalizedData = normalizeTileLayerData(existing.data, width, height)
-  const shouldAutofillOutline = !hasBlockingTiles(normalizedData) && hasBlockingTiles(generatedOutline)
   const normalized = {
     ...existing,
     type: 'tilelayer' as const,
-    data: shouldAutofillOutline ? generatedOutline : normalizedData,
+    data: normalizedData,
   }
   layers[collisionLayerIndex] = normalized
-  return { ...level, layers }
+  const withLayer = { ...level, layers }
+  return withCollisionSourceConfig(withLayer, resolveCollisionSourcesFromMetadata(withLayer))
 }
 
 interface ProjectConfig {
@@ -256,6 +211,7 @@ interface ProjectConfig {
     tileCount?: number
   }>
   tileActionGroups?: unknown[]
+  layerGroups?: LayerGroup[]
 }
 
 interface HistoryEntry {
@@ -313,6 +269,7 @@ interface ProjectState {
 
   // Layer groups
   layerGroups: LayerGroup[]
+  layerGroupsDirty: boolean
 
   // Tile actions
   tileActionGroups: TileActionGroup[]
@@ -389,6 +346,8 @@ interface ProjectActions {
   addLayer: (name: string, type: 'tilelayer' | 'objectgroup') => void
   deleteLayer: (index: number) => void
   renameLayer: (index: number, name: string) => void
+  setCollisionSourceLayerEnabled: (layerName: string, enabled: boolean) => void
+  setCollisionDerivedOverlayVisible: (visible: boolean) => void
 
   // Entity operations
   placeEntity: (entity: EntityData) => void
@@ -865,6 +824,7 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
       deletedEntityDefinitionIds: [],
       deletedInteractionDefinitionIds: [],
       layerGroups: [],
+      layerGroupsDirty: false,
       tileActionGroups: [],
       customTileActionGroups: [],
       customTileActionGroupsDirty: false,
@@ -984,7 +944,11 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
             projectPath,
             normalizedPaths,
           )
-          const defaultLayerGroups = deriveDefaultLayerGroups(mapData)
+          const autoLayerGroups = deriveDefaultLayerGroups(mapData)
+          const persistedLayerGroups = Array.isArray(config.layerGroups)
+            ? (config.layerGroups as LayerGroup[]).filter((g) => !isAutoLayerGroup(g))
+            : []
+          const defaultLayerGroups = [...persistedLayerGroups, ...autoLayerGroups]
           const persistedCustomTileActionGroups = Array.isArray(config.tileActionGroups)
             ? deserializeActionGroups(config.tileActionGroups)
               .filter((group) => !isDefinitionBackedGroupId(group.id))
@@ -1007,6 +971,7 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
             deletedEntityDefinitionIds: [],
             deletedInteractionDefinitionIds: [],
             layerGroups: defaultLayerGroups,
+            layerGroupsDirty: false,
             tileActionGroups: defaultTileActionGroups,
             customTileActionGroups: persistedCustomTileActionGroups,
             customTileActionGroupsDirty: false,
@@ -1144,6 +1109,7 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
             deletedEntityDefinitionIds: [],
             deletedInteractionDefinitionIds: [],
             layerGroups: deriveDefaultLayerGroups(mapData),
+            layerGroupsDirty: false,
             tileActionGroups: [],
             customTileActionGroups: [],
             customTileActionGroupsDirty: false,
@@ -1338,9 +1304,11 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
             deletedEntityDefinitionIds,
             deletedInteractionDefinitionIds,
             customTileActionGroupsDirty,
+            layerGroupsDirty,
           } = get()
           const hasProjectDefinitionChanges =
             customTileActionGroupsDirty ||
+            layerGroupsDirty ||
             dirtyEntityDefinitionIds.length > 0 ||
             dirtyInteractionDefinitionIds.length > 0 ||
             deletedEntityDefinitionIds.length > 0 ||
@@ -1381,6 +1349,8 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
           deletedInteractionDefinitionIds,
           customTileActionGroups,
           customTileActionGroupsDirty,
+          layerGroups,
+          layerGroupsDirty,
         } = get()
         if (!window.electron || !mapData) return
 
@@ -1408,6 +1378,7 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
 
           if (
             customTileActionGroupsDirty ||
+            layerGroupsDirty ||
             dirtyEntityDefinitionIds.length > 0 ||
             dirtyInteractionDefinitionIds.length > 0 ||
             deletedEntityDefinitionIds.length > 0 ||
@@ -1421,7 +1392,7 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
               const entitiesDir = `${projectPath}/${normalizedPaths.entities}`
               const interactionsDir = `${projectPath}/${normalizedPaths.interactions}`
 
-              if (customTileActionGroupsDirty) {
+              if (customTileActionGroupsDirty || layerGroupsDirty) {
                 try {
                   const projectJsonPath = `${projectPath}/project.json`
                   let nextProjectConfig: ProjectConfig = projectConfig
@@ -1429,9 +1400,18 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
                     const rawConfig = await window.electron.fs.readFile(projectJsonPath)
                     nextProjectConfig = JSON.parse(rawConfig) as ProjectConfig
                   }
-                  nextProjectConfig = {
-                    ...nextProjectConfig,
-                    tileActionGroups: serializeActionGroups(customTileActionGroups),
+                  if (customTileActionGroupsDirty) {
+                    nextProjectConfig = {
+                      ...nextProjectConfig,
+                      tileActionGroups: serializeActionGroups(customTileActionGroups),
+                    }
+                  }
+                  if (layerGroupsDirty) {
+                    const manualGroups = layerGroups.filter((g) => !isAutoLayerGroup(g))
+                    nextProjectConfig = {
+                      ...nextProjectConfig,
+                      layerGroups: manualGroups,
+                    }
                   }
                   await window.electron.fs.writeFile(projectJsonPath, `${JSON.stringify(nextProjectConfig, null, 2)}\n`)
                   set({ projectConfig: nextProjectConfig })
@@ -1485,6 +1465,7 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
                   deletedEntityDefinitionIds: [],
                   deletedInteractionDefinitionIds: [],
                   customTileActionGroupsDirty: false,
+                  layerGroupsDirty: false,
                 }),
           })
           toast.success(
@@ -1540,6 +1521,7 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
             deletedEntityDefinitionIds: [],
             deletedInteractionDefinitionIds: [],
             customTileActionGroupsDirty: false,
+            layerGroupsDirty: false,
             past: [],
             future: [],
             canUndo: false,
@@ -1740,6 +1722,10 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
             ),
           }
           state.mapData.layers.push(newLayer)
+          state.mapData = withCollisionSourceConfig(
+            state.mapData,
+            resolveCollisionSourcesFromMetadata(state.mapData),
+          )
           state.layerGroups = mergeAutoLayerGroups(state.layerGroups, state.mapData)
           state.hasUnsavedChanges = true
         })
@@ -1753,6 +1739,13 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
             if (removedLayerName) {
               for (const group of state.layerGroups) {
                 group.layerIds = group.layerIds.filter((layerName) => layerName !== removedLayerName)
+              }
+              const config = resolveCollisionSourcesFromMetadata(state.mapData)
+              if (config.linkedLayerNames.includes(removedLayerName)) {
+                state.mapData = withCollisionSourceConfig(state.mapData, {
+                  ...config,
+                  linkedLayerNames: config.linkedLayerNames.filter((layerName) => layerName !== removedLayerName),
+                })
               }
             }
             state.layerGroups = mergeAutoLayerGroups(state.layerGroups, state.mapData)
@@ -1769,9 +1762,52 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
             for (const group of state.layerGroups) {
               group.layerIds = group.layerIds.map((layerName) => layerName === previousName ? name : layerName)
             }
+            const collisionConfig = resolveCollisionSourcesFromMetadata(state.mapData)
+            if (collisionConfig.linkedLayerNames.includes(previousName)) {
+              const nextLinked = collisionConfig.linkedLayerNames
+                .map((layerName) => (layerName === previousName ? name : layerName))
+                .filter((layerName, idx, arr) => arr.indexOf(layerName) === idx)
+                .sort((a, b) => a.localeCompare(b))
+              state.mapData = withCollisionSourceConfig(state.mapData, {
+                ...collisionConfig,
+                linkedLayerNames: nextLinked,
+              })
+            }
             state.layerGroups = mergeAutoLayerGroups(state.layerGroups, state.mapData)
             state.hasUnsavedChanges = true
           }
+        })
+      },
+
+      setCollisionSourceLayerEnabled: (layerName, enabled) => {
+        set((state) => {
+          const layer = state.mapData.layers.find((entry) => entry.name === layerName)
+          if (!layer || layer.type !== 'tilelayer' || isCollisionLayerName(layer.name)) return
+
+          const config = resolveCollisionSourcesFromMetadata(state.mapData)
+          const linked = new Set(config.linkedLayerNames)
+          if (enabled) {
+            linked.add(layerName)
+          } else {
+            linked.delete(layerName)
+          }
+
+          state.mapData = withCollisionSourceConfig(state.mapData, {
+            ...config,
+            linkedLayerNames: Array.from(linked).sort((a, b) => a.localeCompare(b)),
+          })
+          state.hasUnsavedChanges = true
+        })
+      },
+
+      setCollisionDerivedOverlayVisible: (visible) => {
+        set((state) => {
+          const config = resolveCollisionSourcesFromMetadata(state.mapData)
+          state.mapData = withCollisionSourceConfig(state.mapData, {
+            ...config,
+            showDerivedOverlay: visible,
+          })
+          state.hasUnsavedChanges = true
         })
       },
 
@@ -2012,12 +2048,16 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
             visible: true,
             locked: false,
           })
+          state.layerGroupsDirty = true
+          state.hasUnsavedChanges = true
         })
       },
 
       deleteLayerGroup: (id: string) => {
         set((state) => {
           state.layerGroups = state.layerGroups.filter((g) => g.id !== id)
+          state.layerGroupsDirty = true
+          state.hasUnsavedChanges = true
         })
       },
 
@@ -2034,6 +2074,8 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
               target.layerIds.push(layerName)
             }
           }
+          state.layerGroupsDirty = true
+          state.hasUnsavedChanges = true
         })
       },
 
@@ -2070,6 +2112,8 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
         set((state) => {
           const group = state.layerGroups.find((g) => g.id === id)
           if (group) group.name = name
+          state.layerGroupsDirty = true
+          state.hasUnsavedChanges = true
         })
       },
 

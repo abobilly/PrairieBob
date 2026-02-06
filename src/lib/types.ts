@@ -69,6 +69,10 @@ export interface LevelData {
     editedAt: string
     exportedFrom: string
     version: string
+    collision?: {
+      linkedLayerNames?: string[]
+      showDerivedOverlay?: boolean
+    }
   }
 }
 

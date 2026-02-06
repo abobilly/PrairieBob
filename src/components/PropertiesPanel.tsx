@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { EntityData, EntityType } from '@/lib/types'
 import { getAvailableCharacters } from '@/lib/data'
 import { useProjectStore } from '@/stores/projectStore'
@@ -59,6 +60,21 @@ export function PropertiesPanel({
     ? ['door', 'portal', 'stairs', 'ladder'].includes(selectedEntity.type)
     : false
   const roomRegistry = useProjectStore((s) => s.roomRegistry)
+  const mapData = useProjectStore((s) => s.mapData)
+  const npcZoneOptions = useMemo(() => {
+    return mapData.layers
+      .filter((layer) => layer.type === 'objectgroup')
+      .flatMap((layer) => layer.objects ?? [])
+      .filter((entity) => entity.type === 'trigger')
+      .filter((entity) => (entity.properties.zoneRole as string | undefined) === 'npc_zone')
+      .map((entity) => {
+        const zoneId = typeof entity.properties.zoneId === 'string' && entity.properties.zoneId.trim().length > 0
+          ? entity.properties.zoneId.trim()
+          : entity.id
+        return { id: zoneId, label: zoneId }
+      })
+      .filter((entry, index, array) => array.findIndex((candidate) => candidate.id === entry.id) === index)
+  }, [mapData.layers])
 
   if (!selectedEntity) {
     return (
@@ -85,6 +101,13 @@ export function PropertiesPanel({
   const statePreset = STATE_PRESETS.find(preset => stateValue && preset.values.includes(stateValue))
     ?? (selectedEntity.type === 'door' ? STATE_PRESETS[0] : null)
   const activeState = statePreset?.values.includes(stateValue || '') ? stateValue : statePreset?.values[0]
+  const movementModeValue = (selectedEntity.properties.movementMode as string) || 'wander'
+  const speedValue = Number(selectedEntity.properties.speedTilesPerSecond ?? 2.2)
+  const safeSpeedValue = Number.isFinite(speedValue) ? Math.max(0.1, speedValue) : 2.2
+  const decisionValue = Number(selectedEntity.properties.decisionIntervalMs ?? 1200)
+  const safeDecisionValue = Number.isFinite(decisionValue) ? Math.max(120, Math.floor(decisionValue)) : 1200
+  const deviationValue = Number(selectedEntity.properties.zoneDeviationTiles ?? selectedEntity.properties.wanderRadius ?? 0)
+  const safeDeviationValue = Number.isFinite(deviationValue) ? Math.max(0, Math.floor(deviationValue)) : 0
 
   return (
     <Card className="h-full flex flex-col pb-compact-panel pb-compact-properties">
@@ -299,6 +322,24 @@ export function PropertiesPanel({
                 </SelectContent>
               </Select>
             </div>
+            {isNpcEntity && (
+              <div className="space-y-2">
+                <Label htmlFor="npc-movement-mode" className="text-xs">Movement</Label>
+                <Select
+                  value={movementModeValue}
+                  onValueChange={(value) => handlePropertyChange('movementMode', value)}
+                >
+                  <SelectTrigger id="npc-movement-mode" className="h-8 text-sm">
+                    <SelectValue placeholder="Movement mode" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="wander">Wander</SelectItem>
+                    <SelectItem value="idle">Idle</SelectItem>
+                    <SelectItem value="patrol">Patrol (Soon)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="npc-facing-mode" className="text-xs">Facing Mode</Label>
               <Select
@@ -355,11 +396,27 @@ export function PropertiesPanel({
                   type="number"
                   step="0.1"
                   min="0.1"
-                  value={Number(selectedEntity.properties.speedTilesPerSecond ?? 2.2)}
+                  value={safeSpeedValue}
                   onChange={(e) => handlePropertyChange('speedTilesPerSecond', Number(e.target.value))}
                   className="h-8 text-sm font-mono"
                 />
               </div>
+            </div>
+            <div className="space-y-1">
+              <div className="flex items-center justify-between text-xs">
+                <Label htmlFor="npc-speed-slider" className="text-xs">Speed Slider</Label>
+                <span className="font-mono text-[10px]">{safeSpeedValue.toFixed(1)} t/s</span>
+              </div>
+              <input
+                id="npc-speed-slider"
+                type="range"
+                min={0.5}
+                max={8}
+                step={0.1}
+                value={safeSpeedValue}
+                onChange={(e) => handlePropertyChange('speedTilesPerSecond', Number(e.target.value))}
+                className="w-full accent-primary"
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="npc-story-knot" className="text-xs">Story Knot</Label>
@@ -372,18 +429,73 @@ export function PropertiesPanel({
               />
             </div>
             {isNpcEntity && (
-              <div className="space-y-2">
-                <Label htmlFor="npc-wander-radius" className="text-xs">Wander Radius</Label>
-                <Input
-                  id="npc-wander-radius"
-                  type="number"
-                  step="1"
-                  min="0"
-                  value={Number(selectedEntity.properties.wanderRadius ?? 0)}
-                  onChange={(e) => handlePropertyChange('wanderRadius', Number(e.target.value))}
-                  className="h-8 text-sm font-mono"
-                />
-              </div>
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="npc-zone-id" className="text-xs">Zone</Label>
+                  {npcZoneOptions.length > 0 ? (
+                    <Select
+                      value={(selectedEntity.properties.zoneId as string) || ''}
+                      onValueChange={(value) => handlePropertyChange('zoneId', value)}
+                    >
+                      <SelectTrigger id="npc-zone-id" className="h-8 text-sm">
+                        <SelectValue placeholder="None (free roam around home)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">None</SelectItem>
+                        {npcZoneOptions.map((zone) => (
+                          <SelectItem key={zone.id} value={zone.id}>
+                            {zone.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input
+                      id="npc-zone-id"
+                      value={(selectedEntity.properties.zoneId as string) || ''}
+                      onChange={(e) => handlePropertyChange('zoneId', e.target.value)}
+                      className="h-8 text-sm font-mono"
+                      placeholder="zone_id (create NPC zone trigger first)"
+                    />
+                  )}
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between text-xs">
+                    <Label htmlFor="npc-zone-deviation" className="text-xs">Zone Deviation</Label>
+                    <span className="font-mono text-[10px]">{safeDeviationValue} tiles</span>
+                  </div>
+                  <input
+                    id="npc-zone-deviation"
+                    type="range"
+                    min={0}
+                    max={16}
+                    step={1}
+                    value={safeDeviationValue}
+                    onChange={(e) => {
+                      const next = Number(e.target.value)
+                      handlePropertyChange('zoneDeviationTiles', next)
+                      handlePropertyChange('wanderRadius', next)
+                    }}
+                    className="w-full accent-primary"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between text-xs">
+                    <Label htmlFor="npc-decision-interval" className="text-xs">Direction Interval</Label>
+                    <span className="font-mono text-[10px]">{safeDecisionValue} ms</span>
+                  </div>
+                  <input
+                    id="npc-decision-interval"
+                    type="range"
+                    min={120}
+                    max={4000}
+                    step={40}
+                    value={safeDecisionValue}
+                    onChange={(e) => handlePropertyChange('decisionIntervalMs', Number(e.target.value))}
+                    className="w-full accent-primary"
+                  />
+                </div>
+              </>
             )}
           </>
         )}
@@ -400,6 +512,38 @@ export function PropertiesPanel({
                 placeholder="action_name"
               />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="trigger-zone-role" className="text-xs">Zone Role</Label>
+              <Select
+                value={(selectedEntity.properties.zoneRole as string) || 'none'}
+                onValueChange={(value) => {
+                  handlePropertyChange('zoneRole', value)
+                  if (value === 'npc_zone' && !(selectedEntity.properties.zoneId as string)) {
+                    handlePropertyChange('zoneId', selectedEntity.id)
+                  }
+                }}
+              >
+                <SelectTrigger id="trigger-zone-role" className="h-8 text-sm">
+                  <SelectValue placeholder="Select zone role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  <SelectItem value="npc_zone">NPC Wander Zone</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {(selectedEntity.properties.zoneRole as string) === 'npc_zone' && (
+              <div className="space-y-2">
+                <Label htmlFor="trigger-zone-id" className="text-xs">Zone ID</Label>
+                <Input
+                  id="trigger-zone-id"
+                  value={(selectedEntity.properties.zoneId as string) || selectedEntity.id}
+                  onChange={(e) => handlePropertyChange('zoneId', e.target.value)}
+                  className="h-8 text-sm font-mono"
+                  placeholder="zone_id"
+                />
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-2">
                 <Label htmlFor="trigger-deck-tag" className="text-xs">Deck Tag</Label>

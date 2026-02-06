@@ -32,6 +32,7 @@ import {
   type InteractionDefinitionMap,
   type SpriteFrameSource,
 } from '@/lib/entity-definitions'
+import { buildCollisionModel } from '@/lib/collision-model'
 
 const DEFAULT_BG_COLOR = '#1f2430'
 const DEFAULT_INTGRID_ALPHA = 0.35
@@ -219,6 +220,7 @@ export function LevelCanvas({
   const selectedTileIds = useToolStore((s) => s.selectedTileIds)
   const selectedEntityDefUid = useToolStore((s) => s.selectedEntityDefUid)
   const selectedIntGridValue = useToolStore((s) => s.selectedIntGridValue)
+  const stampMode = useToolStore((s) => s.stampMode)
   const activeLayerKey = useToolStore((s) => s.activeLayer)
   const setActiveTool = useToolStore((s) => s.setActiveTool)
 
@@ -233,6 +235,7 @@ export function LevelCanvas({
 
   const layers = level.layerInstances ?? []
   const sourceEntitiesById = useMemo(() => buildEntityLookup(mapData), [mapData])
+  const collisionModel = useMemo(() => buildCollisionModel(mapData), [mapData])
 
   const resolveEntitySprite = useCallback((entity: EntityInstance, elapsedMs: number): ResolvedEntitySprite | null => {
     const sourceEntity = sourceEntitiesById.get(entity.iid)
@@ -670,9 +673,10 @@ export function LevelCanvas({
     toolsRef.current.rect.setSelectedTiles(selectedTileIds)
     toolsRef.current.ellipse.setSelectedTiles(selectedTileIds)
     toolsRef.current.tile.setTileStamp(tileStamp.tiles)
+    toolsRef.current.tile.setStampMode(stampMode)
     toolsRef.current.intgrid.selectedValue = selectedIntGridValue
     toolsRef.current.entity.setSelectedEntityDef(selectedEntityDefUid)
-  }, [toolLayers, selectedTileIds, tileStamp, selectedIntGridValue, selectedEntityDefUid, layerByType.collision])
+  }, [toolLayers, selectedTileIds, tileStamp, selectedIntGridValue, selectedEntityDefUid, layerByType.collision, stampMode])
 
   const getActiveTool = useCallback(() => {
     const tools = toolsRef.current
@@ -771,17 +775,34 @@ export function LevelCanvas({
             gridSize
           )
         } else {
-          ctx.fillStyle = 'rgba(255, 0, 255, 0.4)'
-          ctx.fillRect(0, 0, gridSize, gridSize)
-          ctx.strokeStyle = 'rgba(0, 0, 0, 0.6)'
-          ctx.lineWidth = 1 / (cameraRef.current?.zoom || 1)
-          ctx.strokeRect(0, 0, gridSize, gridSize)
+          const resolved = resolveTileId(tile.t, tilesets)
+          if (resolved) {
+            const sourceX = (resolved.localTileId % resolved.tileset.tilesPerRow) * resolved.tileset.tileSize
+            const sourceY = Math.floor(resolved.localTileId / resolved.tileset.tilesPerRow) * resolved.tileset.tileSize
+            ctx.drawImage(
+              resolved.tileset.canvas,
+              sourceX,
+              sourceY,
+              resolved.tileset.tileSize,
+              resolved.tileset.tileSize,
+              0,
+              0,
+              gridSize,
+              gridSize,
+            )
+          } else {
+            ctx.fillStyle = 'rgba(255, 0, 255, 0.4)'
+            ctx.fillRect(0, 0, gridSize, gridSize)
+            ctx.strokeStyle = 'rgba(0, 0, 0, 0.6)'
+            ctx.lineWidth = 1 / (cameraRef.current?.zoom || 1)
+            ctx.strokeRect(0, 0, gridSize, gridSize)
+          }
         }
 
         ctx.restore()
       }
     },
-    [getTilesetCanvas]
+    [getTilesetCanvas, tilesets]
   )
 
   const renderIntGrid = useCallback(
@@ -834,12 +855,45 @@ export function LevelCanvas({
     []
   )
 
+  const renderDerivedCollisionOverlay = useCallback(
+    (ctx: CanvasRenderingContext2D, layer: LayerInstance) => {
+      if (!collisionModel.config.showDerivedOverlay) return
+      const width = mapData.width
+      const height = mapData.height
+      const gridSize = layer.__gridSize || 1
+      const offsetX = layer.__pxTotalOffsetX
+      const offsetY = layer.__pxTotalOffsetY
+      const derived = collisionModel.derived
+      const manual = collisionModel.manual
+
+      ctx.save()
+      ctx.globalAlpha = Math.max(0.08, Math.min(1, layer.__opacity)) * 0.22
+      ctx.fillStyle = 'rgba(59, 130, 246, 0.65)'
+      for (let y = 0; y < height; y += 1) {
+        for (let x = 0; x < width; x += 1) {
+          const index = y * width + x
+          if ((derived[index] ?? 0) <= 0) continue
+          if ((manual[index] ?? 0) > 0) continue
+          ctx.fillRect(
+            x * gridSize + offsetX,
+            y * gridSize + offsetY,
+            gridSize,
+            gridSize,
+          )
+        }
+      }
+      ctx.restore()
+    },
+    [collisionModel, mapData.width, mapData.height]
+  )
+
   const renderLayer = useCallback(
     (ctx: CanvasRenderingContext2D, layer: LayerInstance) => {
       if (!layer.visible) return
       if (isTileLayer(layer)) {
         if (isCollisionLayerIdentifier(layer.__identifier)) {
           renderCollisionLayer(ctx, layer)
+          renderDerivedCollisionOverlay(ctx, layer)
           return
         }
         renderTiles(ctx, layer, layer.autoLayerTiles)
@@ -851,7 +905,7 @@ export function LevelCanvas({
         renderIntGrid(ctx, layer, def?.intGridValues)
       }
     },
-    [layerDefs, renderTiles, renderIntGrid, renderCollisionLayer]
+    [layerDefs, renderTiles, renderIntGrid, renderCollisionLayer, renderDerivedCollisionOverlay]
   )
 
   const renderEntities = useCallback(

@@ -22,6 +22,7 @@ interface ToolState {
   tileFlipY: boolean
   selectedEntityDefUid: number | null
   selectedIntGridValue: number
+  stampMode: 'single' | 'rectangle' | 'random'
   brushSize: number
   zoom: number
   panX: number
@@ -39,6 +40,7 @@ interface ToolActions {
   toggleTileFlipY: () => void
   setSelectedEntityDefUid: (uid: number | null) => void
   setSelectedIntGridValue: (value: number) => void
+  setStampMode: (mode: 'single' | 'rectangle' | 'random') => void
   setBrushSize: (size: number) => void
   setZoom: (zoom: number) => void
   setPan: (x: number, y: number) => void
@@ -58,6 +60,7 @@ export const useToolStore = create<ToolState & ToolActions>()(
         tileFlipY: false,
         selectedEntityDefUid: null,
         selectedIntGridValue: 1,
+        stampMode: 'single' as const,
         brushSize: DEFAULT_BRUSH_SIZE,
         zoom: 1,
         panX: 0,
@@ -105,6 +108,10 @@ export const useToolStore = create<ToolState & ToolActions>()(
           state.selectedIntGridValue = Math.max(0, Math.floor(value))
         }),
 
+        setStampMode: (mode) => set((state) => {
+          state.stampMode = mode
+        }),
+
         setBrushSize: (size) => set((state) => {
           state.brushSize = clamp(Math.round(size), MIN_BRUSH_SIZE, MAX_BRUSH_SIZE)
         }),
@@ -150,6 +157,7 @@ export const useToolStore = create<ToolState & ToolActions>()(
           tileFlipY: state.tileFlipY,
           selectedEntityDefUid: state.selectedEntityDefUid,
           selectedIntGridValue: state.selectedIntGridValue,
+          stampMode: state.stampMode,
         }),
       }
     ),
@@ -165,6 +173,7 @@ export const useTileFlipX = () => useToolStore((s) => s.tileFlipX)
 export const useTileFlipY = () => useToolStore((s) => s.tileFlipY)
 export const useSelectedEntityDefUid = () => useToolStore((s) => s.selectedEntityDefUid)
 export const useSelectedIntGridValue = () => useToolStore((s) => s.selectedIntGridValue)
+export const useStampMode = () => useToolStore((s) => s.stampMode)
 export const useViewportState = () => useToolStore((s) => ({
   zoom: s.zoom,
   panX: s.panX,

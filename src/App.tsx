@@ -48,6 +48,7 @@ import {
   stripTileFlipFlags,
 } from '@/lib/tileset'
 import { loadRoomDataFromContent } from '@/lib/room-loader'
+import { resolveCollisionSourcesFromMetadata } from '@/lib/collision-model'
 import { ToolPalette } from '@/components/ToolPalette'
 import { TilesetPanel } from '@/components/TilesetPanel'
 import { LevelCanvas } from '@/components/LevelCanvas'
@@ -93,20 +94,12 @@ function getPreferredTileset(tilesets: LoadedTileset[]): LoadedTileset | null {
   return firstNonDebug ?? tilesets[0]
 }
 
-function pickLayerTileset(layer: Layer, tilesets: LoadedTileset[]): LoadedTileset | null {
-  if (!layer.data) return null
-  const tileId = layer.data.find((value) => value > 0)
-  if (!tileId) return null
-  return resolveTileId(tileId, tilesets)?.tileset ?? null
-}
-
 function buildTileInstances(
   mapData: LevelData,
   layer: Layer,
   tilesets: LoadedTileset[],
-  layerTileset: LoadedTileset | null
 ): TileInstance[] {
-  if (!layer.data || !layerTileset) return []
+  if (!layer.data) return []
   const tiles: TileInstance[] = []
 
   for (let index = 0; index < layer.data.length; index += 1) {
@@ -115,18 +108,18 @@ function buildTileInstances(
     if (baseTileId <= 0) continue
 
     const resolved = resolveTileId(baseTileId, tilesets)
-    if (!resolved || resolved.tileset.id !== layerTileset.id) continue
+    if (!resolved) continue
 
     const localTileId = resolved.localTileId
-    const col = localTileId % layerTileset.tilesPerRow
-    const row = Math.floor(localTileId / layerTileset.tilesPerRow)
+    const col = localTileId % resolved.tileset.tilesPerRow
+    const row = Math.floor(localTileId / resolved.tileset.tilesPerRow)
     const x = index % mapData.width
     const y = Math.floor(index / mapData.width)
 
     tiles.push({
       t: baseTileId,
       px: [x * mapData.tileSize, y * mapData.tileSize],
-      src: [col * layerTileset.tileSize, row * layerTileset.tileSize],
+      src: [col * resolved.tileset.tileSize, row * resolved.tileset.tileSize],
       f: (hasTileFlipXFlag(rawTileId) ? 1 : 0) | (hasTileFlipYFlag(rawTileId) ? 2 : 0),
       a: 1,
     })
@@ -179,11 +172,7 @@ function buildLdtkLevel(mapData: LevelData, tilesets: LoadedTileset[]): Level {
   const tileSize = mapData.tileSize
   const layerInstances: LayerInstance[] = mapData.layers.map((layer, index) => {
     const isEntityLayer = layer.type === 'objectgroup'
-    const layerTileset = isEntityLayer ? null : pickLayerTileset(layer, tilesets)
-    const tilesetPath =
-      layerTileset && layerTileset.sourcePath !== 'procedural'
-        ? layerTileset.sourcePath
-        : null
+    const tilesetPath = null
 
     return {
       iid: `${mapData.id}-${layer.name}`,
@@ -203,7 +192,7 @@ function buildLdtkLevel(mapData: LevelData, tilesets: LoadedTileset[]): Level {
       autoLayerTiles: [],
       gridTiles: isEntityLayer
         ? []
-        : buildTileInstances(mapData, layer, tilesets, layerTileset),
+        : buildTileInstances(mapData, layer, tilesets),
       entityInstances: isEntityLayer ? buildEntityInstances(layer, tileSize) : [],
       seed: 0,
       overrideTilesetUid: null,
@@ -352,6 +341,8 @@ function App() {
     addLayer,
     deleteLayer,
     renameLayer,
+    setCollisionSourceLayerEnabled,
+    setCollisionDerivedOverlayVisible,
     paintTiles,
     fillArea,
     placeEntity,
@@ -414,15 +405,19 @@ function App() {
   const level = useMemo(() => buildLdtkLevel(mapData, tilesets), [mapData, tilesets])
   const effectiveTileId = selectedTileId ?? tilesets[0]?.firstGid ?? 1
   const effectiveBaseTileId = stripTileFlipFlags(effectiveTileId)
+  const collisionSourceConfig = useMemo(
+    () => resolveCollisionSourcesFromMetadata(mapData),
+    [mapData]
+  )
 
   const leftPanelOpen = !panels.left.collapsed
   const rightPanelOpen = !panels.right.collapsed
   const bottomPanelOpen = !panels.bottom.collapsed
   const leftPanelDefaultSize = Math.min(Math.max(panels.left.size || 24, 16), 38)
-  const leftPanelMinSize = Math.min(Math.max(panels.left.minSize || 16, 8), 45)
+  const leftPanelMinSize = Math.min(Math.max(panels.left.minSize || 16, 14), 45)
   const leftPanelMaxSize = Math.min(Math.max(panels.left.maxSize || 38, leftPanelMinSize), 60)
   const rightPanelDefaultSize = Math.min(Math.max(panels.right.size || 24, 16), 38)
-  const rightPanelMinSize = Math.min(Math.max(panels.right.minSize || 16, 8), 45)
+  const rightPanelMinSize = Math.min(Math.max(panels.right.minSize || 16, 14), 45)
   const rightPanelMaxSize = Math.min(Math.max(panels.right.maxSize || 38, rightPanelMinSize), 60)
   const bottomPanelDefaultSize = Math.min(Math.max(panels.bottom.size || 24, 12), 45)
   const bottomPanelMinSize = Math.min(Math.max(panels.bottom.minSize || 14, 8), 40)
@@ -1313,6 +1308,10 @@ function App() {
                       onToggleGroupLock={toggleGroupLock}
                       onToggleGroupCollapsed={toggleGroupCollapsed}
                       onMoveLayerToGroup={moveLayerToGroup}
+                      collisionSourceLayerNames={collisionSourceConfig.linkedLayerNames}
+                      collisionDerivedOverlayVisible={collisionSourceConfig.showDerivedOverlay}
+                      onSetCollisionSourceLayerEnabled={setCollisionSourceLayerEnabled}
+                      onSetCollisionDerivedOverlayVisible={setCollisionDerivedOverlayVisible}
                     />
                   </div>
                   <TileActionsPanel

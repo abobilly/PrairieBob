@@ -19,6 +19,14 @@ import {
   preloadCharacterSprite,
   type Direction as KimbarDirection,
 } from '@/lib/kimbar/sprite-resolver'
+import { buildCollisionModel } from '@/lib/collision-model'
+import {
+  clampRectToBounds,
+  chooseNpcWanderDirection,
+  isRectInsideBounds,
+  resolveNpcWanderBounds,
+  type NpcZone,
+} from '@/lib/npc-runtime'
 
 interface RunTestOverlayProps {
   open: boolean
@@ -31,6 +39,8 @@ type NpcRuntime = {
   id: string
   x: number
   y: number
+  homeX: number
+  homeY: number
   width: number
   height: number
   dirX: number
@@ -40,6 +50,10 @@ type NpcRuntime = {
   animationElapsedMs: number
   interactAnimationMsRemaining: number
   speedTilesPerSecond: number
+  movementMode: 'idle' | 'wander' | 'patrol'
+  zoneId: string | null
+  zoneDeviationTiles: number
+  decisionIntervalMs: number
   facingDir: FacingDirection
   flipX: boolean
 }
@@ -56,10 +70,6 @@ type RuntimeState = {
   doorStates: Map<string, string>
   npcs: NpcRuntime[]
   previousTime: number
-}
-
-function isCollisionLayer(layer: Layer): boolean {
-  return layer.type === 'tilelayer' && layer.name.trim().toLowerCase() === 'collision'
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -102,9 +112,25 @@ function getEntities(mapData: LevelData, type: EntityData['type']): EntityData[]
   return entities
 }
 
-function getCollisionData(mapData: LevelData): number[] | null {
-  const collisionLayer = mapData.layers.find(isCollisionLayer)
-  return collisionLayer?.data ?? null
+function getNpcZoneMap(mapData: LevelData): Map<string, NpcZone> {
+  const zones = new Map<string, NpcZone>()
+  const triggers = getEntities(mapData, 'trigger')
+  for (const trigger of triggers) {
+    const role = typeof trigger.properties.zoneRole === 'string' ? trigger.properties.zoneRole : ''
+    if (role !== 'npc_zone') continue
+    const zoneIdRaw = trigger.properties.zoneId
+    const zoneId = typeof zoneIdRaw === 'string' && zoneIdRaw.trim().length > 0
+      ? zoneIdRaw.trim()
+      : trigger.id
+    zones.set(zoneId, {
+      id: zoneId,
+      x: trigger.x,
+      y: trigger.y,
+      width: Math.max(1, trigger.width),
+      height: Math.max(1, trigger.height),
+    })
+  }
+  return zones
 }
 
 function findSpawnEntity(mapData: LevelData): EntityData | null {
@@ -124,12 +150,11 @@ function isTileBlocked(
   tileX: number,
   tileY: number,
   mapData: LevelData,
-  collisionData: number[] | null
+  collisionData: number[]
 ): boolean {
   if (tileX < 0 || tileY < 0 || tileX >= mapData.width || tileY >= mapData.height) {
     return true
   }
-  if (!collisionData) return false
   const index = tileY * mapData.width + tileX
   return stripTileFlipFlags(collisionData[index] ?? 0) > 0
 }
@@ -206,7 +231,11 @@ export function RunTestOverlay({ open, mapData, tilesets, onClose }: RunTestOver
   const entityDefinitions = useProjectStore((state) => state.entityDefinitions)
   const interactionDefinitions = useProjectStore((state) => state.interactionDefinitions)
   const tileSize = Math.max(1, mapData.tileSize || 16)
-  const collisionData = useMemo(() => getCollisionData(mapData), [mapData])
+  const collisionModel = useMemo(() => buildCollisionModel(mapData), [mapData])
+  const collisionData = collisionModel.merged
+  const manualCollisionData = collisionModel.manual
+  const derivedCollisionData = collisionModel.derived
+  const npcZones = useMemo(() => getNpcZoneMap(mapData), [mapData])
   const spawnEntity = useMemo(() => findSpawnEntity(mapData), [mapData])
   const playerVisual = useMemo(
     () => (spawnEntity ? resolveNpcVisualDefinition(spawnEntity, entityDefinitions) : null),
@@ -249,19 +278,36 @@ export function RunTestOverlay({ open, mapData, tilesets, onClose }: RunTestOver
       const direction = chooseNpcDirection()
       const visual = npcVisuals.get(npc.id)
       const onLoadAnimation = visual?.onLoadAnimation ?? visual?.defaultAnimation ?? 'idle'
+      const movementModeRaw = npc.properties?.movementMode
+      const movementMode: NpcRuntime['movementMode'] =
+        movementModeRaw === 'idle' || movementModeRaw === 'patrol' ? movementModeRaw : 'wander'
+      const zoneIdRaw = npc.properties?.zoneId
+      const zoneId = typeof zoneIdRaw === 'string' && zoneIdRaw.trim().length > 0
+        ? zoneIdRaw.trim()
+        : null
+      const zoneDeviationRaw = Number(npc.properties?.zoneDeviationTiles ?? npc.properties?.wanderRadius ?? 0)
+      const zoneDeviationTiles = Number.isFinite(zoneDeviationRaw) ? Math.max(0, Math.floor(zoneDeviationRaw)) : 0
+      const decisionRaw = Number(npc.properties?.decisionIntervalMs ?? 1200)
+      const decisionIntervalMs = Number.isFinite(decisionRaw) ? clamp(decisionRaw, 120, 10000) : 1200
       return {
         id: npc.id,
         x: npc.x,
         y: npc.y,
+        homeX: npc.x,
+        homeY: npc.y,
         width: Math.max(tileSize * 0.75, npc.width || tileSize * (visual?.widthTiles ?? 1)),
         height: Math.max(tileSize * 0.75, npc.height || tileSize * (visual?.heightTiles ?? 1)),
         dirX: direction.x,
         dirY: direction.y,
-        changeTimer: 0.5 + Math.random() * 1.5,
+        changeTimer: decisionIntervalMs / 1000,
         animationId: onLoadAnimation,
         animationElapsedMs: Math.random() * 700,
         interactAnimationMsRemaining: 0,
         speedTilesPerSecond: visual?.speedTilesPerSecond ?? 2.2,
+        movementMode,
+        zoneId,
+        zoneDeviationTiles,
+        decisionIntervalMs,
         facingDir: 'down',
         flipX: false,
       }
@@ -591,12 +637,47 @@ export function RunTestOverlay({ open, mapData, tilesets, onClose }: RunTestOver
       }
 
       for (const npc of runtime.npcs) {
+        const bounds = resolveNpcWanderBounds(
+          {
+            x: npc.x,
+            y: npc.y,
+            width: npc.width,
+            height: npc.height,
+            homeX: npc.homeX,
+            homeY: npc.homeY,
+            zoneId: npc.zoneId,
+            zoneDeviationTiles: npc.zoneDeviationTiles,
+          },
+          npcZones,
+          tileSize,
+        )
+
+        const clampedToBounds = clampRectToBounds(npc.x, npc.y, npc.width, npc.height, bounds)
+        npc.x = clampedToBounds.x
+        npc.y = clampedToBounds.y
+
         npc.changeTimer -= elapsed
-        if (npc.changeTimer <= 0) {
-          const nextDirection = chooseNpcDirection()
+        if (npc.movementMode === 'idle') {
+          npc.dirX = 0
+          npc.dirY = 0
+        } else if (npc.changeTimer <= 0) {
+          const nextDirection = chooseNpcWanderDirection(
+            {
+              x: npc.x,
+              y: npc.y,
+              width: npc.width,
+              height: npc.height,
+              currentDirX: npc.dirX,
+              currentDirY: npc.dirY,
+              speedTilesPerSecond: npc.speedTilesPerSecond,
+            },
+            bounds,
+            tileSize,
+          )
           npc.dirX = nextDirection.x
           npc.dirY = nextDirection.y
-          npc.changeTimer = 0.6 + Math.random() * 1.6
+          const jitter = 0.75 + Math.random() * 0.5
+          npc.changeTimer = (npc.decisionIntervalMs * jitter) / 1000
         }
         if (npc.interactAnimationMsRemaining > 0) {
           npc.interactAnimationMsRemaining = Math.max(0, npc.interactAnimationMsRemaining - elapsed * 1000)
@@ -606,18 +687,38 @@ export function RunTestOverlay({ open, mapData, tilesets, onClose }: RunTestOver
         const dy = npc.dirY * npcSpeed * elapsed
         const prevX = npc.x
         const prevY = npc.y
-        moveWithCollision(runtime, dx, dy, npc.width, npc.height, { npc })
+        const previewX = npc.x + dx
+        const previewY = npc.y + dy
+        const inBounds = isRectInsideBounds(previewX, previewY, npc.width, npc.height, bounds)
+        if (npc.movementMode !== 'idle' && inBounds) {
+          moveWithCollision(runtime, dx, dy, npc.width, npc.height, { npc })
+        }
+        const afterClamp = clampRectToBounds(npc.x, npc.y, npc.width, npc.height, bounds)
+        npc.x = afterClamp.x
+        npc.y = afterClamp.y
         const movedX = npc.x - prevX
         const movedY = npc.y - prevY
         const npcMoved = Math.abs(movedX) >= 0.001 || Math.abs(movedY) >= 0.001
         if (npcMoved) {
           npc.facingDir = directionFromVector(movedX, movedY, npc.facingDir)
         }
-        if (!npcMoved) {
-          const nextDirection = chooseNpcDirection()
+        if (!npcMoved && npc.movementMode !== 'idle') {
+          const nextDirection = chooseNpcWanderDirection(
+            {
+              x: npc.x,
+              y: npc.y,
+              width: npc.width,
+              height: npc.height,
+              currentDirX: npc.dirX,
+              currentDirY: npc.dirY,
+              speedTilesPerSecond: npc.speedTilesPerSecond,
+            },
+            bounds,
+            tileSize,
+          )
           npc.dirX = nextDirection.x
           npc.dirY = nextDirection.y
-          npc.changeTimer = 0.4 + Math.random() * 1.2
+          npc.changeTimer = (npc.decisionIntervalMs * (0.45 + Math.random() * 0.45)) / 1000
         }
 
         const visual = npcVisuals.get(npc.id)
@@ -666,7 +767,7 @@ export function RunTestOverlay({ open, mapData, tilesets, onClose }: RunTestOver
 
       for (const layer of mapData.layers) {
         if (!layer.visible || layer.type !== 'tilelayer') continue
-        const isCollision = isCollisionLayer(layer)
+        const isCollision = layer.name.trim().toLowerCase() === 'collision'
         if (isCollision) continue
         for (let index = 0; index < (layer.data?.length ?? 0); index += 1) {
           const rawTileId = layer.data?.[index] ?? 0
@@ -698,12 +799,22 @@ export function RunTestOverlay({ open, mapData, tilesets, onClose }: RunTestOver
         }
       }
 
-      if (collisionData) {
-        ctx.fillStyle = 'rgba(255, 77, 77, 0.25)'
+      ctx.fillStyle = 'rgba(255, 77, 77, 0.25)'
+      for (let y = 0; y < mapData.height; y += 1) {
+        for (let x = 0; x < mapData.width; x += 1) {
+          const index = y * mapData.width + x
+          if (stripTileFlipFlags(manualCollisionData[index] ?? 0) <= 0) continue
+          ctx.fillRect(x * tileSize, y * tileSize, tileSize, tileSize)
+        }
+      }
+
+      if (collisionModel.config.showDerivedOverlay) {
+        ctx.fillStyle = 'rgba(59, 130, 246, 0.22)'
         for (let y = 0; y < mapData.height; y += 1) {
           for (let x = 0; x < mapData.width; x += 1) {
             const index = y * mapData.width + x
-            if (stripTileFlipFlags(collisionData[index] ?? 0) <= 0) continue
+            if (stripTileFlipFlags(derivedCollisionData[index] ?? 0) <= 0) continue
+            if (stripTileFlipFlags(manualCollisionData[index] ?? 0) > 0) continue
             ctx.fillRect(x * tileSize, y * tileSize, tileSize, tileSize)
           }
         }
@@ -906,7 +1017,23 @@ export function RunTestOverlay({ open, mapData, tilesets, onClose }: RunTestOver
       }
       frameRef.current = null
     }
-  }, [open, mapData, tilesets, collisionData, doors, tileSize, doorVisuals, npcVisuals, playerVisual, spawnEntity, npcEntities])
+  }, [
+    open,
+    mapData,
+    tilesets,
+    collisionData,
+    manualCollisionData,
+    derivedCollisionData,
+    collisionModel.config.showDerivedOverlay,
+    doors,
+    tileSize,
+    doorVisuals,
+    npcVisuals,
+    playerVisual,
+    spawnEntity,
+    npcEntities,
+    npcZones,
+  ])
 
   if (!open) return null
 
