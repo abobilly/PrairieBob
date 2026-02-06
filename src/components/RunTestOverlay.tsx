@@ -14,10 +14,8 @@ import {
   type SpriteFrameSource,
 } from '@/lib/entity-definitions'
 import {
-  getSpritesheet,
   getWalkFrame,
   getIdleFrame,
-  getUlpcFrameSize,
   preloadCharacterSprite,
   type Direction as KimbarDirection,
 } from '@/lib/kimbar/sprite-resolver'
@@ -298,6 +296,17 @@ export function RunTestOverlay({ open, mapData, tilesets, onClose }: RunTestOver
     keysRef.current.clear()
   }, [open, createRuntime])
 
+  // Preload Kimbar ULPC sprites for player and NPCs
+  useEffect(() => {
+    if (!open) return
+    const playerCharId = (spawnEntity?.properties?.characterId as string | undefined) ?? 'char.kim'
+    preloadCharacterSprite(playerCharId)
+    for (const npc of npcEntities) {
+      const charId = npc.properties?.characterId as string | undefined
+      if (charId) preloadCharacterSprite(charId)
+    }
+  }, [open, spawnEntity, npcEntities])
+
   useEffect(() => {
     if (!open) return
 
@@ -491,7 +500,8 @@ export function RunTestOverlay({ open, mapData, tilesets, onClose }: RunTestOver
 
       for (let index = 0; index < tileIds.length; index += 1) {
         const tileId = tileIds[index]
-        if (tileId <= 0) continue
+        // Local entity definitions use zero-based tile IDs, while global frame IDs use Tiled-style 1+ gids.
+        if ((source.kind === 'local' && tileId < 0) || (source.kind === 'global' && tileId <= 0)) continue
         const resolved = resolveFrameToTileset(source, tileId, tilesets)
         if (!resolved) continue
 
@@ -769,6 +779,26 @@ export function RunTestOverlay({ open, mapData, tilesets, onClose }: RunTestOver
           }
         }
         if (!drewNpcSprite) {
+          // Try Kimbar ULPC sprite for this NPC's characterId
+          const npcEntity = npcEntities.find((e) => e.id === npc.id)
+          const npcCharacterId = npcEntity?.properties?.characterId as string | undefined
+          if (npcCharacterId) {
+            const npcIsMoving = Math.abs(npc.dirX) > 0 || Math.abs(npc.dirY) > 0
+            drewNpcSprite = drawKimbarSprite(
+              ctx,
+              npcCharacterId,
+              npc.facingDir as KimbarDirection,
+              npcIsMoving,
+              npc.animationElapsedMs,
+              npc.x,
+              npc.y,
+              npc.width,
+              npc.height,
+              npc.flipX,
+            )
+          }
+        }
+        if (!drewNpcSprite) {
           ctx.fillStyle = 'rgba(112, 189, 255, 0.95)'
           ctx.fillRect(npc.x, npc.y, npc.width, npc.height)
         }
@@ -819,6 +849,22 @@ export function RunTestOverlay({ open, mapData, tilesets, onClose }: RunTestOver
       }
 
       if (!drewPlayerSprite) {
+        // Try Kimbar ULPC sprite for the player (char.kim or spawn entity's characterId)
+        const playerCharId = (spawnEntity?.properties?.characterId as string | undefined) ?? 'char.kim'
+        drewPlayerSprite = drawKimbarSprite(
+          ctx,
+          playerCharId,
+          runtime.playerFacingDir as KimbarDirection,
+          playerIsMoving,
+          runtime.playerAnimationElapsedMs,
+          runtime.playerX,
+          runtime.playerY,
+          runtime.playerWidth,
+          runtime.playerHeight,
+          runtime.playerFlipX,
+        )
+      }
+      if (!drewPlayerSprite) {
         ctx.fillStyle = '#facc15'
         ctx.fillRect(runtime.playerX, runtime.playerY, runtime.playerWidth, runtime.playerHeight)
       }
@@ -848,7 +894,7 @@ export function RunTestOverlay({ open, mapData, tilesets, onClose }: RunTestOver
       }
       frameRef.current = null
     }
-  }, [open, mapData, tilesets, collisionData, doors, tileSize, doorVisuals, npcVisuals, playerVisual])
+  }, [open, mapData, tilesets, collisionData, doors, tileSize, doorVisuals, npcVisuals, playerVisual, spawnEntity, npcEntities])
 
   if (!open) return null
 

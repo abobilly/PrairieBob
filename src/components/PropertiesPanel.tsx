@@ -1,5 +1,5 @@
 import { EntityData, EntityType } from '@/lib/types'
-import { SAMPLE_CHARACTERS } from '@/lib/data'
+import { getAvailableCharacters } from '@/lib/data'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
@@ -211,7 +211,7 @@ export function PropertiesPanel({
                   <SelectValue placeholder="Select character" />
                 </SelectTrigger>
                 <SelectContent>
-                  {SAMPLE_CHARACTERS.map(char => (
+                  {getAvailableCharacters().map(char => (
                     <SelectItem key={char.id} value={char.id}>
                       {char.name}
                     </SelectItem>
@@ -281,20 +281,68 @@ export function PropertiesPanel({
                 />
               </div>
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="npc-story-knot" className="text-xs">Story Knot</Label>
+              <Input
+                id="npc-story-knot"
+                value={(selectedEntity.properties.storyKnot as string) || ''}
+                onChange={(e) => handlePropertyChange('storyKnot', e.target.value)}
+                className="h-8 text-sm font-mono"
+                placeholder="ink_knot_name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="npc-wander-radius" className="text-xs">Wander Radius</Label>
+              <Input
+                id="npc-wander-radius"
+                type="number"
+                step="1"
+                min="0"
+                value={Number(selectedEntity.properties.wanderRadius ?? 0)}
+                onChange={(e) => handlePropertyChange('wanderRadius', Number(e.target.value))}
+                className="h-8 text-sm font-mono"
+              />
+            </div>
           </>
         )}
 
         {selectedEntity.type === 'trigger' && (
-          <div className="space-y-2">
-            <Label htmlFor="trigger-action" className="text-xs">Action</Label>
-            <Input
-              id="trigger-action"
-              value={(selectedEntity.properties.action as string) || ''}
-              onChange={(e) => handlePropertyChange('action', e.target.value)}
-              className="h-8 text-sm"
-              placeholder="action_name"
-            />
-          </div>
+          <>
+            <div className="space-y-2">
+              <Label htmlFor="trigger-action" className="text-xs">Action</Label>
+              <Input
+                id="trigger-action"
+                value={(selectedEntity.properties.action as string) || ''}
+                onChange={(e) => handlePropertyChange('action', e.target.value)}
+                className="h-8 text-sm"
+                placeholder="action_name"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-2">
+                <Label htmlFor="trigger-deck-tag" className="text-xs">Deck Tag</Label>
+                <Input
+                  id="trigger-deck-tag"
+                  value={(selectedEntity.properties.deckTag as string) || ''}
+                  onChange={(e) => handlePropertyChange('deckTag', e.target.value)}
+                  className="h-8 text-sm font-mono"
+                  placeholder="deck_tag"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="trigger-count" className="text-xs">Count</Label>
+                <Input
+                  id="trigger-count"
+                  type="number"
+                  step="1"
+                  min="1"
+                  value={Number(selectedEntity.properties.count ?? 1)}
+                  onChange={(e) => handlePropertyChange('count', Number(e.target.value))}
+                  className="h-8 text-sm font-mono"
+                />
+              </div>
+            </div>
+          </>
         )}
 
         {selectedEntity.type === 'prop' && (

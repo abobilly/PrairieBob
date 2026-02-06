@@ -23,6 +23,7 @@ import {
   createDebugTileset,
   loadTilesetFromPath,
   getNextFirstGid,
+  stripTileFlipFlags,
   tilesetToConfig,
 } from '@/lib/tileset'
 import { loadRoomDataFromFile, type RoomTilesetReference } from '@/lib/room-loader'
@@ -120,12 +121,62 @@ function normalizeTileLayerData(data: number[] | undefined, width: number, heigh
   return [...data, ...new Array(expectedSize - data.length).fill(0)]
 }
 
+function isCollisionLayerName(name: string): boolean {
+  return name.trim().toLowerCase() === 'collision'
+}
+
+function hasBlockingTiles(data: number[]): boolean {
+  return data.some((tileId) => stripTileFlipFlags(tileId) > 0)
+}
+
+function generateCollisionOutlineData(level: LevelData): number[] {
+  const width = Math.max(1, level.width)
+  const height = Math.max(1, level.height)
+  const size = width * height
+  const occupied = new Array<boolean>(size).fill(false)
+
+  for (const layer of level.layers) {
+    if (layer.type !== 'tilelayer') continue
+    if (isCollisionLayerName(layer.name)) continue
+    const data = normalizeTileLayerData(layer.data, width, height)
+    for (let index = 0; index < size; index += 1) {
+      if (stripTileFlipFlags(data[index]) > 0) {
+        occupied[index] = true
+      }
+    }
+  }
+
+  const collision = new Array<number>(size).fill(0)
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const index = y * width + x
+      if (!occupied[index]) continue
+      const neighbors = [
+        [x + 1, y],
+        [x - 1, y],
+        [x, y + 1],
+        [x, y - 1],
+      ]
+      const touchesExterior = neighbors.some(([nx, ny]) => {
+        if (nx < 0 || ny < 0 || nx >= width || ny >= height) return true
+        return !occupied[ny * width + nx]
+      })
+      if (touchesExterior) {
+        collision[index] = 1
+      }
+    }
+  }
+
+  return collision
+}
+
 function ensureCollisionLayer(level: LevelData): LevelData {
   const width = Math.max(1, level.width)
   const height = Math.max(1, level.height)
   const layers = [...level.layers]
+  const generatedOutline = generateCollisionOutlineData(level)
   const collisionLayerIndex = layers.findIndex(
-    (layer) => layer.type === 'tilelayer' && layer.name.trim().toLowerCase() === 'collision'
+    (layer) => layer.type === 'tilelayer' && isCollisionLayerName(layer.name)
   )
 
   if (collisionLayerIndex === -1) {
@@ -135,16 +186,18 @@ function ensureCollisionLayer(level: LevelData): LevelData {
       visible: true,
       locked: false,
       opacity: 1,
-      data: new Array(width * height).fill(0),
+      data: generatedOutline,
     })
     return { ...level, layers }
   }
 
   const existing = layers[collisionLayerIndex]
+  const normalizedData = normalizeTileLayerData(existing.data, width, height)
+  const shouldAutofillOutline = !hasBlockingTiles(normalizedData) && hasBlockingTiles(generatedOutline)
   const normalized = {
     ...existing,
     type: 'tilelayer' as const,
-    data: normalizeTileLayerData(existing.data, width, height),
+    data: shouldAutofillOutline ? generatedOutline : normalizedData,
   }
   layers[collisionLayerIndex] = normalized
   return { ...level, layers }
