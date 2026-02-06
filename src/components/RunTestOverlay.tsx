@@ -5,12 +5,22 @@ import { hasTileFlipXFlag, hasTileFlipYFlag, resolveTileId, stripTileFlipFlags }
 import { useProjectStore } from '@/stores'
 import {
   resolveDoorVisualDefinition,
+  resolveActorAnimationSelection,
   resolveFrameIndex,
   resolveNpcVisualDefinition,
   type DoorVisualDefinition,
+  type FacingDirection,
   type NpcVisualDefinition,
   type SpriteFrameSource,
 } from '@/lib/entity-definitions'
+import {
+  getSpritesheet,
+  getWalkFrame,
+  getIdleFrame,
+  getUlpcFrameSize,
+  preloadCharacterSprite,
+  type Direction as KimbarDirection,
+} from '@/lib/kimbar/sprite-resolver'
 
 interface RunTestOverlayProps {
   open: boolean
@@ -32,6 +42,8 @@ type NpcRuntime = {
   animationElapsedMs: number
   interactAnimationMsRemaining: number
   speedTilesPerSecond: number
+  facingDir: FacingDirection
+  flipX: boolean
 }
 
 type RuntimeState = {
@@ -39,6 +51,10 @@ type RuntimeState = {
   playerY: number
   playerWidth: number
   playerHeight: number
+  playerSpeedTilesPerSecond: number
+  playerFacingDir: FacingDirection
+  playerAnimationElapsedMs: number
+  playerFlipX: boolean
   doorStates: Map<string, string>
   npcs: NpcRuntime[]
   previousTime: number
@@ -50,6 +66,14 @@ function isCollisionLayer(layer: Layer): boolean {
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value))
+}
+
+function directionFromVector(dx: number, dy: number, fallback: FacingDirection): FacingDirection {
+  if (Math.abs(dx) < 0.0001 && Math.abs(dy) < 0.0001) return fallback
+  if (Math.abs(dx) >= Math.abs(dy)) {
+    return dx >= 0 ? 'right' : 'left'
+  }
+  return dy >= 0 ? 'down' : 'up'
 }
 
 function chooseNpcDirection(): { x: number; y: number } {
@@ -85,8 +109,15 @@ function getCollisionData(mapData: LevelData): number[] | null {
   return collisionLayer?.data ?? null
 }
 
+function findSpawnEntity(mapData: LevelData): EntityData | null {
+  const spawnPoints = getEntities(mapData, 'spawn_point')
+  if (spawnPoints.length === 0) return null
+  const defaultSpawn = spawnPoints.find((spawn) => spawn.properties?.isDefault === true)
+  return defaultSpawn ?? spawnPoints[0]
+}
+
 function findSpawnPoint(mapData: LevelData, tileSize: number): { x: number; y: number } {
-  const spawn = getEntities(mapData, 'spawn_point')[0]
+  const spawn = findSpawnEntity(mapData)
   if (spawn) return { x: spawn.x, y: spawn.y }
   return { x: tileSize, y: tileSize }
 }
@@ -120,6 +151,39 @@ function rectOverlaps(
   )
 }
 
+/**
+ * Draw a Kimbar ULPC character sprite at a position.
+ * Returns true if the sprite was drawn.
+ */
+function drawKimbarSprite(
+  ctx: CanvasRenderingContext2D,
+  characterId: string,
+  direction: KimbarDirection,
+  isMoving: boolean,
+  elapsedMs: number,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  flipX: boolean,
+): boolean {
+  const frame = isMoving
+    ? getWalkFrame(characterId, direction, elapsedMs)
+    : getIdleFrame(characterId, direction)
+  if (!frame) return false
+
+  ctx.save()
+  if (flipX) {
+    ctx.translate(x + width, y)
+    ctx.scale(-1, 1)
+    ctx.drawImage(frame.canvas, frame.x, frame.y, frame.size, frame.size, 0, 0, width, height)
+  } else {
+    ctx.drawImage(frame.canvas, frame.x, frame.y, frame.size, frame.size, x, y, width, height)
+  }
+  ctx.restore()
+  return true
+}
+
 function resolveFrameToTileset(
   source: SpriteFrameSource,
   frameTileId: number,
@@ -145,6 +209,11 @@ export function RunTestOverlay({ open, mapData, tilesets, onClose }: RunTestOver
   const interactionDefinitions = useProjectStore((state) => state.interactionDefinitions)
   const tileSize = Math.max(1, mapData.tileSize || 16)
   const collisionData = useMemo(() => getCollisionData(mapData), [mapData])
+  const spawnEntity = useMemo(() => findSpawnEntity(mapData), [mapData])
+  const playerVisual = useMemo(
+    () => (spawnEntity ? resolveNpcVisualDefinition(spawnEntity, entityDefinitions) : null),
+    [spawnEntity, entityDefinitions],
+  )
   const doors = useMemo(() => getEntities(mapData, 'door'), [mapData])
   const npcEntities = useMemo(() => getEntities(mapData, 'npc'), [mapData])
   const doorVisuals = useMemo(() => {
@@ -166,6 +235,18 @@ export function RunTestOverlay({ open, mapData, tilesets, onClose }: RunTestOver
 
   const createRuntime = useCallback(() => {
     const spawn = findSpawnPoint(mapData, tileSize)
+    const playerWidth = Math.max(
+      tileSize * 0.75,
+      (spawnEntity?.width || tileSize * (playerVisual?.widthTiles ?? 1))
+    )
+    const playerHeight = Math.max(
+      tileSize * 0.75,
+      (spawnEntity?.height || tileSize * (playerVisual?.heightTiles ?? 1))
+    )
+    const playerSpeedValue = Number(spawnEntity?.properties?.speedTilesPerSecond ?? 5)
+    const playerSpeedTilesPerSecond = Number.isFinite(playerSpeedValue) && playerSpeedValue > 0
+      ? playerSpeedValue
+      : 5
     const npcs: NpcRuntime[] = npcEntities.map((npc) => {
       const direction = chooseNpcDirection()
       const visual = npcVisuals.get(npc.id)
@@ -183,6 +264,8 @@ export function RunTestOverlay({ open, mapData, tilesets, onClose }: RunTestOver
         animationElapsedMs: Math.random() * 700,
         interactAnimationMsRemaining: 0,
         speedTilesPerSecond: visual?.speedTilesPerSecond ?? 2.2,
+        facingDir: 'down',
+        flipX: false,
       }
     })
 
@@ -197,13 +280,17 @@ export function RunTestOverlay({ open, mapData, tilesets, onClose }: RunTestOver
     return {
       playerX: spawn.x,
       playerY: spawn.y,
-      playerWidth: tileSize * 0.75,
-      playerHeight: tileSize * 0.75,
+      playerWidth,
+      playerHeight,
+      playerSpeedTilesPerSecond,
+      playerFacingDir: 'down',
+      playerAnimationElapsedMs: 0,
+      playerFlipX: false,
       doorStates,
       npcs,
       previousTime: 0,
     } satisfies RuntimeState
-  }, [mapData, tileSize, npcEntities, npcVisuals, doors, doorVisuals])
+  }, [mapData, tileSize, spawnEntity, playerVisual, npcEntities, npcVisuals, doors, doorVisuals])
 
   useEffect(() => {
     if (!open) return
@@ -454,9 +541,17 @@ export function RunTestOverlay({ open, mapData, tilesets, onClose }: RunTestOver
         Number(keysRef.current.has('w') || keysRef.current.has('arrowup'))
 
       const moveLength = Math.hypot(moveX, moveY) || 1
-      const speed = tileSize * 5
+      const speed = tileSize * runtime.playerSpeedTilesPerSecond
       const velocityX = (moveX / moveLength) * speed * elapsed
       const velocityY = (moveY / moveLength) * speed * elapsed
+
+      const playerIsMoving = Math.abs(velocityX) > 0.0001 || Math.abs(velocityY) > 0.0001
+      if (playerIsMoving) {
+        runtime.playerFacingDir = directionFromVector(velocityX, velocityY, runtime.playerFacingDir)
+        runtime.playerAnimationElapsedMs += elapsed * 1000
+      } else {
+        runtime.playerAnimationElapsedMs = 0
+      }
 
       moveWithCollision(
         runtime,
@@ -466,6 +561,18 @@ export function RunTestOverlay({ open, mapData, tilesets, onClose }: RunTestOver
         runtime.playerHeight,
         'player'
       )
+      let playerAnimationSelection: ReturnType<typeof resolveActorAnimationSelection> | null = null
+      if (playerVisual) {
+        const playerBaseAnimation = playerIsMoving ? playerVisual.walkAnimation : playerVisual.idleAnimation
+        playerAnimationSelection = resolveActorAnimationSelection(
+          playerVisual,
+          playerBaseAnimation,
+          runtime.playerFacingDir,
+        )
+        runtime.playerFlipX = playerAnimationSelection.flipX
+      } else {
+        runtime.playerFlipX = false
+      }
 
       for (const npc of runtime.npcs) {
         npc.changeTimer -= elapsed
@@ -475,16 +582,8 @@ export function RunTestOverlay({ open, mapData, tilesets, onClose }: RunTestOver
           npc.dirY = nextDirection.y
           npc.changeTimer = 0.6 + Math.random() * 1.6
         }
-        npc.animationElapsedMs += elapsed * 1000
         if (npc.interactAnimationMsRemaining > 0) {
           npc.interactAnimationMsRemaining = Math.max(0, npc.interactAnimationMsRemaining - elapsed * 1000)
-          if (npc.interactAnimationMsRemaining === 0) {
-            const visual = npcVisuals.get(npc.id)
-            if (visual) {
-              npc.animationId = visual.onLoadAnimation
-              npc.animationElapsedMs = 0
-            }
-          }
         }
         const npcSpeed = tileSize * npc.speedTilesPerSecond
         const dx = npc.dirX * npcSpeed * elapsed
@@ -492,11 +591,35 @@ export function RunTestOverlay({ open, mapData, tilesets, onClose }: RunTestOver
         const prevX = npc.x
         const prevY = npc.y
         moveWithCollision(runtime, dx, dy, npc.width, npc.height, { npc })
-        if (Math.abs(prevX - npc.x) < 0.001 && Math.abs(prevY - npc.y) < 0.001) {
+        const movedX = npc.x - prevX
+        const movedY = npc.y - prevY
+        const npcMoved = Math.abs(movedX) >= 0.001 || Math.abs(movedY) >= 0.001
+        if (npcMoved) {
+          npc.facingDir = directionFromVector(movedX, movedY, npc.facingDir)
+        }
+        if (!npcMoved) {
           const nextDirection = chooseNpcDirection()
           npc.dirX = nextDirection.x
           npc.dirY = nextDirection.y
           npc.changeTimer = 0.4 + Math.random() * 1.2
+        }
+
+        const visual = npcVisuals.get(npc.id)
+        if (visual) {
+          const baseAnimation = npc.interactAnimationMsRemaining > 0 && visual.onInteractAnimation
+            ? visual.onInteractAnimation
+            : (npcMoved ? visual.walkAnimation : visual.idleAnimation)
+          const selection = resolveActorAnimationSelection(visual, baseAnimation, npc.facingDir)
+          if (selection.animationId !== npc.animationId) {
+            npc.animationId = selection.animationId
+            npc.animationElapsedMs = 0
+          } else {
+            npc.animationElapsedMs += elapsed * 1000
+          }
+          npc.flipX = selection.flipX
+        } else {
+          npc.animationElapsedMs += elapsed * 1000
+          npc.flipX = false
         }
       }
 
@@ -613,17 +736,35 @@ export function RunTestOverlay({ open, mapData, tilesets, onClose }: RunTestOver
             )
             const frameTileId = clip.frameTileIds[frameIndex] ?? clip.frameTileIds[0]
             if (frameTileId !== undefined) {
-              drewNpcSprite = drawSpriteTiles(
-                ctx,
-                { kind: 'local', tilesetId: visual.tilesetId, frameTileIds: [frameTileId] },
-                [frameTileId],
-                1,
-                1,
-                npc.x,
-                npc.y,
-                npc.width,
-                npc.height,
-              )
+              if (npc.flipX) {
+                ctx.save()
+                ctx.translate(npc.x + npc.width, npc.y)
+                ctx.scale(-1, 1)
+                drewNpcSprite = drawSpriteTiles(
+                  ctx,
+                  { kind: 'local', tilesetId: visual.tilesetId, frameTileIds: [frameTileId] },
+                  [frameTileId],
+                  1,
+                  1,
+                  0,
+                  0,
+                  npc.width,
+                  npc.height,
+                )
+                ctx.restore()
+              } else {
+                drewNpcSprite = drawSpriteTiles(
+                  ctx,
+                  { kind: 'local', tilesetId: visual.tilesetId, frameTileIds: [frameTileId] },
+                  [frameTileId],
+                  1,
+                  1,
+                  npc.x,
+                  npc.y,
+                  npc.width,
+                  npc.height,
+                )
+              }
             }
           }
         }
@@ -633,8 +774,54 @@ export function RunTestOverlay({ open, mapData, tilesets, onClose }: RunTestOver
         }
       }
 
-      ctx.fillStyle = '#facc15'
-      ctx.fillRect(runtime.playerX, runtime.playerY, runtime.playerWidth, runtime.playerHeight)
+      let drewPlayerSprite = false
+      if (playerVisual && playerAnimationSelection) {
+        const frameIndex = resolveFrameIndex(
+          playerAnimationSelection.clip.frameTileIds.length,
+          runtime.playerAnimationElapsedMs,
+          playerAnimationSelection.clip.fps,
+          playerAnimationSelection.clip.loop,
+        )
+        const frameTileId =
+          playerAnimationSelection.clip.frameTileIds[frameIndex] ??
+          playerAnimationSelection.clip.frameTileIds[0]
+        if (frameTileId !== undefined) {
+          if (runtime.playerFlipX) {
+            ctx.save()
+            ctx.translate(runtime.playerX + runtime.playerWidth, runtime.playerY)
+            ctx.scale(-1, 1)
+            drewPlayerSprite = drawSpriteTiles(
+              ctx,
+              { kind: 'local', tilesetId: playerVisual.tilesetId, frameTileIds: [frameTileId] },
+              [frameTileId],
+              1,
+              1,
+              0,
+              0,
+              runtime.playerWidth,
+              runtime.playerHeight,
+            )
+            ctx.restore()
+          } else {
+            drewPlayerSprite = drawSpriteTiles(
+              ctx,
+              { kind: 'local', tilesetId: playerVisual.tilesetId, frameTileIds: [frameTileId] },
+              [frameTileId],
+              1,
+              1,
+              runtime.playerX,
+              runtime.playerY,
+              runtime.playerWidth,
+              runtime.playerHeight,
+            )
+          }
+        }
+      }
+
+      if (!drewPlayerSprite) {
+        ctx.fillStyle = '#facc15'
+        ctx.fillRect(runtime.playerX, runtime.playerY, runtime.playerWidth, runtime.playerHeight)
+      }
       ctx.strokeStyle = '#111827'
       ctx.lineWidth = 2 / zoom
       ctx.strokeRect(runtime.playerX, runtime.playerY, runtime.playerWidth, runtime.playerHeight)
@@ -661,7 +848,7 @@ export function RunTestOverlay({ open, mapData, tilesets, onClose }: RunTestOver
       }
       frameRef.current = null
     }
-  }, [open, mapData, tilesets, collisionData, doors, tileSize, doorVisuals, npcVisuals])
+  }, [open, mapData, tilesets, collisionData, doors, tileSize, doorVisuals, npcVisuals, playerVisual])
 
   if (!open) return null
 

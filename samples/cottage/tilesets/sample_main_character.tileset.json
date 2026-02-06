@@ -1,0 +1,30 @@
+{
+  "id": "sample_main_character",
+  "name": "Sample Main Character",
+  "image": "sample_person-walking_32x32_4col-4row_row1-S_row2-A_row3-D_row4-W.png",
+  "tileSize": 32,
+  "columns": 4,
+  "tileCount": 16,
+  "imageWidth": 128,
+  "imageHeight": 128,
+  "license": "CC0",
+  "source": "SpudTile sample player sheet",
+  "tiles": {
+    "0": { "name": "player_down_0" },
+    "1": { "name": "player_down_1" },
+    "2": { "name": "player_down_2" },
+    "3": { "name": "player_down_3" },
+    "4": { "name": "player_left_0" },
+    "5": { "name": "player_left_1" },
+    "6": { "name": "player_left_2" },
+    "7": { "name": "player_left_3" },
+    "8": { "name": "player_right_0" },
+    "9": { "name": "player_right_1" },
+    "10": { "name": "player_right_2" },
+    "11": { "name": "player_right_3" },
+    "12": { "name": "player_up_0" },
+    "13": { "name": "player_up_1" },
+    "14": { "name": "player_up_2" },
+    "15": { "name": "player_up_3" }
+  }
+}

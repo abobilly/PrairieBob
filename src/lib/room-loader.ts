@@ -1,4 +1,5 @@
 import type { EntityData, EntityType, Layer, LevelData } from './types'
+import { resolveKimbarEntityType, normalizeEntityProperties } from './kimbar/entity-compat'
 
 export type RoomSourceFormat = 'spudtile-json' | 'tiled-json' | 'ldtk' | 'tmx'
 
@@ -120,8 +121,13 @@ function toInt(value: unknown, fallback = 0): number {
 }
 
 function normalizeEntityType(value: unknown): EntityType {
-  const normalized = typeof value === 'string' ? value.toLowerCase() : ''
-  return ENTITY_TYPES.has(normalized as EntityType) ? (normalized as EntityType) : 'prop'
+  const raw = typeof value === 'string' ? value : ''
+  const lowered = raw.toLowerCase()
+  if (ENTITY_TYPES.has(lowered as EntityType)) return lowered as EntityType
+  // Try Kimbar-style type aliases (PlayerSpawn, Door, NPC, EncounterTrigger)
+  const kimbarType = resolveKimbarEntityType(raw)
+  if (kimbarType) return kimbarType
+  return 'prop'
 }
 
 function normalizeTileData(values: number[], width: number, height: number): number[] {
@@ -209,6 +215,7 @@ function normalizeEntity(value: unknown, index: number): EntityData {
   const id = typeof entity.id === 'string' && entity.id.trim().length > 0
     ? entity.id
     : fallbackId
+  const rawProperties = normalizeProperties(entity.properties)
   return {
     id,
     type,
@@ -216,7 +223,7 @@ function normalizeEntity(value: unknown, index: number): EntityData {
     y: toNumber(entity.y, 0),
     width: Math.max(0, toNumber(entity.width, 16)),
     height: Math.max(0, toNumber(entity.height, 16)),
-    properties: normalizeProperties(entity.properties),
+    properties: normalizeEntityProperties(type, rawProperties),
   }
 }
 
@@ -484,14 +491,16 @@ async function parseTiledJson(
         const objects: EntityData[] = Array.isArray(layer.objects)
           ? layer.objects.map((objectValue, objectIndex) => {
             const object = isRecord(objectValue) ? objectValue : {}
+            const entityType = normalizeEntityType(object.type ?? object.name)
+            const rawProps = normalizeProperties(object.properties)
             return {
               id: String(object.id ?? `${name}_${objectIndex + 1}`),
-              type: normalizeEntityType(object.type ?? object.name),
+              type: entityType,
               x: toNumber(object.x, 0),
               y: toNumber(object.y, 0),
               width: Math.max(0, toNumber(object.width, tileSize)),
               height: Math.max(0, toNumber(object.height, tileSize)),
-              properties: normalizeProperties(object.properties),
+              properties: normalizeEntityProperties(entityType, rawProps),
             }
           })
           : []
@@ -874,15 +883,16 @@ async function parseTmx(
 
       const fallbackId = `${name}_${objects.length + 1}`
       const typeCandidate = objectAttrs.type || objectAttrs.name || 'prop'
-      const properties = parseTmxProperties(objectBody)
+      const tmxEntityType = normalizeEntityType(typeCandidate)
+      const tmxProperties = normalizeEntityProperties(tmxEntityType, parseTmxProperties(objectBody))
       objects.push({
         id: objectAttrs.id ?? fallbackId,
-        type: normalizeEntityType(typeCandidate),
+        type: tmxEntityType,
         x: toNumber(objectAttrs.x, 0),
         y: toNumber(objectAttrs.y, 0),
         width: Math.max(0, toNumber(objectAttrs.width, tileSize)),
         height: Math.max(0, toNumber(objectAttrs.height, tileSize)),
-        properties,
+        properties: tmxProperties,
       })
 
       objectMatch = objectRegex.exec(groupBody)

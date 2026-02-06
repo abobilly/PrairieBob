@@ -32,6 +32,13 @@
       "tileSize": 32,
       "columns": 3,
       "tileCount": 9
+    },
+    {
+      "id": "sample_main_character",
+      "file": "tilesets/sample_person-walking_32x32_4col-4row_row1-S_row2-A_row3-D_row4-W.png",
+      "tileSize": 32,
+      "columns": 4,
+      "tileCount": 16
     }
   ],
   "layerTemplates": {

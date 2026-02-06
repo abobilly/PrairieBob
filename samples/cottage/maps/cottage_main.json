@@ -405,7 +405,13 @@
           "width": 32,
           "height": 32,
           "properties": {
-            "isDefault": true
+            "isDefault": true,
+            "entityDefId": "sample_main_character",
+            "facingMode": "auto_4dir",
+            "idleAnimation": "idle",
+            "walkAnimation": "walk",
+            "onLoadAnimation": "idle",
+            "speedTilesPerSecond": 5
           }
         },
         {
@@ -438,7 +444,10 @@
             "onLoadAnimation": "walk",
             "onInteractAnimation": "sniff",
             "autoWander": true,
-            "speedTilesPerSecond": 1.8
+            "speedTilesPerSecond": 1.8,
+            "facingMode": "auto_flip_x",
+            "idleAnimation": "idle",
+            "walkAnimation": "walk"
           }
         }
       ]

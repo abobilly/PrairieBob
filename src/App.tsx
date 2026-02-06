@@ -961,10 +961,10 @@ function App() {
           <button
             className="pb-tool-btn pb-tool-btn-labeled"
             onClick={() => setIsRunTestOpen(true)}
-            title="Run/Test preview"
+            title="Start play mode (WASD to move)"
           >
             <Play size={16} />
-            <span>Test</span>
+            <span>Start</span>
           </button>
           <button
             className="pb-tool-btn pb-tool-btn-labeled"

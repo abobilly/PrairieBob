@@ -200,24 +200,88 @@ export function PropertiesPanel({
         )}
 
         {selectedEntity.type === 'npc' && (
-          <div className="space-y-2">
-            <Label htmlFor="character-id" className="text-xs">Character</Label>
-            <Select
-              value={(selectedEntity.properties.characterId as string) || ''}
-              onValueChange={(value) => handlePropertyChange('characterId', value)}
-            >
-              <SelectTrigger id="character-id" className="h-8 text-sm">
-                <SelectValue placeholder="Select character" />
-              </SelectTrigger>
-              <SelectContent>
-                {SAMPLE_CHARACTERS.map(char => (
-                  <SelectItem key={char.id} value={char.id}>
-                    {char.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <>
+            <div className="space-y-2">
+              <Label htmlFor="character-id" className="text-xs">Character</Label>
+              <Select
+                value={(selectedEntity.properties.characterId as string) || ''}
+                onValueChange={(value) => handlePropertyChange('characterId', value)}
+              >
+                <SelectTrigger id="character-id" className="h-8 text-sm">
+                  <SelectValue placeholder="Select character" />
+                </SelectTrigger>
+                <SelectContent>
+                  {SAMPLE_CHARACTERS.map(char => (
+                    <SelectItem key={char.id} value={char.id}>
+                      {char.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="npc-facing-mode" className="text-xs">Facing Mode</Label>
+              <Select
+                value={(selectedEntity.properties.facingMode as string) || 'fixed_right'}
+                onValueChange={(value) => handlePropertyChange('facingMode', value)}
+              >
+                <SelectTrigger id="npc-facing-mode" className="h-8 text-sm">
+                  <SelectValue placeholder="Facing mode" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="fixed_right">Fixed Right</SelectItem>
+                  <SelectItem value="auto_flip_x">Auto Flip X</SelectItem>
+                  <SelectItem value="auto_4dir">Auto 4-Direction</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-2">
+                <Label htmlFor="npc-idle-animation" className="text-xs">Idle Anim</Label>
+                <Input
+                  id="npc-idle-animation"
+                  value={(selectedEntity.properties.idleAnimation as string) || ''}
+                  onChange={(e) => handlePropertyChange('idleAnimation', e.target.value)}
+                  className="h-8 text-sm font-mono"
+                  placeholder="idle"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="npc-walk-animation" className="text-xs">Walk Anim</Label>
+                <Input
+                  id="npc-walk-animation"
+                  value={(selectedEntity.properties.walkAnimation as string) || ''}
+                  onChange={(e) => handlePropertyChange('walkAnimation', e.target.value)}
+                  className="h-8 text-sm font-mono"
+                  placeholder="walk"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-2">
+                <Label htmlFor="npc-interact-animation" className="text-xs">Interact Anim</Label>
+                <Input
+                  id="npc-interact-animation"
+                  value={(selectedEntity.properties.onInteractAnimation as string) || ''}
+                  onChange={(e) => handlePropertyChange('onInteractAnimation', e.target.value)}
+                  className="h-8 text-sm font-mono"
+                  placeholder="sniff"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="npc-speed" className="text-xs">Speed</Label>
+                <Input
+                  id="npc-speed"
+                  type="number"
+                  step="0.1"
+                  min="0.1"
+                  value={Number(selectedEntity.properties.speedTilesPerSecond ?? 2.2)}
+                  onChange={(e) => handlePropertyChange('speedTilesPerSecond', Number(e.target.value))}
+                  className="h-8 text-sm font-mono"
+                />
+              </div>
+            </div>
+          </>
         )}
 
         {selectedEntity.type === 'trigger' && (

@@ -48,11 +48,17 @@ export interface NpcAnimationClip {
   loop: boolean
 }
 
+export type FacingDirection = 'up' | 'down' | 'left' | 'right'
+export type FacingMode = 'auto_4dir' | 'auto_flip_x' | 'fixed_right'
+
 export interface NpcVisualDefinition {
   tilesetId: string
   defaultAnimation: string
   onLoadAnimation: string
   onInteractAnimation: string | null
+  idleAnimation: string
+  walkAnimation: string
+  facingMode: FacingMode
   previewAnimation: string
   previewAnimate: boolean
   previewLoopOverride: boolean | null
@@ -60,6 +66,12 @@ export interface NpcVisualDefinition {
   animations: Record<string, NpcAnimationClip>
   widthTiles: number
   heightTiles: number
+}
+
+export interface ActorAnimationSelection {
+  animationId: string
+  clip: NpcAnimationClip
+  flipX: boolean
 }
 
 function toRecord(value: unknown): Record<string, unknown> | null {
@@ -180,6 +192,21 @@ function normalizeOnInteractMode(value: string | null): 'toggle' | 'open' | 'clo
       return 'close'
     default:
       return 'none'
+  }
+}
+
+function normalizeFacingMode(value: string | null): FacingMode {
+  switch (value?.toLowerCase()) {
+    case 'auto_4dir':
+    case '4dir':
+    case 'four_way':
+      return 'auto_4dir'
+    case 'auto_flip_x':
+    case 'flip_x':
+      return 'auto_flip_x'
+    case 'fixed_right':
+    default:
+      return 'fixed_right'
   }
 }
 
@@ -551,6 +578,29 @@ export function resolveNpcVisualDefinition(
     animationKeys,
   )
 
+  const idleAnimation = pickFirstValidKey(
+    [
+      parseEntityPropertyString(entity, 'idleAnimation'),
+      defaultAnimation,
+      onLoadAnimation,
+    ],
+    animationKeys,
+  ) ?? defaultAnimation
+
+  const walkAnimation = pickFirstValidKey(
+    [
+      parseEntityPropertyString(entity, 'walkAnimation'),
+      onLoadAnimation,
+      defaultAnimation,
+      idleAnimation,
+    ],
+    animationKeys,
+  ) ?? onLoadAnimation
+
+  const facingMode = normalizeFacingMode(
+    parseEntityPropertyString(entity, 'facingMode') ?? 'fixed_right',
+  )
+
   const speedTilesPerSecond =
     parseEntityPropertyNumber(entity, 'speedTilesPerSecond') ??
     entityDef.behavior?.wander?.speedTilesPerSecond ??
@@ -564,6 +614,9 @@ export function resolveNpcVisualDefinition(
     defaultAnimation,
     onLoadAnimation,
     onInteractAnimation,
+    idleAnimation,
+    walkAnimation,
+    facingMode,
     previewAnimation,
     previewAnimate: entityDef.preview?.animateInPreview ?? true,
     previewLoopOverride: entityDef.preview?.loop ?? null,
@@ -619,6 +672,79 @@ export function resolveEditorEntityFrameSequence(
     animate: npcVisual.previewAnimate && clip.frameTileIds.length > 1,
     widthTiles: npcVisual.widthTiles,
     heightTiles: npcVisual.heightTiles,
+  }
+}
+
+function directionalAnimationCandidates(baseAnimation: string, direction: FacingDirection): string[] {
+  const directionSuffixes: Record<FacingDirection, string[]> = {
+    up: ['up', 'north', 'w'],
+    down: ['down', 'south', 's'],
+    left: ['left', 'west', 'a'],
+    right: ['right', 'east', 'd'],
+  }
+  const suffixes = directionSuffixes[direction]
+  const candidates: string[] = []
+  for (const suffix of suffixes) {
+    candidates.push(`${baseAnimation}_${suffix}`)
+    candidates.push(`${baseAnimation}-${suffix}`)
+    candidates.push(`${suffix}_${baseAnimation}`)
+    candidates.push(`${suffix}-${baseAnimation}`)
+  }
+  candidates.push(baseAnimation)
+  return candidates
+}
+
+export function resolveActorAnimationSelection(
+  visual: NpcVisualDefinition,
+  baseAnimation: string,
+  direction: FacingDirection,
+): ActorAnimationSelection {
+  const animationKeys = Object.keys(visual.animations)
+  let animationId = baseAnimation
+  let clip = visual.animations[animationId]
+  let flipX = false
+
+  if (visual.facingMode === 'auto_4dir') {
+    const directionalId = pickFirstValidKey(directionalAnimationCandidates(baseAnimation, direction), animationKeys)
+    if (directionalId) {
+      animationId = directionalId
+      clip = visual.animations[animationId]
+    }
+  } else if (visual.facingMode === 'auto_flip_x') {
+    flipX = direction === 'left'
+  }
+
+  if (!clip) {
+    const fallbackId = pickFirstValidKey([visual.defaultAnimation, visual.onLoadAnimation], animationKeys)
+    const fallbackAnimationId = fallbackId ?? animationKeys[0]
+    if (fallbackAnimationId) {
+      animationId = fallbackAnimationId
+      clip = visual.animations[fallbackAnimationId]
+    }
+  }
+
+  if (!clip) {
+    // Should not happen because resolveNpcVisualDefinition guarantees at least one animation.
+    const firstId = animationKeys[0]
+    if (!firstId) {
+      throw new Error('Expected at least one animation clip for actor visual definition.')
+    }
+    const firstClip = visual.animations[firstId]
+    if (!firstClip) {
+      throw new Error(`Missing animation clip "${firstId}" in actor visual definition.`)
+    }
+    return {
+      animationId: firstId,
+      clip: firstClip,
+      flipX: false,
+    }
+  }
+
+  const resolvedClip: NpcAnimationClip = clip
+  return {
+    animationId,
+    clip: resolvedClip,
+    flipX,
   }
 }
 

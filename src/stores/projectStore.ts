@@ -31,6 +31,12 @@ import {
   parseInteractionDefinitionFile,
 } from '@/lib/entity-definitions'
 import { toast } from 'sonner'
+import {
+  setKimbarRootPath,
+  detectKimbarRoot,
+  loadKimbarRegistry,
+} from '@/lib/kimbar/registry'
+import { clearSpriteCache, preloadCharacterSprite } from '@/lib/kimbar/sprite-resolver'
 
 const CONFIG_FILENAME = 'spudtile.config.json'
 const LEGACY_CONFIG_FILENAME = 'prairiebob.config.json'
@@ -69,6 +75,33 @@ async function resolveSampleProjectPath(): Promise<string> {
       : `${appPath}/samples/cottage`
   }
   return SAMPLE_PROJECT_RELATIVE_PATH
+}
+
+/**
+ * Detect and initialize the Kimbar linked project for character sprite loading.
+ * Runs in the background - does not block project load.
+ */
+async function initKimbarLinkedProject(projectPath: string): Promise<void> {
+  try {
+    clearSpriteCache()
+    const kimbarRoot = await detectKimbarRoot(projectPath)
+    if (!kimbarRoot) {
+      console.log('[projectStore] No Kimbar linked project detected')
+      return
+    }
+
+    setKimbarRootPath(kimbarRoot)
+    const characters = await loadKimbarRegistry()
+    console.log(`[projectStore] Kimbar registry loaded: ${characters.length} characters from ${kimbarRoot}`)
+
+    // Preload player sprite (char.kim) eagerly
+    const kimEntry = characters.find((c) => c.id === 'char.kim')
+    if (kimEntry) {
+      preloadCharacterSprite('char.kim')
+    }
+  } catch (err) {
+    console.warn('[projectStore] Failed to initialize Kimbar linked project:', err)
+  }
 }
 
 const MAX_HISTORY = 100
@@ -443,6 +476,9 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
           closeProjectSelector()
 
           toast.success(`Loaded project: ${config.name}`)
+
+          // Try to initialize Kimbar linked project for character sprites
+          initKimbarLinkedProject(projectPath)
         } catch (err) {
           console.error('Failed to load project:', err)
           toast.error('Failed to load project')
@@ -977,6 +1013,9 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
 
         console.log('[projectStore] Setting tilesets:', loadedTilesets.length, loadedTilesets.map(t => ({ id: t.id, status: t.status })))
         set({ tilesets: loadedTilesets })
+
+        // Try to auto-detect Kimbar for standalone mode
+        initKimbarLinkedProject('.')
       },
 
       addTileset: async (config) => {
