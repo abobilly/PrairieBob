@@ -1,8 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { X } from 'lucide-react'
-import type { EntityData, Layer, LevelData, LoadedTileset } from '@/lib/types'
+import type { EntityData, Layer, LevelData, LoadedTileset, TileActionGroup, TileActionAssignment } from '@/lib/types'
 import { hasTileFlipXFlag, hasTileFlipYFlag, resolveTileId, stripTileFlipFlags } from '@/lib/tileset'
 import { useProjectStore } from '@/stores'
+import {
+  initTileActionRuntimeState,
+  updateTileActions,
+  handleTileInteract,
+  getTileVisualOverride,
+  type TileActionRuntimeState,
+  type EffectContext,
+} from '@/lib/tile-action-runtime'
 import {
   resolveDoorVisualDefinition,
   resolveActorAnimationSelection,
@@ -70,6 +78,8 @@ type RuntimeState = {
   doorStates: Map<string, string>
   npcs: NpcRuntime[]
   previousTime: number
+  /** Tile action runtime state (triggers, timers, signals). */
+  tileActions: TileActionRuntimeState
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -230,7 +240,21 @@ export function RunTestOverlay({ open, mapData, tilesets, onClose }: RunTestOver
   const frameRef = useRef<number | null>(null)
   const entityDefinitions = useProjectStore((state) => state.entityDefinitions)
   const interactionDefinitions = useProjectStore((state) => state.interactionDefinitions)
+  const tileActionGroups = useProjectStore((state) => state.tileActionGroups)
+  const tileActionAssignments = useProjectStore((state) => state.tileActionAssignments)
+  const tileActionGroupsRef = useRef(tileActionGroups)
+  tileActionGroupsRef.current = tileActionGroups
+  const tileActionAssignmentsRef = useRef(tileActionAssignments)
+  tileActionAssignmentsRef.current = tileActionAssignments
   const tileSize = Math.max(1, mapData.tileSize || 16)
+  const tileLayerNames = useMemo(
+    () => mapData.layers
+      .filter((l) => l.type === 'tilelayer' && l.name.trim().toLowerCase() !== 'collision')
+      .map((l) => l.name),
+    [mapData],
+  )
+  const tileLayerNamesRef = useRef(tileLayerNames)
+  tileLayerNamesRef.current = tileLayerNames
   const collisionModel = useMemo(() => buildCollisionModel(mapData), [mapData])
   const collisionData = collisionModel.merged
   const manualCollisionData = collisionModel.manual
@@ -333,8 +357,9 @@ export function RunTestOverlay({ open, mapData, tilesets, onClose }: RunTestOver
       doorStates,
       npcs,
       previousTime: 0,
+      tileActions: initTileActionRuntimeState(tileActionAssignments, tileActionGroups),
     } satisfies RuntimeState
-  }, [mapData, tileSize, spawnEntity, playerVisual, npcEntities, npcVisuals, doors, doorVisuals])
+  }, [mapData, tileSize, spawnEntity, playerVisual, npcEntities, npcVisuals, doors, doorVisuals, tileActionAssignments, tileActionGroups])
 
   useEffect(() => {
     if (!open) return
@@ -431,6 +456,23 @@ export function RunTestOverlay({ open, mapData, tilesets, onClose }: RunTestOver
             bestNpc.interactAnimationMsRemaining = 900
           }
         }
+
+        // Tile action on_interact
+        const ptx = Math.floor(playerCenterX / tileSize)
+        const pty = Math.floor(playerCenterY / tileSize)
+        handleTileInteract(
+          ptx,
+          pty,
+          runtime.playerFacingDir,
+          runtime.tileActions,
+          tileActionAssignmentsRef.current,
+          tileActionGroupsRef.current,
+          tileLayerNamesRef.current,
+          {
+            tileSize,
+            setPlayerPosition: (x, y) => { runtime.playerX = x; runtime.playerY = y },
+          },
+        )
         return
       }
 
@@ -623,6 +665,27 @@ export function RunTestOverlay({ open, mapData, tilesets, onClose }: RunTestOver
         runtime.playerHeight,
         'player'
       )
+
+      // Tile action runtime — check triggers after player movement
+      const playerCenterXForTile = runtime.playerX + runtime.playerWidth * 0.5
+      const playerCenterYForTile = runtime.playerY + runtime.playerHeight * 0.5
+      const playerTileX = Math.floor(playerCenterXForTile / tileSize)
+      const playerTileY = Math.floor(playerCenterYForTile / tileSize)
+      const tileActionContext: EffectContext = {
+        tileSize,
+        setPlayerPosition: (x, y) => { runtime.playerX = x; runtime.playerY = y },
+      }
+      updateTileActions(
+        playerTileX,
+        playerTileY,
+        elapsed * 1000,
+        runtime.tileActions,
+        tileActionAssignmentsRef.current,
+        tileActionGroupsRef.current,
+        tileLayerNamesRef.current,
+        tileActionContext,
+      )
+
       let playerAnimationSelection: ReturnType<typeof resolveActorAnimationSelection> | null = null
       if (playerVisual) {
         const playerBaseAnimation = playerIsMoving ? playerVisual.walkAnimation : playerVisual.idleAnimation
@@ -765,16 +828,33 @@ export function RunTestOverlay({ open, mapData, tilesets, onClose }: RunTestOver
       ctx.translate(-cameraX, -cameraY)
       ctx.imageSmoothingEnabled = false
 
+      // Build group map for tile action visual overrides
+      const actionGroupMap = new Map(tileActionGroupsRef.current.map((g) => [g.id, g]))
+
       for (const layer of mapData.layers) {
         if (!layer.visible || layer.type !== 'tilelayer') continue
         const isCollision = layer.name.trim().toLowerCase() === 'collision'
         if (isCollision) continue
         for (let index = 0; index < (layer.data?.length ?? 0); index += 1) {
           const rawTileId = layer.data?.[index] ?? 0
-          const tileId = stripTileFlipFlags(rawTileId)
+          let tileId = stripTileFlipFlags(rawTileId)
           if (tileId <= 0) continue
-          const tileX = (index % mapData.width) * tileSize
-          const tileY = Math.floor(index / mapData.width) * tileSize
+          const cellX = index % mapData.width
+          const cellY = Math.floor(index / mapData.width)
+          const tileX = cellX * tileSize
+          const tileY = cellY * tileSize
+
+          // Check for tile action visual override
+          const overrideTileId = getTileVisualOverride(
+            `${layer.name}:${cellX}:${cellY}`,
+            runtime.tileActions,
+            tileActionAssignmentsRef.current,
+            actionGroupMap,
+          )
+          if (overrideTileId != null && overrideTileId > 0) {
+            tileId = overrideTileId
+          }
+
           const resolved = resolveTileId(tileId, tilesets)
           if (!resolved) continue
           const flipX = hasTileFlipXFlag(rawTileId)

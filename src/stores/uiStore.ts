@@ -85,6 +85,9 @@ interface UIActions {
 
   // Kimbar auto-load
   setAutoLoadKimbar: (enabled: boolean) => void
+
+  // Layout recovery
+  resetPanelLayout: () => void
 }
 
 const PERSIST_KEY = 'spudtile-ui-v2'
@@ -108,6 +111,28 @@ const DEFAULT_PANELS: UIState['panels'] = {
     minSize: 14,
     maxSize: 45,
   },
+}
+
+const PANEL_RUNTIME_LIMITS: Record<'left' | 'right' | 'bottom', { min: number; max: number; fallback: number }> = {
+  left: { min: 18, max: 60, fallback: 24 },
+  right: { min: 16, max: 60, fallback: 24 },
+  bottom: { min: 8, max: 60, fallback: 24 },
+}
+
+function normalizeRuntimeSize(panel: 'left' | 'right' | 'bottom', value: number): number {
+  const limits = PANEL_RUNTIME_LIMITS[panel]
+  if (!Number.isFinite(value)) return limits.fallback
+
+  let next = value
+  // Some panel APIs report 0..1 ratios instead of 0..100 percentages.
+  if (next > 0 && next <= 1) {
+    next *= 100
+  }
+  // Pixel-like values are not valid for Panel percentages.
+  if (next > 100) {
+    return limits.fallback
+  }
+  return Math.min(Math.max(next, limits.min), limits.max)
 }
 
 function normalizePercent(value: unknown, fallback: number, min: number, max: number): number {
@@ -178,12 +203,25 @@ export const useUIStore = create<UIState & UIActions>()(
         autoLoadKimbar: false,
 
         // Actions
-        setPanelSize: (panel, size) => set((state) => ({
-          panels: {
-            ...state.panels,
-            [panel]: { ...state.panels[panel], size },
-          },
-        })),
+        setPanelSize: (panel, size) => set((state) => {
+          const current = state.panels[panel]
+          const normalized = normalizeRuntimeSize(panel, size)
+          const nextMin = Math.max(current.minSize, PANEL_RUNTIME_LIMITS[panel].min)
+          const nextMax = Math.min(Math.max(current.maxSize, nextMin), PANEL_RUNTIME_LIMITS[panel].max)
+          const nextSize = Math.min(Math.max(normalized, nextMin), nextMax)
+
+          return {
+            panels: {
+              ...state.panels,
+              [panel]: {
+                ...current,
+                minSize: nextMin,
+                maxSize: nextMax,
+                size: nextSize,
+              },
+            },
+          }
+        }),
 
         setPanelCollapsed: (panel, collapsed) => set((state) => ({
           panels: {
@@ -240,6 +278,13 @@ export const useUIStore = create<UIState & UIActions>()(
         openNewProjectWizard: () => set({ showNewProjectWizard: true }),
         closeNewProjectWizard: () => set({ showNewProjectWizard: false }),
         setAutoLoadKimbar: (enabled) => set({ autoLoadKimbar: enabled }),
+        resetPanelLayout: () => set({
+          panels: {
+            left: { ...DEFAULT_PANELS.left, collapsed: false },
+            right: { ...DEFAULT_PANELS.right, collapsed: false },
+            bottom: { ...DEFAULT_PANELS.bottom, collapsed: true },
+          },
+        }),
       }),
       {
         name: PERSIST_KEY,  // localStorage key

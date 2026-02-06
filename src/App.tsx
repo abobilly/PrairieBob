@@ -383,6 +383,7 @@ function App() {
     setTheme,
     togglePanelCollapsed,
     setTilesetZoom,
+    resetPanelLayout,
   } = useUIStore()
 
   // Use individual selectors to avoid creating new objects every render
@@ -1210,6 +1211,14 @@ function App() {
         <div className="pb-toolbar-group">
           <button
             className="pb-tool-btn pb-tool-btn-labeled"
+            onClick={resetPanelLayout}
+            title="Reset panel layout"
+          >
+            <Crosshair size={16} />
+            <span>Layout</span>
+          </button>
+          <button
+            className="pb-tool-btn pb-tool-btn-labeled"
             onClick={handleToggleTheme}
             title={resolvedTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
           >
@@ -1241,7 +1250,7 @@ function App() {
                 minSize={leftPanelMinSize}
                 maxSize={leftPanelMaxSize}
                 onResize={handleLeftPanelResize}
-                className="pb-panel pb-panel-palette border-r border-[var(--pb-border)]"
+                className="pb-panel pb-panel-palette border-r border-[var(--pb-border)] min-w-[260px]"
               >
                 <div className="pb-panel-header pb-panel-header-palette">
                   <div className="pb-panel-title-wrap">
@@ -1324,7 +1333,7 @@ function App() {
                 minSize={rightPanelMinSize}
                 maxSize={rightPanelMaxSize}
                 onResize={handleRightPanelResize}
-                className="pb-panel pb-panel-inspector border-l border-[var(--pb-border)]"
+                className="pb-panel pb-panel-inspector border-l border-[var(--pb-border)] min-w-[260px]"
               >
                 <div className="pb-panel-header pb-panel-header-inspector">
                   <div className="pb-panel-title-wrap">
