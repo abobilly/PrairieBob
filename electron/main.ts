@@ -11,6 +11,18 @@ import * as fs from 'fs';
 // Use require for agent-main since we rename .js to .cjs after compilation
 const { registerAgentIPC } = require('./agent-main.cjs');
 
+// Auto-updater (only functional in packaged builds)
+let autoUpdater: any = null;
+if (app.isPackaged) {
+    try {
+        autoUpdater = require('electron-updater').autoUpdater;
+        autoUpdater.autoDownload = true;
+        autoUpdater.autoInstallOnAppQuit = true;
+    } catch (err) {
+        console.log('Auto-updater not available:', err);
+    }
+}
+
 // Set unique app name to avoid conflicts with other Electron apps
 app.name = 'PrairieBob';
 app.setAppUserModelId('com.prairiebob.tileeditor');
@@ -361,12 +373,46 @@ ipcMain.on('editor:setUnsaved', (_, unsaved: boolean) => {
     updateWindowTitle();
 });
 
+// ============== Auto-Update ==============
+
+function setupAutoUpdater() {
+    if (!autoUpdater) return;
+
+    autoUpdater.on('update-available', (info: any) => {
+        console.log('Update available:', info.version);
+        mainWindow?.webContents.send('update:available', info.version);
+        dialog.showMessageBox(mainWindow!, {
+            type: 'info',
+            title: 'Update Available',
+            message: `PrairieBob v${info.version} is available!`,
+            detail: 'It will be installed automatically when you close the app.',
+            buttons: ['OK'],
+        });
+    });
+
+    autoUpdater.on('update-downloaded', (info: any) => {
+        console.log('Update downloaded:', info.version);
+        mainWindow?.webContents.send('update:downloaded', info.version);
+    });
+
+    autoUpdater.on('error', (err: Error) => {
+        console.log('Auto-update error:', err.message);
+    });
+
+    // Check for updates (silently)
+    autoUpdater.checkForUpdatesAndNotify().catch((err: Error) => {
+        console.log('Update check failed:', err.message);
+    });
+}
+
 // ============== App Lifecycle ==============
 
 app.whenReady().then(() => {
     // Register agent IPC handlers before creating window
     registerAgentIPC();
     createWindow();
+    // Check for updates after window is ready
+    setupAutoUpdater();
 });
 
 app.on('window-all-closed', () => {

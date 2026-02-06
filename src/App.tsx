@@ -513,14 +513,14 @@ function App() {
       </div>
 
       <PanelGroup orientation="vertical" className="flex-1 min-h-0">
-        <Panel id="main-area" minSize={240}>
+        <Panel id="main-area" minSize="240px">
           <PanelGroup orientation="horizontal" className="h-full">
             {leftPanelOpen ? (
               <Panel
                 id="left-sidebar"
-                defaultSize={panels.left.size}
-                minSize={panels.left.minSize}
-                maxSize={panels.left.maxSize}
+                defaultSize={`${panels.left.size}px`}
+                minSize={`${panels.left.minSize}px`}
+                maxSize={`${panels.left.maxSize}px`}
                 onResize={(size) => setPanelSize('left', size.inPixels)}
                 className="pb-panel border-r border-[var(--pb-border)]"
               >
@@ -556,7 +556,7 @@ function App() {
                 </div>
               </Panel>
             ) : (
-              <Panel id="left-collapsed" defaultSize={32} minSize={32} maxSize={32}>
+              <Panel id="left-collapsed" defaultSize="32px" minSize="32px" maxSize="32px">
                 <button
                   onClick={() => togglePanelCollapsed('left')}
                   className="pb-panel-toggle h-full border-r border-[var(--pb-border)]"
@@ -569,7 +569,7 @@ function App() {
 
             <PanelResizeHandle className="panel-resize-handle" />
 
-            <Panel id="canvas" minSize={320} className="min-w-0">
+            <Panel id="canvas" minSize="320px" className="min-w-0">
               <div className="flex-1 pb-canvas-area min-w-0 overflow-hidden relative">
                 <LevelCanvas level={level} />
               </div>
@@ -580,9 +580,9 @@ function App() {
             {rightPanelOpen ? (
               <Panel
                 id="right-sidebar"
-                defaultSize={panels.right.size}
-                minSize={panels.right.minSize}
-                maxSize={panels.right.maxSize}
+                defaultSize={`${panels.right.size}px`}
+                minSize={`${panels.right.minSize}px`}
+                maxSize={`${panels.right.maxSize}px`}
                 onResize={(size) => setPanelSize('right', size.inPixels)}
                 className="pb-panel border-l border-[var(--pb-border)]"
               >
@@ -621,7 +621,7 @@ function App() {
                 </div>
               </Panel>
             ) : (
-              <Panel id="right-collapsed" defaultSize={32} minSize={32} maxSize={32}>
+              <Panel id="right-collapsed" defaultSize="32px" minSize="32px" maxSize="32px">
                 <button
                   onClick={() => togglePanelCollapsed('right')}
                   className="pb-panel-toggle h-full border-l border-[var(--pb-border)]"
@@ -639,9 +639,9 @@ function App() {
             <PanelResizeHandle className="panel-resize-handle" />
             <Panel
               id="bottom-panel"
-              defaultSize={panels.bottom.size}
-              minSize={panels.bottom.minSize}
-              maxSize={panels.bottom.maxSize}
+              defaultSize={`${panels.bottom.size}px`}
+              minSize={`${panels.bottom.minSize}px`}
+              maxSize={`${panels.bottom.maxSize}px`}
               onResize={(size) => setPanelSize('bottom', size.inPixels)}
               className="pb-panel border-t border-[var(--pb-border)]"
             >
