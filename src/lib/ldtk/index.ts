@@ -21,6 +21,7 @@ export * from './auto-layer-rule'
 // JSON I/O
 export * from './json-io'
 export * from './project-loader'
+export * from './project-saver'
 export { 
     type PrairieBobConfig, 
     type PrairieBobLinkedProject,

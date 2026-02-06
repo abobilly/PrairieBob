@@ -263,12 +263,12 @@ async function readFileText(path: string): Promise<string> {
     throw new Error('File reading is not available in this environment.')
 }
 
-function getDirectoryPath(filePath: string): string {
+export function getDirectoryPath(filePath: string): string {
     const lastSlash = Math.max(filePath.lastIndexOf('/'), filePath.lastIndexOf('\\'))
     return lastSlash >= 0 ? filePath.slice(0, lastSlash) : ''
 }
 
-function joinPath(baseDir: string, relPath: string): string {
+export function joinPath(baseDir: string, relPath: string): string {
     if (isAbsolutePath(relPath) || baseDir.length === 0) {
         return relPath
     }
