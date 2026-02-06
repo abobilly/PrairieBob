@@ -9,6 +9,7 @@ import { ipcMain, BrowserWindow, app } from 'electron';
 import type { CopilotClient as CopilotClientType, CopilotSession as CopilotSessionType, SessionConfig } from '@github/copilot-sdk';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { z } from 'zod';
 
 // SDK client and session state
 type CopilotSdkModule = typeof import('@github/copilot-sdk');
@@ -19,6 +20,24 @@ let session: CopilotSessionType | null = null;
 let currentProjectPath: string | null = null;
 let eventUnsubscribers: (() => void)[] = [];
 const DEFAULT_MODEL = 'claude-sonnet-4.5';
+
+type PaintTilesArgs = {
+    layer: string;
+    tiles: Array<{ x: number; y: number; tileId: number }>;
+};
+
+type FillLayerArgs = {
+    layer: string;
+    tileId: number;
+    region?: { x: number; y: number; width: number; height: number };
+};
+
+type PlaceEntityArgs = {
+    type: 'spawn_point' | 'door' | 'npc' | 'trigger' | 'prop' | 'stairs' | 'ladder' | 'portal';
+    x: number;
+    y: number;
+    properties?: Record<string, string | number | boolean>;
+};
 
 function loadCopilotSdk(): Promise<CopilotSdkModule> {
     if (!sdkModulePromise) {
@@ -97,6 +116,62 @@ function updateState(state: 'idle' | 'thinking' | 'executing') {
     sendToRenderer('agent:state', state);
 }
 
+function dispatchToolToRenderer(toolName: string, args: Record<string, unknown>): void {
+    sendToRenderer('agent:tool', toolName, args);
+}
+
+function createSessionTools(sdk: CopilotSdkModule) {
+    return [
+        sdk.defineTool<PaintTilesArgs>('paint_tiles', {
+            description: 'Paint specific tiles on a map layer.',
+            parameters: z.object({
+                layer: z.string(),
+                tiles: z.array(z.object({
+                    x: z.number(),
+                    y: z.number(),
+                    tileId: z.number(),
+                })),
+            }),
+            handler: async ({ layer, tiles }) => {
+                dispatchToolToRenderer('paint_tiles', { layer, tiles });
+                return { success: true, painted: tiles.length };
+            },
+        }),
+
+        sdk.defineTool<FillLayerArgs>('fill_layer', {
+            description: 'Fill an entire layer or a region with a tile ID.',
+            parameters: z.object({
+                layer: z.string(),
+                tileId: z.number(),
+                region: z.object({
+                    x: z.number(),
+                    y: z.number(),
+                    width: z.number(),
+                    height: z.number(),
+                }).optional(),
+            }),
+            handler: async ({ layer, tileId, region }) => {
+                dispatchToolToRenderer('fill_layer', { layer, tileId, region });
+                return { success: true, layer, tileId, region: region ?? null };
+            },
+        }),
+
+        sdk.defineTool<PlaceEntityArgs>('place_entity', {
+            description: 'Place an entity on the map at a pixel position.',
+            parameters: z.object({
+                type: z.enum(['spawn_point', 'door', 'npc', 'trigger', 'prop', 'stairs', 'ladder', 'portal']),
+                x: z.number(),
+                y: z.number(),
+                properties: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).optional(),
+            }),
+            handler: async ({ type, x, y, properties }) => {
+                dispatchToolToRenderer('place_entity', { type, x, y, properties });
+                return { success: true, type, x, y };
+            },
+        }),
+    ];
+}
+
 // Register IPC handlers with real SDK integration
 export function registerAgentIPC() {
     // Start the agent and create a session
@@ -139,6 +214,16 @@ export function registerAgentIPC() {
                 infiniteSessions: { enabled: true },
                 configDir: copilotConfigDir,
                 workingDirectory: currentProjectPath,
+                streaming: true,
+                tools: createSessionTools(sdk),
+                systemMessage: {
+                    mode: 'append',
+                    content: `
+You are the SpudTile assistant embedded in a 2D tile map editor.
+When the user asks to modify the map, execute tools directly instead of only describing steps.
+Available editing tools: paint_tiles, fill_layer, place_entity.
+`,
+                },
             };
 
             const persistedState = loadPersistedSessionState();
@@ -185,7 +270,7 @@ export function registerAgentIPC() {
             eventUnsubscribers.push(
                 session.on('tool.execution_start', (event) => {
                     updateState('executing');
-                    sendToRenderer('agent:tool', event.data.toolName, event.data.arguments);
+                    console.log('[Agent] Tool execution started:', event.data.toolName);
                 })
             );
 

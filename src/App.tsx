@@ -223,6 +223,9 @@ function App() {
     addLayer,
     deleteLayer,
     renameLayer,
+    paintTiles,
+    fillArea,
+    placeEntity,
     updateEntity,
     deleteEntity,
     initTilesets,
@@ -421,6 +424,92 @@ function App() {
     resetViewport()
   }, [resetViewport])
 
+  const handleAgentToolCall = useCallback((toolName: string, args: Record<string, unknown>) => {
+    const getLayerIndex = (layerName: string) => mapData.layers.findIndex((layer) => layer.name === layerName)
+
+    switch (toolName) {
+      case 'paint_tiles': {
+        const layer = typeof args.layer === 'string' ? args.layer : ''
+        const layerIndex = getLayerIndex(layer)
+        const tiles = Array.isArray(args.tiles)
+          ? args.tiles.filter((tile): tile is { x: number; y: number; tileId: number } =>
+            typeof tile === 'object' &&
+            tile !== null &&
+            typeof (tile as Record<string, unknown>).x === 'number' &&
+            typeof (tile as Record<string, unknown>).y === 'number' &&
+            typeof (tile as Record<string, unknown>).tileId === 'number')
+          : []
+        if (layerIndex >= 0 && tiles.length > 0) {
+          paintTiles(layerIndex, tiles)
+        }
+        break
+      }
+
+      case 'fill_layer': {
+        const layer = typeof args.layer === 'string' ? args.layer : ''
+        const layerIndex = getLayerIndex(layer)
+        const tileId = typeof args.tileId === 'number' ? args.tileId : null
+        const region = typeof args.region === 'object' && args.region !== null
+          ? args.region as { x: number; y: number; width: number; height: number }
+          : undefined
+
+        if (layerIndex < 0 || tileId === null) break
+
+        if (region) {
+          const tiles: Array<{ x: number; y: number; tileId: number }> = []
+          for (let y = region.y; y < region.y + region.height; y += 1) {
+            for (let x = region.x; x < region.x + region.width; x += 1) {
+              tiles.push({ x, y, tileId })
+            }
+          }
+          if (tiles.length > 0) {
+            paintTiles(layerIndex, tiles)
+          }
+        } else {
+          const fullLayerTiles: Array<{ x: number; y: number; tileId: number }> = []
+          for (let y = 0; y < mapData.height; y += 1) {
+            for (let x = 0; x < mapData.width; x += 1) {
+              fullLayerTiles.push({ x, y, tileId })
+            }
+          }
+          if (fullLayerTiles.length > 0) {
+            paintTiles(layerIndex, fullLayerTiles)
+          } else {
+            fillArea(layerIndex, 0, 0, tileId)
+          }
+        }
+        break
+      }
+
+      case 'place_entity': {
+        const type = typeof args.type === 'string' ? args.type : null
+        const x = typeof args.x === 'number' ? args.x : null
+        const y = typeof args.y === 'number' ? args.y : null
+        const properties = (typeof args.properties === 'object' && args.properties !== null
+          ? args.properties
+          : {}) as Record<string, string | number | boolean>
+
+        if (!type || x === null || y === null) break
+
+        const baseSize = mapData.tileSize || 32
+        const size = type === 'ladder'
+          ? { width: baseSize, height: baseSize * 2 }
+          : { width: baseSize, height: baseSize }
+
+        placeEntity({
+          id: `${type}_${Date.now()}`,
+          type: type as 'spawn_point' | 'door' | 'npc' | 'trigger' | 'prop' | 'stairs' | 'ladder' | 'portal',
+          x,
+          y,
+          width: size.width,
+          height: size.height,
+          properties,
+        })
+        break
+      }
+    }
+  }, [mapData.layers, mapData.width, mapData.height, mapData.tileSize, paintTiles, fillArea, placeEntity])
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!e.ctrlKey && !e.metaKey) return
@@ -478,10 +567,13 @@ function App() {
           toast.success('Room saved!')
         }
       }),
+      window.electron.onAgentTool((toolName, args) => {
+        handleAgentToolCall(toolName, args)
+      }),
     ]
 
     return () => cleanups.forEach(cleanup => cleanup())
-  }, [handleSave, undo, redo, mapData, fsAdapter, setMapData, setCurrentRoomPath, setHasUnsavedChanges])
+  }, [handleSave, undo, redo, mapData, fsAdapter, setMapData, setCurrentRoomPath, setHasUnsavedChanges, handleAgentToolCall])
 
   const handleLayerToggle = useCallback((index: number, prop: 'visible' | 'locked') => {
     if (prop === 'visible') {

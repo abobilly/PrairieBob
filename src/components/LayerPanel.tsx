@@ -221,7 +221,7 @@ export function LayerPanel({
 
                     {/* Type badge */}
                     <span className="pb-layer-compact-type">
-                      {layer.type === 'tilelayer' ? 'T' : 'O'}
+                      {layer.type === 'tilelayer' ? 'Tile' : 'Entity'}
                     </span>
 
                     {/* Delete button */}

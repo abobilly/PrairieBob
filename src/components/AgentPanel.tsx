@@ -26,8 +26,7 @@ export function AgentPanel() {
   const fitAddon = useRef<FitAddon | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Get store actions for tool handlers
-  const { paintTiles, fillArea, placeEntity, mapData, tilesets, projectPath } = useProjectStore();
+  const { mapData, tilesets, projectPath } = useProjectStore();
 
   // Setup IPC event listeners for agent communication
   useEffect(() => {
@@ -60,9 +59,13 @@ export function AgentPanel() {
       setIsLoading(false);
     });
 
-    const unsubTool = window.electron.onAgentTool((toolName, args) => {
-      // Handle tool calls from the agent
-      handleToolCall(toolName, args);
+    const unsubTool = window.electron.onAgentTool((toolName) => {
+      setMessages(prev => [...prev, {
+        role: 'tool',
+        content: `Executing tool: ${toolName}`,
+        timestamp: new Date(),
+        toolName,
+      }]);
     });
 
     return () => {
@@ -73,55 +76,6 @@ export function AgentPanel() {
       unsubTool();
     };
   }, []);
-
-  // Handle tool calls from the agent in the main process
-  const handleToolCall = useCallback((toolName: string, args: Record<string, unknown>) => {
-    switch (toolName) {
-      case 'paint_tiles': {
-        const layer = args.layer as string;
-        const tiles = args.tiles as Array<{ x: number; y: number; tileId: number }>;
-        const layerIndex = mapData?.layers.findIndex(l => l.name === layer) ?? 0;
-        paintTiles(layerIndex, tiles);
-        break;
-      }
-      case 'fill_layer': {
-        const layer = args.layer as string;
-        const tileId = args.tileId as number;
-        const region = args.region as { x: number; y: number; width: number; height: number } | undefined;
-        const layerIndex = mapData?.layers.findIndex(l => l.name === layer) ?? 0;
-        if (region) {
-          const tiles: Array<{ x: number; y: number; tileId: number }> = [];
-          for (let y = region.y; y < region.y + region.height; y++) {
-            for (let x = region.x; x < region.x + region.width; x++) {
-              tiles.push({ x, y, tileId });
-            }
-          }
-          paintTiles(layerIndex, tiles);
-        } else if (mapData) {
-          fillArea(layerIndex, 0, 0, tileId);
-        }
-        break;
-      }
-      case 'place_entity': {
-        const type = args.type as string;
-        const x = args.x as number;
-        const y = args.y as number;
-        const properties = args.properties as Record<string, string | number | boolean> | undefined;
-        const baseSize = mapData?.tileSize || 32;
-        const size = type === 'ladder' ? { width: baseSize, height: baseSize * 2 } : { width: baseSize, height: baseSize };
-        placeEntity({
-          id: `${type}_${Date.now()}`,
-          type: type as 'spawn_point' | 'door' | 'npc' | 'trigger' | 'prop' | 'stairs' | 'ladder' | 'portal',
-          x,
-          y,
-          width: size.width,
-          height: size.height,
-          properties: properties || {},
-        });
-        break;
-      }
-    }
-  }, [mapData, paintTiles, fillArea, placeEntity]);
 
   // Initialize agent service via IPC
   const connectAgent = useCallback(async () => {
