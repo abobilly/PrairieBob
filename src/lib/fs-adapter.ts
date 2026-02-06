@@ -7,6 +7,7 @@
  */
 
 import type { LevelData } from './types';
+import { loadRoomDataFromContent, loadRoomDataFromFile } from './room-loader';
 
 export interface FileSystemAdapter {
     // Room operations
@@ -36,7 +37,7 @@ export class ElectronFSAdapter implements FileSystemAdapter {
         const result = await window.electron!.dialog.openFile({
             title: 'Open Room',
             filters: [
-                { name: 'Room Files', extensions: ['json', 'tmx'] },
+                { name: 'Room Files', extensions: ['json', 'tmx', 'ldtk'] },
                 { name: 'All Files', extensions: ['*'] },
             ],
         });
@@ -46,10 +47,9 @@ export class ElectronFSAdapter implements FileSystemAdapter {
         }
 
         const path = result.filePath;
-        const content = await window.electron!.fs.readFile(path);
-        const data = JSON.parse(content) as LevelData;
+        const loaded = await loadRoomDataFromFile(path, window.electron!.fs.readFile);
 
-        return { path, data };
+        return { path, data: loaded.data };
     }
 
     async saveRoom(path: string, data: LevelData): Promise<boolean> {
@@ -139,8 +139,8 @@ export class BrowserFSAdapter implements FileSystemAdapter {
                 });
                 const file = await handle.getFile();
                 const content = await file.text();
-                const data = JSON.parse(content) as LevelData;
-                return { path: file.name, data };
+                const loaded = await loadRoomDataFromContent(file.name, content);
+                return { path: file.name, data: loaded.data };
             } catch {
                 return null; // User cancelled
             }

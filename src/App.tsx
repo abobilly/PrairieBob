@@ -31,6 +31,7 @@ import { Group as PanelGroup, Panel, Separator as PanelResizeHandle } from 'reac
 import type { EntityInstance, LayerInstance, Level, TileInstance } from '@/lib/ldtk'
 import { DEBUG_TILESET_ID, type Layer, type LevelData, type LoadedTileset, type TileStamp } from '@/lib/types'
 import { resolveTileId } from '@/lib/tileset'
+import { loadRoomDataFromContent } from '@/lib/room-loader'
 import { ToolPalette } from '@/components/ToolPalette'
 import { TilesetPanel } from '@/components/TilesetPanel'
 import { LevelCanvas } from '@/components/LevelCanvas'
@@ -549,15 +550,18 @@ function App() {
       window.electron.onMenuUndo(() => { undo(); toast.info('Undo') }),
       window.electron.onMenuRedo(() => { redo(); toast.info('Redo') }),
       window.electron.onRoomOpened(({ path, content }) => {
-        try {
-          const data = JSON.parse(content)
-          setMapData(data, false)
-          setCurrentRoomPath(path)
-          setHasUnsavedChanges(false)
-          toast.success(`Opened ${path.split(/[/\\]/).pop()}`)
-        } catch (err) {
-          toast.error('Failed to parse room file')
-        }
+        void (async () => {
+          try {
+            const loaded = await loadRoomDataFromContent(path, content, window.electron?.fs?.readFile)
+            setMapData(loaded.data, false)
+            setCurrentRoomPath(path)
+            setHasUnsavedChanges(false)
+            toast.success(`Opened ${path.split(/[/\\]/).pop()}`)
+          } catch (err) {
+            const message = err instanceof Error ? err.message : 'Failed to parse room file'
+            toast.error(message)
+          }
+        })()
       }),
       window.electron.onRoomSaveAs(async (path) => {
         if (mapData) {
