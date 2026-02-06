@@ -68,6 +68,7 @@ export class EntityTool extends LayerTool {
                 x: existingEntity.px[0] - world.x,
                 y: existingEntity.px[1] - world.y,
             }
+            this.context.onPickEntity?.(existingEntity.iid)
         } else if (this.selectedEntityDefUid !== null) {
             this.placeEntity(world.x, world.y)
         }
@@ -92,6 +93,7 @@ export class EntityTool extends LayerTool {
         if (this.draggingEntity) {
             this.snapEntityToGrid(this.draggingEntity)
             this.onEntityMoved?.(this.draggingEntity)
+            this.context.onPickEntity?.(this.draggingEntity.iid)
             this.draggingEntity = null
         }
         this.dragOffset = { x: 0, y: 0 }
@@ -150,6 +152,7 @@ export class EntityTool extends LayerTool {
         }
         layer.entityInstances.push(newEntity)
         this.onEntityPlaced?.(newEntity)
+        this.context.onPickEntity?.(newEntity.iid)
     }
 
     private deleteEntity(entity: EntityInstance): void {

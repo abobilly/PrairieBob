@@ -37,7 +37,7 @@ import {
 } from 'lucide-react'
 import { Group as PanelGroup, Panel, Separator as PanelResizeHandle } from 'react-resizable-panels'
 import type { EntityInstance, LayerInstance, Level, TileInstance } from '@/lib/ldtk'
-import { DEBUG_TILESET_ID, type Layer, type LevelData, type LoadedTileset, type TileStamp } from '@/lib/types'
+import { DEBUG_TILESET_ID, type EntityData, type Layer, type LevelData, type LoadedTileset, type TileStamp } from '@/lib/types'
 import {
   hasTileFlipXFlag,
   hasTileFlipYFlag,
@@ -226,6 +226,16 @@ function buildLdtkLevel(mapData: LevelData, tilesets: LoadedTileset[]): Level {
     __neighbours: [],
     __smartColor: DEFAULT_BG_COLOR,
   }
+}
+
+function findEntityById(mapData: LevelData, entityId: string | null): EntityData | null {
+  if (!entityId) return null
+  return (
+    mapData.layers
+      .filter((layer) => layer.type === 'objectgroup')
+      .flatMap((layer) => layer.objects ?? [])
+      .find((entity) => entity.id === entityId) ?? null
+  )
 }
 
 function normalizePathForCompare(filePath: string): string {
@@ -1121,10 +1131,48 @@ function App() {
     }
   }, [toggleLayerVisible, toggleLayerLocked])
 
-  const selectedEntity = mapData.layers
-    .filter((layer) => layer.type === 'objectgroup')
-    .flatMap((layer) => layer.objects ?? [])
-    .find((entity) => entity.id === selectedEntityId) || null
+  const syncCanvasEntitiesIntoMap = useCallback((description: string) => {
+    const latestMapData = useProjectStore.getState().mapData
+    const syncedMapData = syncMapDataWithLevelEdits(latestMapData, level)
+    setMapData(syncedMapData, false, description)
+    return syncedMapData
+  }, [level, setMapData])
+
+  const selectedEntity = useMemo(
+    () => findEntityById(mapData, selectedEntityId),
+    [mapData, selectedEntityId]
+  )
+
+  useEffect(() => {
+    if (!selectedEntityId) return
+    if (selectedEntity) return
+    const syncedMapData = syncCanvasEntitiesIntoMap('Sync selected entity from canvas')
+    const resolved = findEntityById(syncedMapData, selectedEntityId)
+    if (!resolved) {
+      setSelectedEntityId(null)
+    }
+  }, [selectedEntityId, selectedEntity, syncCanvasEntitiesIntoMap, setSelectedEntityId])
+
+  const handleEntityPicked = useCallback((entityId: string) => {
+    if (!entityId) return
+    setSelectedEntityId(entityId)
+  }, [setSelectedEntityId])
+
+  const handleEntityUpdate = useCallback((id: string, updates: Partial<EntityData>) => {
+    if (!findEntityById(useProjectStore.getState().mapData, id)) {
+      syncCanvasEntitiesIntoMap('Sync entity edits from canvas')
+    }
+    updateEntity(id, updates)
+  }, [syncCanvasEntitiesIntoMap, updateEntity])
+
+  const handleEntityDelete = useCallback((id: string) => {
+    if (!findEntityById(useProjectStore.getState().mapData, id)) {
+      syncCanvasEntitiesIntoMap('Sync entity delete from canvas')
+    }
+    deleteEntity(id)
+    setSelectedEntityId(null)
+    toast.success('Entity deleted')
+  }, [syncCanvasEntitiesIntoMap, deleteEntity, setSelectedEntityId])
 
   return (
     <div data-theme={resolvedTheme} className="pb-app h-screen w-screen overflow-hidden flex flex-col">
@@ -1383,7 +1431,7 @@ function App() {
                       tileStamp={tileStamp}
                       mapData={mapData}
                       onTilePicked={handleTileSelect}
-                      onEntityPicked={setSelectedEntityId}
+                      onEntityPicked={handleEntityPicked}
                       onIntGridPicked={setSelectedIntGridValue}
                     />
                     <WorldMinimap />
@@ -1422,12 +1470,8 @@ function App() {
                 <div className="pb-panel-content h-full min-h-0 flex flex-col gap-3">
                   <PropertiesPanel
                     selectedEntity={selectedEntity}
-                    onEntityUpdate={updateEntity}
-                    onEntityDelete={(id) => {
-                      deleteEntity(id)
-                      setSelectedEntityId(null)
-                      toast.success('Entity deleted')
-                    }}
+                    onEntityUpdate={handleEntityUpdate}
+                    onEntityDelete={handleEntityDelete}
                   />
                   <div className="min-h-[160px] flex-1">
                     <LayerPanel
