@@ -414,69 +414,98 @@ interface LoadedProjectDefinitions {
   interactionDefinitionFilePaths: Record<string, string>
 }
 
-const AUTO_LAYER_GROUP_ENTITIES_ID = 'auto-group-entities'
-const AUTO_LAYER_GROUP_COLLISION_ID = 'auto-group-collision'
+/** Dynamic group ID prefix — all pattern-derived groups use this. */
+const DYNAMIC_GROUP_PREFIX = 'dynamic-group-'
+
+/**
+ * Extended patterns for dynamic layer grouping.
+ * These augment the META_GROUP_PATTERNS from types.ts with an additional
+ * entity-by-type pattern that catches objectgroup layers.
+ */
+const DYNAMIC_GROUP_RULES: Array<{
+  id: string
+  name: string
+  color: string
+  matchLayer: (layer: Layer) => boolean
+}> = [
+  {
+    id: `${DYNAMIC_GROUP_PREFIX}visual`,
+    name: 'Visual',
+    color: '#4CAF50',
+    matchLayer: (layer) =>
+      layer.type === 'tilelayer' && /^(floor|wall|trim|overlay|decor)/i.test(layer.name),
+  },
+  {
+    id: `${DYNAMIC_GROUP_PREFIX}collision`,
+    name: 'Collision',
+    color: '#F44336',
+    matchLayer: (layer) =>
+      layer.type === 'tilelayer' && /(collision|collide|solid|block)/i.test(layer.name),
+  },
+  {
+    id: `${DYNAMIC_GROUP_PREFIX}entities`,
+    name: 'Entities',
+    color: '#2196F3',
+    matchLayer: (layer) => {
+      if (layer.type === 'objectgroup') return true
+      return /(entities|entity|objects|spawns|spawn|npcs|npc|doors|door|triggers|portal|portals)/i.test(layer.name)
+    },
+  },
+]
 
 function normalizeLayerName(name: string): string {
   return name.trim().toLowerCase()
 }
 
-function isLikelyCollisionLayer(layer: Layer): boolean {
-  return layer.type === 'tilelayer' && /(collision|collide|solid|block)/i.test(layer.name)
-}
-
-function isLikelyEntityLayer(layer: Layer): boolean {
-  if (layer.type === 'objectgroup') return true
-  return /(entities|entity|objects|spawns|spawn|npcs|npc|doors|door|triggers|portal|portals)/i.test(layer.name)
-}
-
-function deriveDefaultLayerGroups(level: LevelData): LayerGroup[] {
-  const entityLayerNames = level.layers
-    .filter(isLikelyEntityLayer)
-    .map((layer) => layer.name)
-
-  const collisionLayerNames = level.layers
-    .filter(isLikelyCollisionLayer)
-    .map((layer) => layer.name)
-
+/** Derive dynamic layer groups from layer names using pattern rules. */
+function deriveDynamicLayerGroups(level: LevelData): LayerGroup[] {
   const groups: LayerGroup[] = []
-  if (entityLayerNames.length > 0) {
-    groups.push({
-      id: AUTO_LAYER_GROUP_ENTITIES_ID,
-      name: 'Entities',
-      type: 'static',
-      layerIds: entityLayerNames,
-      collapsed: false,
-      visible: true,
-      locked: false,
-      color: '#4b8cff',
-    })
-  }
-  if (collisionLayerNames.length > 0) {
-    groups.push({
-      id: AUTO_LAYER_GROUP_COLLISION_ID,
-      name: 'Collision',
-      type: 'static',
-      layerIds: collisionLayerNames,
-      collapsed: false,
-      visible: true,
-      locked: false,
-      color: '#ff6b6b',
-    })
+  for (const rule of DYNAMIC_GROUP_RULES) {
+    const matching = level.layers
+      .filter(rule.matchLayer)
+      .map((layer) => layer.name)
+    if (matching.length > 0) {
+      groups.push({
+        id: rule.id,
+        name: rule.name,
+        type: 'dynamic',
+        layerIds: matching,
+        collapsed: false,
+        visible: true,
+        locked: false,
+        color: rule.color,
+      })
+    }
   }
   return groups
 }
 
-function isAutoLayerGroup(group: LayerGroup): boolean {
-  return group.id === AUTO_LAYER_GROUP_ENTITIES_ID || group.id === AUTO_LAYER_GROUP_COLLISION_ID
+function isDynamicLayerGroup(group: LayerGroup): boolean {
+  return group.type === 'dynamic' || group.id.startsWith(DYNAMIC_GROUP_PREFIX)
 }
 
+/** Merge: keep manual (static) groups, regenerate dynamic groups from current layers. */
 function mergeAutoLayerGroups(
   existingGroups: LayerGroup[],
   level: LevelData,
 ): LayerGroup[] {
-  const manualGroups = existingGroups.filter((group) => !isAutoLayerGroup(group))
-  return [...manualGroups, ...deriveDefaultLayerGroups(level)]
+  // Preserve collapsed/visible/locked state from existing dynamic groups
+  const existingDynamic = new Map(
+    existingGroups.filter(isDynamicLayerGroup).map((g) => [g.id, g]),
+  )
+  const manualGroups = existingGroups.filter((group) => !isDynamicLayerGroup(group))
+  const freshDynamic = deriveDynamicLayerGroups(level)
+
+  // Carry forward UI state from previous dynamic groups
+  const mergedDynamic = freshDynamic.map((group) => {
+    const prev = existingDynamic.get(group.id)
+    if (prev) {
+      return { ...group, collapsed: prev.collapsed, visible: prev.visible, locked: prev.locked }
+    }
+    return group
+  })
+
+  return [...manualGroups, ...mergedDynamic]
 }
 
 function findFirstTileId(tiles: number[][]): number {
@@ -952,11 +981,11 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
             projectPath,
             normalizedPaths,
           )
-          const autoLayerGroups = deriveDefaultLayerGroups(mapData)
+          const dynamicLayerGroups = deriveDynamicLayerGroups(mapData)
           const persistedLayerGroups = Array.isArray(config.layerGroups)
-            ? (config.layerGroups as LayerGroup[]).filter((g) => !isAutoLayerGroup(g))
+            ? (config.layerGroups as LayerGroup[]).filter((g) => !isDynamicLayerGroup(g))
             : []
-          const defaultLayerGroups = [...persistedLayerGroups, ...autoLayerGroups]
+          const defaultLayerGroups = [...persistedLayerGroups, ...dynamicLayerGroups]
           const persistedCustomTileActionGroups = Array.isArray(config.tileActionGroups)
             ? deserializeActionGroups(config.tileActionGroups)
               .filter((group) => !isDefinitionBackedGroupId(group.id))
@@ -1117,7 +1146,7 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
             dirtyInteractionDefinitionIds: [],
             deletedEntityDefinitionIds: [],
             deletedInteractionDefinitionIds: [],
-            layerGroups: deriveDefaultLayerGroups(mapData),
+            layerGroups: deriveDynamicLayerGroups(mapData),
             layerGroupsDirty: false,
             tileActionGroups: [],
             customTileActionGroups: [],
@@ -1421,7 +1450,7 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
                     }
                   }
                   if (layerGroupsDirty) {
-                    const manualGroups = layerGroups.filter((g) => !isAutoLayerGroup(g))
+                    const manualGroups = layerGroups.filter((g) => !isDynamicLayerGroup(g))
                     nextProjectConfig = {
                       ...nextProjectConfig,
                       layerGroups: manualGroups,

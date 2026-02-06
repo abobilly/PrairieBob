@@ -427,7 +427,51 @@ export function LayerPanel({
             <div className="text-[10px] text-muted-foreground p-2">No layers</div>
           ) : (
             <div className="flex flex-col gap-1">
-              {/* Static layer groups */}
+              {/* Dynamic (auto-derived) layer groups */}
+              {layerGroups.filter(g => g.type === 'dynamic').map((group) => {
+                const groupLayerEntries = layerEntries.filter(({ layer }) =>
+                  group.layerIds.includes(layer.name)
+                )
+                return (
+                  <div key={group.id} className="flex flex-col gap-0.5">
+                    <div className="flex items-center gap-1 px-1 py-0.5 rounded opacity-85" style={{ borderLeft: `2px solid ${group.color || '#666'}` }}>
+                      <button
+                        className="pb-icon-btn-xs"
+                        onClick={() => onToggleGroupCollapsed?.(group.id)}
+                        title={group.collapsed ? 'Expand' : 'Collapse'}
+                      >
+                        {group.collapsed ? <CaretRight size={10} /> : <CaretDown size={10} />}
+                      </button>
+                      <button
+                        className="pb-icon-btn-xs"
+                        onClick={() => onToggleGroupVisibility?.(group.id)}
+                        title={group.visible ? 'Hide group' : 'Show group'}
+                      >
+                        {group.visible ? <Eye size={10} /> : <EyeSlash size={10} className="opacity-40" />}
+                      </button>
+                      <button
+                        className="pb-icon-btn-xs"
+                        onClick={() => onToggleGroupLock?.(group.id)}
+                        title={group.locked ? 'Unlock group' : 'Lock group'}
+                      >
+                        {group.locked ? <Lock size={10} className="text-amber-500" /> : <LockOpen size={10} className="opacity-40" />}
+                      </button>
+                      <span className="flex-1 text-[10px] font-medium truncate italic" title="Auto-grouped by naming pattern">{group.name}</span>
+                    </div>
+                    {!group.collapsed && (
+                      <div className="ml-3 flex flex-col gap-0.5">
+                        {groupLayerEntries.length > 0 ? (
+                          groupLayerEntries.map(renderLayerRow)
+                        ) : (
+                          <div className="text-[9px] text-muted-foreground px-2 py-1 italic">Empty group</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+
+              {/* Static (user-created) layer groups */}
               {layerGroups.filter(g => g.type === 'static').map((group) => {
                 const groupLayerEntries = layerEntries.filter(({ layer }) =>
                   group.layerIds.includes(layer.name)
