@@ -128,11 +128,11 @@
 
 | Task | Source (Lines) | Target | Est. Lines | Status |
 |------|----------------|--------|------------|--------|
-| 4F.1 EditLayerDefs | `ui/modal/panel/EditLayerDefs.hx` (842) | `src/components/panels/LayerDefsPanel.tsx` | ~500 | ⬜ |
+| 4F.1 EditLayerDefs | `ui/modal/panel/EditLayerDefs.hx` (842) | `src/components/panels/LayerDefsPanel.tsx` | ~500 | ✅ |
 | 4F.2 EditEntityDefs | `ui/modal/panel/EditEntityDefs.hx` (601) | `src/components/panels/EntityDefsPanel.tsx` | ~350 | ✅ |
 | 4F.3 EditTilesetDefs | `ui/modal/panel/EditTilesetDefs.hx` (420) | `src/components/panels/TilesetDefsPanel.tsx` | ~280 | ✅ |
 | 4F.4 EditEnumDefs | `ui/modal/panel/EditEnumDefs.hx` (486) | `src/components/panels/EnumDefsPanel.tsx` | ~300 | ✅ |
-| 4F.5 EditAllAutoLayerRules | `ui/modal/panel/EditAllAutoLayerRules.hx` (975) | `src/components/panels/AutoRulesPanel.tsx` | ~600 | ⬜ |
+| 4F.5 EditAllAutoLayerRules | `ui/modal/panel/EditAllAutoLayerRules.hx` (975) | `src/components/panels/AutoRulesPanel.tsx` | ~600 | ✅ |
 
 ---
 
