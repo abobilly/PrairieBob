@@ -10,6 +10,7 @@ import type {
 } from './types'
 import type { World } from './world'
 import type { Level } from './level'
+export type { LayerInstance } from './layer-instance'
 
 // ============== Project Defaults ==============
 
@@ -100,6 +101,9 @@ export interface Project {
     /** Next UID counter */
     nextUid: number
 }
+
+export type LDtkProject = Project
+export type LDtkProjectJSON = import('./json-io').LdtkJson
 
 // ============== Project Creation ==============
 

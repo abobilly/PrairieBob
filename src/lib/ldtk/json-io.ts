@@ -21,7 +21,7 @@ import { createLevel } from './level'
 
 // ============== JSON Types (match LDtk schema) ==============
 
-interface LdtkJson {
+export interface LdtkJson {
     jsonVersion: string
     appBuildId: number
     iid: string
@@ -95,7 +95,7 @@ interface LevelJson {
     pxWid: number
     pxHei: number
     __bgColor: string
-    bgColor: string | null
+    bgColor?: string | null
     bgRelPath: string | null
     bgPos: unknown | null
     bgPivotX: number

@@ -20,13 +20,22 @@ export * from './auto-layer-rule'
 
 // JSON I/O
 export * from './json-io'
+export * from './project-loader'
+export { 
+    type PrairieBobConfig, 
+    type PrairieBobLinkedProject,
+    loadPrairieBobProject,
+    savePrairieBobProject,
+    syncPrairieBobConfig 
+} from './project-bridge'
 
 // Tools
 export * from './tools/tool'
 export * from './tools/pan-tool'
 export * from './tools/pick-tool'
-export * from './tools/registry'
-
-// Tools
-export * from './tools/tool'
+export * from './tools/resize-tool'
+export * from './tools/selection-tool'
+export * from './tools/layer-tool'
+export * from './tools/intgrid-tool'
+export * from './tools/entity-tool'
 export * from './tools/registry'

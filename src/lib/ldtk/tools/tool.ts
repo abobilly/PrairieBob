@@ -19,6 +19,7 @@ export interface ToolContext {
     setZoom?: (zoom: number) => void
     zoomToPoint?: (zoom: number, screenX: number, screenY: number) => void
     screenToWorld?: (screenX: number, screenY: number) => { x: number; y: number }
+    lastMouseWorld?: { x: number; y: number }
     worldToTile?: (worldX: number, worldY: number) => { x: number; y: number }
     tileSize?: number
     getActiveLayer?: () => ToolLayer | null
