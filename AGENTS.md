@@ -37,6 +37,18 @@ User
 - Launch parallel CLIs for independent tasks
 - Wait patiently for CLI completion before intervening
 
+## Polling Strategy
+
+Scale wait intervals to estimated task size:
+
+| Est. Lines | Initial Wait | Subsequent Polls |
+|-----------|-------------|-----------------|
+| < 200     | 60s         | 60s             |
+| 200–500   | 90s         | 90s             |
+| 500+      | 120s        | 120–180s        |
+
+Never poll more than ~5 times. If a CLI hasn't finished after ~10 min, check once more then investigate.
+
 ## What NOT to do
 
 - ❌ Implement large tasks yourself when CLIs can do it
@@ -48,5 +60,6 @@ User
 - ✅ Read TASK_MAP.md and AGENT_PROMPTS.md for task specs
 - ✅ Confirm plan with user before launching CLIs
 - ✅ Run `npm run build` to verify after CLI completion
+- ✅ Kill completed CLI terminals after capturing their output (prevents buildup)
 - ✅ Commit and push when bundles are done
 - ✅ Update TASK_MAP.md status after each bundle

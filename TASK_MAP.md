@@ -142,8 +142,8 @@
 
 | Task | Source (Lines) | Target | Est. Lines | Status |
 |------|----------------|--------|------------|--------|
-| 5A.1 Editor core | `Editor.hx` (2456) | `src/lib/ldtk/editor.ts` | ~800 | ⬜ |
-| 5A.2 App.tsx rewrite | `App.hx` (961) | `src/App.tsx` | ~500 | ⬜ |
+| 5A.1 Editor core | `Editor.hx` (2456) | `src/lib/ldtk/editor.ts` | ~800 | ✅ |
+| 5A.2 App.tsx rewrite | `App.hx` (961) | `src/App.tsx` | ~500 | ✅ |
 
 ### 5B. Project I/O
 
@@ -224,8 +224,8 @@
 - 4B.2 FieldInstancesForm
 - 4F.1 EditLayerDefs
 - 4F.5 EditAllAutoLayerRules
-- 5A.1 Editor core
-- 5A.2 App.tsx rewrite
+- ✅ 5A.1 Editor core
+- ✅ 5A.2 App.tsx rewrite
 
 ---
 

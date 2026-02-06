@@ -1,6 +1,6 @@
 /**
  * PrairieBob Main App
- * 
+ *
  * UX patterns stolen from:
  * - Tiled: Resizable panels, stamp brushes, undo/redo
  * - LDtk: Modern state management, visual polish
@@ -8,17 +8,29 @@
  * - YATE: Tileset organization
  */
 
-import { useEffect, useCallback, useState, useRef } from 'react'
-import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, PanelBottomClose, PanelBottomOpen } from 'lucide-react'
-import { EntityData } from '@/lib/types'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  FolderOpen,
+  PanelBottomClose,
+  PanelBottomOpen,
+  PanelLeftClose,
+  PanelLeftOpen,
+  PanelRightClose,
+  PanelRightOpen,
+  Redo2,
+  Save,
+  Undo2,
+} from 'lucide-react'
+import { Group as PanelGroup, Panel, Separator as PanelResizeHandle } from 'react-resizable-panels'
+import type { EntityInstance, LayerInstance, Level, TileInstance } from '@/lib/ldtk'
+import type { Layer, LevelData, LoadedTileset, TileStamp } from '@/lib/types'
 import { resolveTileId } from '@/lib/tileset'
-import { Toolbar } from '@/components/Toolbar'
-import { MapCanvas } from '@/components/MapCanvas'
-import { Cursor } from '@/components/Cursor'
-import { LayerPanel } from '@/components/LayerPanel'
+import { ToolPalette } from '@/components/ToolPalette'
 import { TilesetPanel } from '@/components/TilesetPanel'
-import { EntityPalette } from '@/components/EntityPalette'
+import { LevelCanvas } from '@/components/LevelCanvas'
 import { PropertiesPanel } from '@/components/PropertiesPanel'
+import { LayerPanel } from '@/components/LayerPanel'
+import { EntityPalette } from '@/components/EntityPalette'
 import { TilesetImportDialog, TilesetImportResult } from '@/components/TilesetImportDialog'
 import { AgentPanel } from '@/components/AgentPanel'
 import { ProjectSelector } from '@/components/ProjectSelector'
@@ -27,57 +39,157 @@ import { getFileSystemAdapter } from '@/lib/fs-adapter'
 import { Toaster, toast } from 'sonner'
 import { NotificationContainer } from '@/components/Notification'
 import { DialogContainer } from '@/components/Dialog'
-
-// Zustand stores
-import {
-  useEditorStore,
-  useProjectStore,
-  useUIStore,
-} from '@/stores'
+import { useEditorStore, useProjectStore, useUIStore } from '@/stores'
+import { useToolStore } from '@/stores/toolStore'
+import { useLdtkToolStore } from '@/stores/ldtkToolStore'
 
 // CSS for resize handles
 import './styles/panels.css'
 
+const DEFAULT_BG_COLOR = '#1f2430'
+const DEFAULT_ENTITY_COLOR = '#8aa4ff'
+
+const DEFAULT_STAMP: TileStamp = {
+  width: 1,
+  height: 1,
+  tiles: [[1]],
+  tilesetId: null,
+}
+
+function pickLayerTileset(layer: Layer, tilesets: LoadedTileset[]): LoadedTileset | null {
+  if (!layer.data) return null
+  const tileId = layer.data.find((value) => value > 0)
+  if (!tileId) return null
+  return resolveTileId(tileId, tilesets)?.tileset ?? null
+}
+
+function buildTileInstances(
+  mapData: LevelData,
+  layer: Layer,
+  tilesets: LoadedTileset[],
+  layerTileset: LoadedTileset | null
+): TileInstance[] {
+  if (!layer.data || !layerTileset) return []
+  const tiles: TileInstance[] = []
+
+  for (let index = 0; index < layer.data.length; index += 1) {
+    const tileId = layer.data[index]
+    if (tileId <= 0) continue
+
+    const resolved = resolveTileId(tileId, tilesets)
+    if (!resolved || resolved.tileset.id !== layerTileset.id) continue
+
+    const localTileId = resolved.localTileId
+    const col = localTileId % layerTileset.tilesPerRow
+    const row = Math.floor(localTileId / layerTileset.tilesPerRow)
+    const x = index % mapData.width
+    const y = Math.floor(index / mapData.width)
+
+    tiles.push({
+      t: tileId,
+      px: [x * mapData.tileSize, y * mapData.tileSize],
+      src: [col * layerTileset.tileSize, row * layerTileset.tileSize],
+      f: 0,
+      a: 1,
+    })
+  }
+
+  return tiles
+}
+
+function buildEntityInstances(layer: Layer, tileSize: number): EntityInstance[] {
+  if (!layer.objects) return []
+  return layer.objects.map((entity, index) => ({
+    iid: entity.id || `${layer.name}-${index}`,
+    defUid: 0,
+    __identifier: entity.id || entity.type,
+    __grid: [Math.floor(entity.x / tileSize), Math.floor(entity.y / tileSize)],
+    px: [entity.x, entity.y],
+    width: entity.width,
+    height: entity.height,
+    __pivot: [0, 0],
+    __worldX: entity.x,
+    __worldY: entity.y,
+    __tags: [],
+    __tile: null,
+    __smartColor: DEFAULT_ENTITY_COLOR,
+    fieldInstances: [],
+  }))
+}
+
+function buildLdtkLevel(mapData: LevelData, tilesets: LoadedTileset[]): Level {
+  const tileSize = mapData.tileSize
+  const layerInstances: LayerInstance[] = mapData.layers.map((layer, index) => {
+    const isEntityLayer = layer.type === 'objectgroup'
+    const layerTileset = isEntityLayer ? null : pickLayerTileset(layer, tilesets)
+    const tilesetPath =
+      layerTileset && layerTileset.sourcePath !== 'procedural'
+        ? layerTileset.sourcePath
+        : null
+
+    return {
+      iid: `${mapData.id}-${layer.name}`,
+      layerDefUid: index + 1,
+      __identifier: layer.name,
+      __type: isEntityLayer ? 'Entities' : 'Tiles',
+      levelId: 1,
+      __gridSize: tileSize,
+      __opacity: layer.opacity ?? 1,
+      __pxTotalOffsetX: 0,
+      __pxTotalOffsetY: 0,
+      __tilesetDefUid: null,
+      __tilesetRelPath: tilesetPath,
+      __cWid: mapData.width,
+      __cHei: mapData.height,
+      intGridCsv: new Array(mapData.width * mapData.height).fill(0),
+      autoLayerTiles: [],
+      gridTiles: isEntityLayer
+        ? []
+        : buildTileInstances(mapData, layer, tilesets, layerTileset),
+      entityInstances: isEntityLayer ? buildEntityInstances(layer, tileSize) : [],
+      seed: 0,
+      overrideTilesetUid: null,
+      visible: layer.visible,
+      optionalRules: [],
+      pxOffsetX: 0,
+      pxOffsetY: 0,
+    }
+  })
+
+  return {
+    uid: 1,
+    iid: mapData.id,
+    identifier: mapData.id,
+    worldX: 0,
+    worldY: 0,
+    worldDepth: 0,
+    pxWid: mapData.width * tileSize,
+    pxHei: mapData.height * tileSize,
+    __bgColor: DEFAULT_BG_COLOR,
+    bgColor: null,
+    bgRelPath: null,
+    bgPos: null,
+    bgPivotX: 0.5,
+    bgPivotY: 0.5,
+    externalRelPath: null,
+    useAutoIdentifier: false,
+    layerInstances,
+    fieldInstances: [],
+    __neighbours: [],
+    __smartColor: DEFAULT_BG_COLOR,
+  }
+}
+
 function App() {
-  const canvasAreaRef = useRef<HTMLDivElement>(null)
-  // ============== Zustand Store Access ==============
+  const [tileStamp, setTileStamp] = useState<TileStamp>(DEFAULT_STAMP)
+
   const {
-    currentTool,
-    previousTool,
-    zoom,
-    panX,
-    panY,
-    gridVisible,
-    selectedTileId,
-    stamp,
     activeTilesetId,
     activeLayerIndex,
     selectedEntityId,
-    spaceHeld,
-    setTool,
-    setPreviousTool,
-    setZoom,
-    zoomIn,
-    zoomOut,
-    zoomReset,
-    zoomToPoint,
-    setPan,
-    nudgePan,
-    toggleGrid,
-    setSelectedTileId,
-    setStamp,
     setActiveTilesetId,
     setActiveLayerIndex,
     setSelectedEntityId,
-    setSpaceHeld,
-    setShiftHeld,
-    setCtrlHeld,
-    setCursorTile,
-    selection,
-    clipboard,
-    setSelection,
-    copySelection,
-    clearSelection,
   } = useEditorStore()
 
   const {
@@ -93,9 +205,6 @@ function App() {
     setMapData,
     setCurrentRoomPath,
     setHasUnsavedChanges,
-    paintTile,
-    paintTiles,
-    fillArea,
     toggleLayerVisible,
     toggleLayerLocked,
     setLayerOpacity,
@@ -103,9 +212,7 @@ function App() {
     addLayer,
     deleteLayer,
     renameLayer,
-    placeEntity,
     updateEntity,
-    moveEntity,
     deleteEntity,
     initTilesets,
     addTileset,
@@ -118,53 +225,70 @@ function App() {
     tilesetZoom,
     importDialogOpen,
     pendingImportPath,
-    showProjectSelector,
-    showNewProjectWizard,
+    openProjectSelector,
     openImportDialog,
     closeImportDialog,
     togglePanelCollapsed,
     setTilesetZoom,
+    setPanelSize,
   } = useUIStore()
 
-  const fsAdapter = getFileSystemAdapter()
+  const {
+    selectedTileId,
+    zoom,
+    setSelectedTileId,
+    setActiveLayer,
+  } = useToolStore((state) => ({
+    selectedTileId: state.selectedTileId,
+    zoom: state.zoom,
+    setSelectedTileId: state.setSelectedTileId,
+    setActiveLayer: state.setActiveLayer,
+  }))
 
-  // Panel visibility from store
+  const activeToolId = useLdtkToolStore((state) => state.activeToolId)
+
+  const fsAdapter = getFileSystemAdapter()
+  const level = useMemo(() => buildLdtkLevel(mapData, tilesets), [mapData, tilesets])
+  const effectiveTileId = selectedTileId ?? tilesets[0]?.firstGid ?? 1
+
   const leftPanelOpen = !panels.left.collapsed
   const rightPanelOpen = !panels.right.collapsed
   const bottomPanelOpen = !panels.bottom.collapsed
 
-  // ============== Initialize ==============
   useEffect(() => {
-    console.log('[App] Mount - projectName:', projectName, 'tilesets:', tilesets.length, 'mapData.layers:', mapData?.layers?.length)
-    // Don't auto-load - let the project selector handle it
-    // The ProjectSelector shows by default (showProjectSelector: true in uiStore)
-  }, [])
-
-  useEffect(() => {
-    // Fallback: init tilesets if project loading didn't happen
-    console.log('[App] tilesets effect - count:', tilesets.length)
     if (tilesets.length === 0) {
-      console.log('[App] No tilesets, calling initTilesets()')
       initTilesets()
+      return
     }
-  }, [initTilesets, tilesets.length])
 
-  useEffect(() => {
-    console.log('[App] activeTilesetId effect - tilesets:', tilesets.length, 'activeTilesetId:', activeTilesetId)
-    if (tilesets.length > 0 && !activeTilesetId) {
-      console.log('[App] Setting activeTilesetId to:', tilesets[0].id)
+    if (!activeTilesetId) {
       setActiveTilesetId(tilesets[0].id)
     }
-  }, [tilesets, activeTilesetId, setActiveTilesetId])
 
-  // Mark unsaved changes
+    if (selectedTileId === null && tilesets[0]) {
+      setSelectedTileId(tilesets[0].firstGid)
+      setTileStamp({
+        width: 1,
+        height: 1,
+        tiles: [[tilesets[0].firstGid]],
+        tilesetId: tilesets[0].id,
+      })
+    }
+  }, [tilesets, activeTilesetId, selectedTileId, initTilesets, setActiveTilesetId, setSelectedTileId])
+
+  useEffect(() => {
+    const activeLayer = level.layerInstances[activeLayerIndex]
+    if (activeLayer) {
+      setActiveLayer(activeLayer.__identifier)
+    }
+  }, [level, activeLayerIndex, setActiveLayer])
+
   useEffect(() => {
     if (hasUnsavedChanges) {
       fsAdapter.setUnsavedChanges(true)
     }
   }, [hasUnsavedChanges, fsAdapter])
 
-  // ============== Tileset Management ==============
   const handleAddTileset = useCallback(async () => {
     if (!window.electron) {
       toast.error('Tileset import requires Electron')
@@ -192,59 +316,97 @@ function App() {
       tileSize: importResult.tileSize,
     })
 
-    // Select first tile of new tileset
     const newTileset = useProjectStore.getState().tilesets.slice(-1)[0]
     if (newTileset) {
       setActiveTilesetId(newTileset.id)
       setSelectedTileId(newTileset.firstGid)
+      setTileStamp({
+        width: 1,
+        height: 1,
+        tiles: [[newTileset.firstGid]],
+        tilesetId: newTileset.id,
+      })
     }
   }, [pendingImportPath, closeImportDialog, addTileset, setActiveTilesetId, setSelectedTileId])
 
   const handleRemoveTileset = useCallback(async (tilesetId: string) => {
     await removeTileset(tilesetId)
 
-    // If we removed the active tileset, switch to the first one
     if (activeTilesetId === tilesetId) {
       const remaining = useProjectStore.getState().tilesets
-      setActiveTilesetId(remaining[0]?.id || null)
-      setSelectedTileId(remaining[0]?.firstGid || 1)
+      const nextTileset = remaining[0]
+      setActiveTilesetId(nextTileset?.id || null)
+      if (nextTileset) {
+        setSelectedTileId(nextTileset.firstGid)
+        setTileStamp({
+          width: 1,
+          height: 1,
+          tiles: [[nextTileset.firstGid]],
+          tilesetId: nextTileset.id,
+        })
+      }
     }
   }, [activeTilesetId, removeTileset, setActiveTilesetId, setSelectedTileId])
 
-  // Handle tile selection (from TilesetPanel)
   const handleTileSelect = useCallback((globalTileId: number) => {
     setSelectedTileId(globalTileId)
-    const resolved = resolveTileId(globalTileId, tilesets)
-    if (resolved) {
-      setActiveTilesetId(resolved.tileset.id)
-    }
-    // If in eyedropper mode, switch back to brush
-    if (currentTool === 'eyedropper') {
-      setTool('brush')
-    }
-  }, [tilesets, currentTool, setSelectedTileId, setActiveTilesetId, setTool])
 
-  // ============== Save/Export ==============
+    const resolved = resolveTileId(globalTileId, tilesets)
+    const nextTilesetId = resolved?.tileset.id ?? activeTilesetId
+    if (nextTilesetId) {
+      setActiveTilesetId(nextTilesetId)
+    }
+
+    setTileStamp({
+      width: 1,
+      height: 1,
+      tiles: [[globalTileId]],
+      tilesetId: nextTilesetId ?? null,
+    })
+  }, [tilesets, activeTilesetId, setActiveTilesetId, setSelectedTileId])
+
+  const handleStampSelect = useCallback((stamp: TileStamp) => {
+    setTileStamp(stamp)
+    if (stamp.tilesetId) {
+      setActiveTilesetId(stamp.tilesetId)
+    }
+  }, [setActiveTilesetId])
+
   const handleSave = useCallback(async () => {
     await saveMap()
   }, [saveMap])
 
-  const handleExport = useCallback(() => {
-    if (!mapData) return
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return
 
-    const json = JSON.stringify(mapData, null, 2)
-    const blob = new Blob([json], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${mapData.id}.json`
-    a.click()
-    URL.revokeObjectURL(url)
+      switch (e.key.toLowerCase()) {
+        case 's':
+          e.preventDefault()
+          handleSave()
+          break
+        case 'z':
+          e.preventDefault()
+          if (e.shiftKey) {
+            redo()
+            toast.info('Redo')
+          } else {
+            undo()
+            toast.info('Undo')
+          }
+          break
+        case 'y':
+          e.preventDefault()
+          redo()
+          toast.info('Redo')
+          break
+      }
+    }
 
-    toast.success('Map exported!')
-  }, [mapData])
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [handleSave, undo, redo])
 
-  // ============== Electron Menu Events ==============
   useEffect(() => {
     if (!window.electron) return
 
@@ -252,11 +414,6 @@ function App() {
       window.electron.onMenuSave(() => handleSave()),
       window.electron.onMenuUndo(() => { undo(); toast.info('Undo') }),
       window.electron.onMenuRedo(() => { redo(); toast.info('Redo') }),
-      window.electron.onMenuToggleGrid(() => toggleGrid()),
-      window.electron.onMenuZoomIn(() => zoomIn()),
-      window.electron.onMenuZoomOut(() => zoomOut()),
-      window.electron.onMenuZoomReset(() => zoomReset()),
-      window.electron.onMenuExport(() => handleExport()),
       window.electron.onRoomOpened(({ path, content }) => {
         try {
           const data = JSON.parse(content)
@@ -279,214 +436,7 @@ function App() {
     ]
 
     return () => cleanups.forEach(cleanup => cleanup())
-  }, [handleSave, handleExport, undo, redo, toggleGrid, zoomIn, zoomOut, zoomReset, mapData, fsAdapter, setMapData, setCurrentRoomPath, setHasUnsavedChanges])
-
-  // ============== Keyboard Shortcuts ==============
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Track modifier keys
-      if (e.key === ' ' && !spaceHeld) {
-        e.preventDefault()
-        setSpaceHeld(true)
-        // Temporarily switch to pan mode (Tiled/Photoshop style)
-        if (currentTool !== 'pan') {
-          setPreviousTool(currentTool)
-          setTool('pan')
-        }
-      }
-      if (e.key === 'Shift') setShiftHeld(true)
-      if (e.key === 'Control' || e.key === 'Meta') setCtrlHeld(true)
-
-      // Ctrl/Cmd shortcuts
-      if (e.ctrlKey || e.metaKey) {
-        switch (e.key.toLowerCase()) {
-          case 's':
-            e.preventDefault()
-            handleSave()
-            break
-          case 'e':
-            e.preventDefault()
-            handleExport()
-            break
-          case 'c':
-            // Copy selection (stolen from Tiled/Photoshop)
-            if (selection) {
-              e.preventDefault()
-              copySelection()
-              toast.success(`Copied ${selection.width}×${selection.height} tiles`)
-            }
-            break
-          case 'v':
-            // Paste clipboard (stolen from Tiled/Photoshop)
-            if (clipboard && mapData) {
-              e.preventDefault()
-              // Paste at current selection position or (0,0)
-              const pasteX = selection?.x ?? 0
-              const pasteY = selection?.y ?? 0
-              const tiles: Array<{ x: number; y: number; tileId: number }> = []
-
-              for (let dy = 0; dy < clipboard.height; dy++) {
-                for (let dx = 0; dx < clipboard.width; dx++) {
-                  const mapX = pasteX + dx
-                  const mapY = pasteY + dy
-                  if (mapX >= 0 && mapX < mapData.width && mapY >= 0 && mapY < mapData.height) {
-                    const tileId = clipboard.tiles[dy][dx]
-                    tiles.push({ x: mapX, y: mapY, tileId })
-                  }
-                }
-              }
-
-              if (tiles.length > 0) {
-                paintTiles(activeLayerIndex, tiles)
-                toast.success(`Pasted ${clipboard.width}×${clipboard.height} tiles at (${pasteX}, ${pasteY})`)
-              }
-            }
-            break
-          case 'z':
-            e.preventDefault()
-            if (e.shiftKey) {
-              redo()
-              toast.info('Redo')
-            } else {
-              undo()
-              toast.info('Undo')
-            }
-            break
-          case 'y':
-            e.preventDefault()
-            redo()
-            toast.info('Redo')
-            break
-          case '=':
-          case '+':
-            e.preventDefault()
-            zoomIn()
-            break
-          case '-':
-            e.preventDefault()
-            zoomOut()
-            break
-          case '0':
-            e.preventDefault()
-            zoomReset()
-            break
-        }
-        return
-      }
-
-      // Arrow key pan (nudge by 1 tile = 32px)
-      const NUDGE = 32 * zoom
-      switch (e.key) {
-        case 'ArrowUp':
-          e.preventDefault()
-          nudgePan(0, NUDGE)
-          break
-        case 'ArrowDown':
-          e.preventDefault()
-          nudgePan(0, -NUDGE)
-          break
-        case 'ArrowLeft':
-          e.preventDefault()
-          nudgePan(NUDGE, 0)
-          break
-        case 'ArrowRight':
-          e.preventDefault()
-          nudgePan(-NUDGE, 0)
-          break
-      }
-
-      // Tool shortcuts (single keys)
-      switch (e.key.toLowerCase()) {
-        case 'b':
-          setTool('brush')
-          break
-        case 'f':
-          setTool('fill')
-          break
-        case 'r':
-          setTool('rectangle')
-          break
-        case 'l':
-          setTool('line')
-          break
-        case 'e':
-          setTool('eraser')
-          break
-        case 's':
-          setTool('select')
-          break
-        case 'i':
-          setTool('eyedropper')
-          break
-        case 'g':
-          toggleGrid()
-          break
-        case 'p':
-          setTool('pan')
-          break
-        case 'escape':
-          // Clear selection (stolen from Photoshop/Tiled)
-          if (selection) {
-            clearSelection()
-            toast.info('Selection cleared')
-          }
-          break
-        case 'delete':
-        case 'backspace':
-          if (selectedEntityId) {
-            deleteEntity(selectedEntityId)
-            setSelectedEntityId(null)
-            toast.success('Entity deleted')
-          }
-          break
-      }
-    }
-
-    const handleKeyUp = (e: KeyboardEvent) => {
-      if (e.key === ' ') {
-        setSpaceHeld(false)
-        // Restore previous tool
-        if (previousTool) {
-          setTool(previousTool)
-          setPreviousTool(null)
-        }
-      }
-      if (e.key === 'Shift') setShiftHeld(false)
-      if (e.key === 'Control' || e.key === 'Meta') setCtrlHeld(false)
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-    window.addEventListener('keyup', handleKeyUp)
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown)
-      window.removeEventListener('keyup', handleKeyUp)
-    }
-  }, [
-    spaceHeld, previousTool, currentTool, selectedEntityId, zoom,
-    handleSave, handleExport, undo, redo, zoomIn, zoomOut, zoomReset,
-    nudgePan, toggleGrid, setTool, setPreviousTool,
-    setSpaceHeld, setShiftHeld, setCtrlHeld, deleteEntity, setSelectedEntityId,
-    selection, clipboard, copySelection, clearSelection, paintTiles, activeLayerIndex, mapData,
-  ])
-
-  // ============== Paint Operations ==============
-  const handlePaint = useCallback((layerIndex: number, x: number, y: number, tileId: number) => {
-    if (currentTool === 'eraser') {
-      paintTile(layerIndex, x, y, 0)
-    } else {
-      paintTile(layerIndex, x, y, tileId)
-    }
-  }, [currentTool, paintTile])
-
-  const handleBatchPaint = useCallback((layerIndex: number, tiles: Array<{ x: number; y: number; tileId: number }>) => {
-    paintTiles(layerIndex, tiles)
-  }, [paintTiles])
-
-  // ============== Entity Operations ==============
-  const handleEntityPlace = useCallback((entity: EntityData) => {
-    placeEntity(entity)
-    toast.success(`${entity.type} placed`)
-  }, [placeEntity])
+  }, [handleSave, undo, redo, mapData, fsAdapter, setMapData, setCurrentRoomPath, setHasUnsavedChanges])
 
   const handleLayerToggle = useCallback((index: number, prop: 'visible' | 'locked') => {
     if (prop === 'visible') {
@@ -496,24 +446,9 @@ function App() {
     }
   }, [toggleLayerVisible, toggleLayerLocked])
 
-  const selectedEntity = mapData?.layers
-    .find(l => l.name === 'Entities')
-    ?.objects?.find(o => o.id === selectedEntityId) || null
-
-  // Show loading state if mapData isn't ready yet
-  if (!mapData) {
-    return (
-      <div className="h-screen flex items-center justify-center bg-background text-foreground">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold mb-4">PrairieBob</h1>
-          <p className="text-muted-foreground">Loading map data...</p>
-        </div>
-      </div>
-    )
-  }
-
-  // Debug: log that we're rendering the main UI
-  console.log('[App] Rendering main UI - mapData:', mapData?.id, 'layers:', mapData?.layers?.length, 'tilesets:', tilesets.length)
+  const selectedEntity = mapData.layers
+    .find(layer => layer.type === 'objectgroup')
+    ?.objects?.find(entity => entity.id === selectedEntityId) || null
 
   return (
     <div className="pb-app h-screen w-screen overflow-hidden flex flex-col">
@@ -521,7 +456,6 @@ function App() {
       <NotificationContainer />
       <DialogContainer />
 
-      {/* Tileset Import Dialog */}
       <TilesetImportDialog
         open={importDialogOpen}
         filePath={pendingImportPath}
@@ -529,190 +463,221 @@ function App() {
         onConfirm={handleImportConfirm}
       />
 
-      {/* Toolbar */}
-      <Toolbar
-        currentTool={currentTool}
-        onToolChange={setTool}
-        gridVisible={gridVisible}
-        onGridToggle={toggleGrid}
-        zoom={zoom}
-        onZoomIn={zoomIn}
-        onZoomOut={zoomOut}
-        onZoomReset={zoomReset}
-        canUndo={canUndo}
-        canRedo={canRedo}
-        onUndo={() => { undo(); toast.info('Undo') }}
-        onRedo={() => { redo(); toast.info('Redo') }}
-        onExport={handleExport}
-        onSave={handleSave}
-      />
-
-      {/* Main Content - LDtk-style Panels */}
-      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-        {/* Top section: left panel + canvas + right panel */}
-        <div className="flex-1 flex min-h-0 overflow-hidden">
-
-          {/* Left Panel - Tilesets */}
-          {leftPanelOpen && (
-            <div className="w-72 pb-panel border-r border-[var(--pb-border)] flex flex-col shrink-0">
-              <div className="pb-panel-header">
-                <span className="pb-panel-title">Tilesets</span>
-                <button
-                  onClick={() => togglePanelCollapsed('left')}
-                  className="pb-panel-btn"
-                  title="Close Tileset Panel"
-                >
-                  <PanelLeftClose className="w-4 h-4" />
-                </button>
-              </div>
-              <div className="pb-panel-content">
-                <TilesetPanel
-                  tilesets={tilesets}
-                  activeTilesetId={activeTilesetId}
-                  selectedTileId={selectedTileId}
-                  stamp={stamp}
-                  tilesetZoom={tilesetZoom}
-                  onTilesetSelect={setActiveTilesetId}
-                  onTileSelect={handleTileSelect}
-                  onStampSelect={setStamp}
-                  onTilesetZoomChange={setTilesetZoom}
-                  onAddTileset={handleAddTileset}
-                  onRemoveTileset={handleRemoveTileset}
-                />
-                <EntityPalette />
-              </div>
-            </div>
-          )}
-
-          {/* Left panel toggle when collapsed */}
-          {!leftPanelOpen && (
-            <button
-              onClick={() => togglePanelCollapsed('left')}
-              className="pb-panel-toggle border-r border-[var(--pb-border)]"
-              title="Open Tileset Panel"
-            >
-              <PanelLeftOpen className="w-4 h-4 text-[var(--pb-text-muted)]" />
-            </button>
-          )}
-
-          {/* Center Panel - Canvas */}
-          <div className="flex-1 pb-canvas-area min-w-0 overflow-hidden relative" ref={canvasAreaRef}>
-            <MapCanvas
-              mapData={mapData}
-              tilesets={tilesets}
-              currentTool={currentTool}
-              selectedTileId={selectedTileId}
-              stamp={stamp}
-              activeLayerIndex={activeLayerIndex}
-              zoom={zoom}
-              panX={panX}
-              panY={panY}
-              gridVisible={gridVisible}
-              selectedEntityId={selectedEntityId}
-              onPanChange={setPan}
-              onZoomChange={setZoom}
-              onZoomToPoint={zoomToPoint}
-              onPaint={handlePaint}
-              onBatchPaint={handleBatchPaint}
-              onFill={fillArea}
-              onEntityPlace={handleEntityPlace}
-              onEntitySelect={setSelectedEntityId}
-              onEntityMove={moveEntity}
-              onTileSelect={handleTileSelect}
-              onCursorTileChange={setCursorTile}
-              selection={selection}
-              onSelectionChange={setSelection}
-            />
-            <Cursor containerRef={canvasAreaRef} />
-          </div>
-
-          {/* Right panel toggle when collapsed */}
-          {!rightPanelOpen && (
-            <button
-              onClick={() => togglePanelCollapsed('right')}
-              className="pb-panel-toggle border-l border-[var(--pb-border)]"
-              title="Open Layers Panel"
-            >
-              <PanelRightOpen className="w-4 h-4 text-[var(--pb-text-muted)]" />
-            </button>
-          )}
-
-          {/* Right Panel - Layers & Properties */}
-          {rightPanelOpen && (
-            <div className="w-72 pb-panel border-l border-[var(--pb-border)] flex flex-col shrink-0">
-              <div className="pb-panel-header">
-                <span className="pb-panel-title">Layers</span>
-                <button
-                  onClick={() => togglePanelCollapsed('right')}
-                  className="pb-panel-btn"
-                  title="Close Layers Panel"
-                >
-                  <PanelRightClose className="w-4 h-4" />
-                </button>
-              </div>
-              <div className="pb-panel-content space-y-4">
-                <LayerPanel
-                  layers={mapData.layers}
-                  activeLayerIndex={activeLayerIndex}
-                  onLayerSelect={setActiveLayerIndex}
-                  onLayerToggle={handleLayerToggle}
-                  onLayerReorder={reorderLayers}
-                  onLayerAdd={addLayer}
-                  onLayerDelete={deleteLayer}
-                  onLayerRename={renameLayer}
-                  onLayerOpacityChange={setLayerOpacity}
-                />
-                <PropertiesPanel
-                  selectedEntity={selectedEntity}
-                  onEntityUpdate={updateEntity}
-                  onEntityDelete={(id) => {
-                    deleteEntity(id)
-                    setSelectedEntityId(null)
-                    toast.success('Entity deleted')
-                  }}
-                />
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Bottom panel toggle when collapsed */}
-        {!bottomPanelOpen && (
+      <div className="pb-toolbar">
+        <span className="pb-toolbar-brand">PrairieBob</span>
+        <div className="pb-toolbar-group">
           <button
-            onClick={() => togglePanelCollapsed('bottom')}
-            className="pb-panel-toggle pb-panel-toggle-bottom border-t border-[var(--pb-border)]"
-            title="Open Agent Panel"
+            className="pb-tool-btn"
+            onClick={openProjectSelector}
+            title="Open Project"
           >
-            <PanelBottomOpen className="w-4 h-4 text-[var(--pb-text-muted)]" />
-            <span className="text-xs text-[var(--pb-text-muted)]">Agent</span>
+            <FolderOpen size={18} />
           </button>
+          <button
+            className="pb-tool-btn"
+            onClick={handleSave}
+            title="Save"
+          >
+            <Save size={18} />
+          </button>
+        </div>
+        <div className="pb-toolbar-divider" />
+        <div className="pb-toolbar-group">
+          <button
+            className="pb-tool-btn"
+            onClick={() => { undo(); toast.info('Undo') }}
+            title="Undo"
+            disabled={!canUndo}
+          >
+            <Undo2 size={18} />
+          </button>
+          <button
+            className="pb-tool-btn"
+            onClick={() => { redo(); toast.info('Redo') }}
+            title="Redo"
+            disabled={!canRedo}
+          >
+            <Redo2 size={18} />
+          </button>
+        </div>
+        {projectName && (
+          <span className="ml-3 text-xs text-[var(--pb-text-muted)]">
+            {projectName}
+          </span>
         )}
-
-        {/* Bottom Panel - Agent/Terminal */}
-        {bottomPanelOpen && (
-          <div className="h-64 pb-panel border-t border-[var(--pb-border)] flex flex-col shrink-0">
-            <div className="pb-panel-header">
-              <span className="pb-panel-title">Agent</span>
-              <button
-                onClick={() => togglePanelCollapsed('bottom')}
-                className="pb-panel-btn"
-                title="Close Agent Panel"
-              >
-                <PanelBottomClose className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="flex-1 overflow-hidden pb-agent-panel">
-              <AgentPanel />
-            </div>
-          </div>
+        {currentRoomPath && (
+          <span className="ml-2 text-[10px] text-[var(--pb-text-muted)] truncate">
+            {currentRoomPath.split(/[/\\]/).pop()}
+          </span>
         )}
       </div>
 
-      {/* Status Bar (LDtk-style) */}
+      <PanelGroup orientation="vertical" className="flex-1 min-h-0">
+        <Panel id="main-area" minSize={240}>
+          <PanelGroup orientation="horizontal" className="h-full">
+            {leftPanelOpen ? (
+              <Panel
+                id="left-sidebar"
+                defaultSize={panels.left.size}
+                minSize={panels.left.minSize}
+                maxSize={panels.left.maxSize}
+                onResize={(size) => setPanelSize('left', size.inPixels)}
+                className="pb-panel border-r border-[var(--pb-border)]"
+              >
+                <div className="pb-panel-header">
+                  <span className="pb-panel-title">Palette</span>
+                  <button
+                    onClick={() => togglePanelCollapsed('left')}
+                    className="pb-panel-btn"
+                    title="Close Palette"
+                  >
+                    <PanelLeftClose className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="pb-panel-content flex flex-col gap-4">
+                  <div className="h-48">
+                    <ToolPalette />
+                  </div>
+                  <div className="flex-1 min-h-0">
+                    <TilesetPanel
+                      tilesets={tilesets}
+                      activeTilesetId={activeTilesetId}
+                      selectedTileId={effectiveTileId}
+                      stamp={tileStamp}
+                      tilesetZoom={tilesetZoom}
+                      onTilesetSelect={setActiveTilesetId}
+                      onTileSelect={handleTileSelect}
+                      onStampSelect={handleStampSelect}
+                      onTilesetZoomChange={setTilesetZoom}
+                      onAddTileset={handleAddTileset}
+                      onRemoveTileset={handleRemoveTileset}
+                    />
+                  </div>
+                </div>
+              </Panel>
+            ) : (
+              <Panel id="left-collapsed" defaultSize={32} minSize={32} maxSize={32}>
+                <button
+                  onClick={() => togglePanelCollapsed('left')}
+                  className="pb-panel-toggle h-full border-r border-[var(--pb-border)]"
+                  title="Open Palette"
+                >
+                  <PanelLeftOpen className="w-4 h-4 text-[var(--pb-text-muted)]" />
+                </button>
+              </Panel>
+            )}
+
+            <PanelResizeHandle className="panel-resize-handle" />
+
+            <Panel id="canvas" minSize={320} className="min-w-0">
+              <div className="flex-1 pb-canvas-area min-w-0 overflow-hidden relative">
+                <LevelCanvas level={level} />
+              </div>
+            </Panel>
+
+            <PanelResizeHandle className="panel-resize-handle" />
+
+            {rightPanelOpen ? (
+              <Panel
+                id="right-sidebar"
+                defaultSize={panels.right.size}
+                minSize={panels.right.minSize}
+                maxSize={panels.right.maxSize}
+                onResize={(size) => setPanelSize('right', size.inPixels)}
+                className="pb-panel border-l border-[var(--pb-border)]"
+              >
+                <div className="pb-panel-header">
+                  <span className="pb-panel-title">Inspector</span>
+                  <button
+                    onClick={() => togglePanelCollapsed('right')}
+                    className="pb-panel-btn"
+                    title="Close Inspector"
+                  >
+                    <PanelRightClose className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="pb-panel-content space-y-4">
+                  <PropertiesPanel
+                    selectedEntity={selectedEntity}
+                    onEntityUpdate={updateEntity}
+                    onEntityDelete={(id) => {
+                      deleteEntity(id)
+                      setSelectedEntityId(null)
+                      toast.success('Entity deleted')
+                    }}
+                  />
+                  <LayerPanel
+                    layers={mapData.layers}
+                    activeLayerIndex={activeLayerIndex}
+                    onLayerSelect={setActiveLayerIndex}
+                    onLayerToggle={handleLayerToggle}
+                    onLayerReorder={reorderLayers}
+                    onLayerAdd={addLayer}
+                    onLayerDelete={deleteLayer}
+                    onLayerRename={renameLayer}
+                    onLayerOpacityChange={setLayerOpacity}
+                  />
+                  <EntityPalette />
+                </div>
+              </Panel>
+            ) : (
+              <Panel id="right-collapsed" defaultSize={32} minSize={32} maxSize={32}>
+                <button
+                  onClick={() => togglePanelCollapsed('right')}
+                  className="pb-panel-toggle h-full border-l border-[var(--pb-border)]"
+                  title="Open Inspector"
+                >
+                  <PanelRightOpen className="w-4 h-4 text-[var(--pb-text-muted)]" />
+                </button>
+              </Panel>
+            )}
+          </PanelGroup>
+        </Panel>
+
+        {bottomPanelOpen && (
+          <>
+            <PanelResizeHandle className="panel-resize-handle" />
+            <Panel
+              id="bottom-panel"
+              defaultSize={panels.bottom.size}
+              minSize={panels.bottom.minSize}
+              maxSize={panels.bottom.maxSize}
+              onResize={(size) => setPanelSize('bottom', size.inPixels)}
+              className="pb-panel border-t border-[var(--pb-border)]"
+            >
+              <div className="pb-panel-header">
+                <span className="pb-panel-title">Agent</span>
+                <button
+                  onClick={() => togglePanelCollapsed('bottom')}
+                  className="pb-panel-btn"
+                  title="Close Agent Panel"
+                >
+                  <PanelBottomClose className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="flex-1 overflow-hidden pb-agent-panel">
+                <AgentPanel />
+              </div>
+            </Panel>
+          </>
+        )}
+      </PanelGroup>
+
+      {!bottomPanelOpen && (
+        <button
+          onClick={() => togglePanelCollapsed('bottom')}
+          className="pb-panel-toggle pb-panel-toggle-bottom border-t border-[var(--pb-border)]"
+          title="Open Agent Panel"
+        >
+          <PanelBottomOpen className="w-4 h-4 text-[var(--pb-text-muted)]" />
+          <span className="text-xs text-[var(--pb-text-muted)]">Agent</span>
+        </button>
+      )}
+
       <div className="pb-statusbar">
         {projectName && <span className="pb-statusbar-accent">{projectName}</span>}
         <span className="pb-statusbar-item">
-          <span className="text-[var(--pb-text-muted)]">Tool:</span> {currentTool}
+          <span className="text-[var(--pb-text-muted)]">Tool:</span> {activeToolId}
         </span>
         <span className="pb-statusbar-item">
           <span className="text-[var(--pb-text-muted)]">Layer:</span> {mapData.layers[activeLayerIndex]?.name}
@@ -721,11 +686,11 @@ function App() {
           <span className="text-[var(--pb-text-muted)]">Zoom:</span> {Math.round(zoom * 100)}%
         </span>
         <span className="pb-statusbar-item">
-          <span className="text-[var(--pb-text-muted)]">Tile:</span> {selectedTileId}
+          <span className="text-[var(--pb-text-muted)]">Tile:</span> {effectiveTileId}
         </span>
-        {stamp.width > 1 || stamp.height > 1 ? (
+        {tileStamp.width > 1 || tileStamp.height > 1 ? (
           <span className="pb-statusbar-item">
-            <span className="text-[var(--pb-text-muted)]">Stamp:</span> {stamp.width}×{stamp.height}
+            <span className="text-[var(--pb-text-muted)]">Stamp:</span> {tileStamp.width}×{tileStamp.height}
           </span>
         ) : null}
         <span className="pb-statusbar-right">
@@ -737,7 +702,6 @@ function App() {
         </span>
       </div>
 
-      {/* Startup Dialogs */}
       <ProjectSelector />
       <NewProjectWizard />
     </div>
