@@ -72,6 +72,9 @@ Stabilize layout and ship a scalable, tool-context editor UI so new features do 
    - Radix `SelectItem` values must never be empty string; use sentinel values for "None".
 2. Focus follow-up:
    - Migrate remaining inspector widgets to a unified section scaffold before adding more behavior features.
+3. Layout guardrails:
+   - Inspector section headers must be `shrink-0` to avoid clipped/cropped controls in stacked flex columns.
+   - Startup/project selector actions should collapse to one column on narrow widths before allowing horizontal overflow.
 
 ## Layout Rules (Do Not Break)
 1. Side panels must never render below usable width.

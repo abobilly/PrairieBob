@@ -18,12 +18,17 @@ export const SAMPLE_CHARACTERS: Character[] = [
   { id: 'npc.librarian', name: 'Librarian' },
 ]
 
+interface AvailableCharacterOptions {
+  useKimbarRegistry?: boolean
+}
+
 /**
  * Get available characters, preferring Kimbar registry when loaded,
  * falling back to SAMPLE_CHARACTERS.
  */
-export function getAvailableCharacters(): Character[] {
-  if (isKimbarRegistryLoaded()) {
+export function getAvailableCharacters(options: AvailableCharacterOptions = {}): Character[] {
+  const { useKimbarRegistry = true } = options
+  if (useKimbarRegistry && isKimbarRegistryLoaded()) {
     const registryChars = getKimbarCharacters()
     if (registryChars.length > 0) return registryChars
   }

@@ -244,6 +244,7 @@ interface ProjectState {
   // Project info
   projectPath: string | null
   projectName: string | null
+  isKimbarProject: boolean
   projectConfig: ProjectConfig | null
   project: LDtkProject | null
 
@@ -844,6 +845,7 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
       // Initial state
       projectPath: null,
       projectName: null,
+      isKimbarProject: false,
       projectConfig: null,
       project: null,
       mapData: DEFAULT_MAP,
@@ -999,6 +1001,7 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
           set({
             projectPath,
             projectName: config.name,
+            isKimbarProject: false,
             projectConfig: config,
             tilesets: effectiveTilesets,
             entityDefinitions,
@@ -1138,6 +1141,7 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
           set({
             projectPath: kimbarRoot,
             projectName: config.name,
+            isKimbarProject: true,
             projectConfig: config as unknown as ProjectConfig,
             tilesets: effectiveTilesets,
             entityDefinitions: {},

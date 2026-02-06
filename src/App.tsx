@@ -1471,7 +1471,7 @@ function App() {
                   </button>
                 </div>
                 <div className="pb-panel-content h-full min-h-0 flex flex-col gap-3">
-                  <div className="rounded border border-[var(--pb-border-subtle)] bg-[var(--pb-bg-input)] overflow-hidden">
+                  <div className="shrink-0 rounded border border-[var(--pb-border-subtle)] bg-[var(--pb-bg-input)] overflow-hidden">
                     <button
                       className="w-full h-8 px-2 flex items-center gap-2 border-b border-[var(--pb-border-subtle)] text-left hover:bg-[var(--pb-bg-hover)]"
                       onClick={() => setInspectorPropertiesCollapsed((prev) => !prev)}
@@ -1484,7 +1484,7 @@ function App() {
                       </span>
                     </button>
                     {!inspectorPropertiesCollapsed && (
-                      <div className="min-h-[120px] max-h-[46vh] overflow-y-auto">
+                      <div className="max-h-[40vh] overflow-y-auto">
                         <PropertiesPanel
                           selectedEntity={selectedEntity}
                           onEntityUpdate={handleEntityUpdate}

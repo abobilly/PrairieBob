@@ -140,7 +140,7 @@ export function ProjectSelector() {
 
     return (
         <Dialog open={showProjectSelector} onOpenChange={(open) => !open && closeProjectSelector()}>
-            <DialogContent className={`max-h-[88vh] overflow-y-auto overflow-x-hidden sm:max-w-[560px] ${isLight ? 'bg-[#f4f8ff] border-[#b8c7df] text-[#10203b]' : 'bg-[#1a1a2e] border-[#2a2a4a] text-white'}`}>
+            <DialogContent className={`w-[min(94vw,760px)] max-h-[88vh] overflow-y-auto sm:max-w-[760px] ${isLight ? 'bg-[#f4f8ff] border-[#b8c7df] text-[#10203b]' : 'bg-[#1a1a2e] border-[#2a2a4a] text-white'}`}>
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2 text-xl">
                         <MapIcon className="h-6 w-6 text-[#f97316]" />
@@ -153,10 +153,10 @@ export function ProjectSelector() {
 
                 <div className="grid gap-4 py-4 min-w-0">
                     {/* Action Buttons */}
-                    <div className="grid grid-cols-2 gap-3 min-w-0">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 min-w-0">
                         <Button
                             variant="outline"
-                            className={`h-20 w-full min-w-0 flex-col gap-2 ${isLight ? 'bg-[#ffffff] border-[#b8c7df] hover:bg-[#e9f1ff] hover:border-[#f97316]' : 'bg-[#12121f] border-[#2a2a4a] hover:bg-[#2a2a4a] hover:border-[#f97316]'}`}
+                            className={`h-20 w-full min-w-0 flex-col gap-2 whitespace-normal ${isLight ? 'bg-[#ffffff] border-[#b8c7df] hover:bg-[#e9f1ff] hover:border-[#f97316]' : 'bg-[#12121f] border-[#2a2a4a] hover:bg-[#2a2a4a] hover:border-[#f97316]'}`}
                             onClick={handleNewProject}
                         >
                             <Plus className="h-6 w-6 text-[#f97316]" />
@@ -164,7 +164,7 @@ export function ProjectSelector() {
                         </Button>
                         <Button
                             variant="outline"
-                            className={`h-20 w-full min-w-0 flex-col gap-2 ${isLight ? 'bg-[#ffffff] border-[#b8c7df] hover:bg-[#e9f1ff] hover:border-[#f97316]' : 'bg-[#12121f] border-[#2a2a4a] hover:bg-[#2a2a4a] hover:border-[#f97316]'}`}
+                            className={`h-20 w-full min-w-0 flex-col gap-2 whitespace-normal ${isLight ? 'bg-[#ffffff] border-[#b8c7df] hover:bg-[#e9f1ff] hover:border-[#f97316]' : 'bg-[#12121f] border-[#2a2a4a] hover:bg-[#2a2a4a] hover:border-[#f97316]'}`}
                             onClick={handleOpenFolder}
                         >
                             <FolderOpen className="h-6 w-6 text-[#f97316]" />
@@ -199,7 +199,7 @@ export function ProjectSelector() {
                             >
                                 <Link className="h-5 w-5 text-[#22c55e]" />
                                 <span className="flex-1 min-w-0 text-left truncate">Open Kimbar Linked Project</span>
-                                <span className={`text-xs truncate max-w-[170px] shrink-0 ${isLight ? 'text-[#55698d]' : 'text-gray-500'}`}>{kimbarPath}</span>
+                                <span className={`hidden sm:inline text-xs truncate max-w-[220px] shrink-0 ${isLight ? 'text-[#55698d]' : 'text-gray-500'}`}>{kimbarPath}</span>
                             </Button>
                             <label className={`flex items-center gap-2 px-2 text-xs cursor-pointer ${isLight ? 'text-[#55698d]' : 'text-gray-500'}`}>
                                 <input

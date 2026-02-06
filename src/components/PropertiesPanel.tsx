@@ -2,7 +2,6 @@ import { useMemo } from 'react'
 import { EntityData, EntityType } from '@/lib/types'
 import { getAvailableCharacters } from '@/lib/data'
 import { useProjectStore } from '@/stores/projectStore'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -61,6 +60,7 @@ export function PropertiesPanel({
   const isTransferEntity = selectedEntity
     ? ['door', 'portal', 'stairs', 'ladder'].includes(selectedEntity.type)
     : false
+  const isKimbarProject = useProjectStore((s) => s.isKimbarProject)
   const roomRegistry = useProjectStore((s) => s.roomRegistry)
   const mapData = useProjectStore((s) => s.mapData)
   const npcZoneOptions = useMemo(() => {
@@ -80,14 +80,9 @@ export function PropertiesPanel({
 
   if (!selectedEntity) {
     return (
-      <Card className="h-full pb-compact-panel pb-compact-properties">
-        <CardHeader className="pb-compact-header">
-          <CardTitle className="pb-compact-title">Properties</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">Select an entity to edit properties</p>
-        </CardContent>
-      </Card>
+      <div className="px-3 py-3">
+        <p className="text-sm text-[var(--pb-text-muted)]">Select an entity to edit properties</p>
+      </div>
     )
   }
 
@@ -112,19 +107,21 @@ export function PropertiesPanel({
   const safeDeviationValue = Number.isFinite(deviationValue) ? Math.max(0, Math.floor(deviationValue)) : 0
 
   return (
-    <Card className="h-full flex flex-col pb-compact-panel pb-compact-properties">
-      <CardHeader className="pb-compact-header flex flex-row items-center justify-between">
-        <CardTitle className="pb-compact-title">Properties</CardTitle>
+    <div className="px-3 py-3 space-y-4 text-[var(--pb-text-primary)]">
+      <div className="flex items-center justify-between rounded border border-[var(--pb-border-subtle)] bg-[var(--pb-bg-panel)] px-2 py-1">
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--pb-text-muted)]">
+          {selectedEntity.type}
+        </span>
         <Button
           variant="ghost"
           size="icon"
           className="h-6 w-6"
           onClick={() => onEntityDelete(selectedEntity.id)}
+          title="Delete entity"
         >
           <Trash size={16} />
         </Button>
-      </CardHeader>
-      <CardContent className="space-y-4">
+      </div>
         <div className="space-y-2">
           <Label htmlFor="entity-id" className="text-xs">ID</Label>
           <Input
@@ -316,7 +313,7 @@ export function PropertiesPanel({
                   <SelectValue placeholder="Select character" />
                 </SelectTrigger>
                 <SelectContent>
-                  {getAvailableCharacters().map(char => (
+                  {getAvailableCharacters({ useKimbarRegistry: isKimbarProject }).map(char => (
                     <SelectItem key={char.id} value={char.id}>
                       {char.name}
                     </SelectItem>
@@ -585,7 +582,6 @@ export function PropertiesPanel({
             />
           </div>
         )}
-      </CardContent>
-    </Card>
+    </div>
   )
 }
