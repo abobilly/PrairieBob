@@ -62,10 +62,12 @@ function createWindow() {
     // Load app
     if (isDev) {
         mainWindow.loadURL(VITE_DEV_SERVER_URL);
-        mainWindow.webContents.openDevTools();
     } else {
         mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
     }
+
+    // Always open DevTools for debugging
+    mainWindow.webContents.openDevTools();
 
     // Update title when project changes
     mainWindow.on('page-title-updated', (e) => {
@@ -377,6 +379,13 @@ ipcMain.on('editor:setUnsaved', (_, unsaved: boolean) => {
 
 function setupAutoUpdater() {
     if (!autoUpdater) return;
+
+    // Skip if app-update.yml is missing (e.g. unpacked --dir builds)
+    const updateConfigPath = path.join(__dirname, '../resources/app-update.yml');
+    if (!fs.existsSync(updateConfigPath)) {
+        console.log('Auto-update config not found, skipping update check');
+        return;
+    }
 
     autoUpdater.on('update-available', (info: any) => {
         console.log('Update available:', info.version);

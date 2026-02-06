@@ -30,12 +30,22 @@ User
   CLI:
   Goal: <what to build/fix>
   Output: <file path(s)>
-  Specs: <requirements, reference lines in AGENT_PROMPTS.md>
+  Specs: <requirements>
   Done when: <build passes, file exists, etc.>
   ```
 
 - Launch parallel CLIs for independent tasks
 - Wait patiently for CLI completion before intervening
+
+## Build & Package Workflow
+
+```bash
+npm run build                         # TypeScript check + Vite production build
+npm run electron:compile              # Compile Electron main process to CJS
+npx electron-builder --win --dir      # Package into release/win-unpacked/
+```
+
+Packaged app: `release/win-unpacked/PrairieBob.exe`
 
 ## Polling Strategy
 
@@ -44,22 +54,22 @@ Scale wait intervals to estimated task size:
 | Est. Lines | Initial Wait | Subsequent Polls |
 |-----------|-------------|-----------------|
 | < 200     | 60s         | 60s             |
-| 200–500   | 90s         | 90s             |
-| 500+      | 120s        | 120–180s        |
+| 200-500   | 90s         | 90s             |
+| 500+      | 120s        | 120-180s        |
 
 Never poll more than ~5 times. If a CLI hasn't finished after ~10 min, check once more then investigate.
 
 ## What NOT to do
 
-- ❌ Implement large tasks yourself when CLIs can do it
-- ❌ Launch CLIs without the `CLI:` prefix
-- ❌ Kill CLIs prematurely — wait for them to finish
+- Do not open localhost URLs — this is an Electron app, not a web app
+- Do not implement large tasks yourself when CLIs can do it
+- Do not launch CLIs without the `CLI:` prefix
+- Do not kill CLIs prematurely — wait for them to finish
+- Do not use Radix UI Slider — it's incompatible with React 19
 
 ## What TO do
 
-- ✅ Read TASK_MAP.md and AGENT_PROMPTS.md for task specs
-- ✅ Confirm plan with user before launching CLIs
-- ✅ Run `npm run build` to verify after CLI completion
-- ✅ Kill completed CLI terminals after capturing their output (prevents buildup)
-- ✅ Commit and push when bundles are done
-- ✅ Update TASK_MAP.md status after each bundle
+- Confirm plan with user before launching CLIs
+- Run `npm run build` to verify after CLI completion
+- Kill completed CLI terminals after capturing their output (prevents buildup)
+- Commit and push when bundles are done

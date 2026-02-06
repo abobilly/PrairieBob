@@ -8,7 +8,7 @@
  * - YATE: Tileset organization
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   FolderOpen,
   PanelBottomClose,
@@ -181,6 +181,7 @@ function buildLdtkLevel(mapData: LevelData, tilesets: LoadedTileset[]): Level {
 }
 
 function App() {
+  console.log('[App] render')
   const [tileStamp, setTileStamp] = useState<TileStamp>(DEFAULT_STAMP)
 
   const {
@@ -233,17 +234,11 @@ function App() {
     setPanelSize,
   } = useUIStore()
 
-  const {
-    selectedTileId,
-    zoom,
-    setSelectedTileId,
-    setActiveLayer,
-  } = useToolStore((state) => ({
-    selectedTileId: state.selectedTileId,
-    zoom: state.zoom,
-    setSelectedTileId: state.setSelectedTileId,
-    setActiveLayer: state.setActiveLayer,
-  }))
+  // Use individual selectors to avoid creating new objects every render
+  const selectedTileId = useToolStore((s) => s.selectedTileId)
+  const zoom = useToolStore((s) => s.zoom)
+  const setSelectedTileId = useToolStore((s) => s.setSelectedTileId)
+  const setActiveLayer = useToolStore((s) => s.setActiveLayer)
 
   const activeToolId = useLdtkToolStore((state) => state.activeToolId)
 
@@ -255,17 +250,21 @@ function App() {
   const rightPanelOpen = !panels.right.collapsed
   const bottomPanelOpen = !panels.bottom.collapsed
 
+  // Guard against multiple initTilesets calls
+  const tilesetsInitRef = useRef(false)
+
   useEffect(() => {
-    if (tilesets.length === 0) {
+    if (tilesets.length === 0 && !tilesetsInitRef.current) {
+      tilesetsInitRef.current = true
       initTilesets()
       return
     }
 
-    if (!activeTilesetId) {
+    if (tilesets.length > 0 && !activeTilesetId) {
       setActiveTilesetId(tilesets[0].id)
     }
 
-    if (selectedTileId === null && tilesets[0]) {
+    if (tilesets.length > 0 && selectedTileId === null) {
       setSelectedTileId(tilesets[0].firstGid)
       setTileStamp({
         width: 1,
@@ -274,14 +273,17 @@ function App() {
         tilesetId: tilesets[0].id,
       })
     }
-  }, [tilesets, activeTilesetId, selectedTileId, initTilesets, setActiveTilesetId, setSelectedTileId])
+    // Only re-run when tilesets change — don't include values we're setting
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tilesets])
 
+  // Sync active layer name to tool store — only when layer index changes
+  const activeLayerName = level.layerInstances[activeLayerIndex]?.__identifier
   useEffect(() => {
-    const activeLayer = level.layerInstances[activeLayerIndex]
-    if (activeLayer) {
-      setActiveLayer(activeLayer.__identifier)
+    if (activeLayerName) {
+      setActiveLayer(activeLayerName)
     }
-  }, [level, activeLayerIndex, setActiveLayer])
+  }, [activeLayerName, setActiveLayer])
 
   useEffect(() => {
     if (hasUnsavedChanges) {
@@ -513,15 +515,14 @@ function App() {
       </div>
 
       <PanelGroup orientation="vertical" className="flex-1 min-h-0">
-        <Panel id="main-area" minSize="240px">
+        <Panel id="main-area">
           <PanelGroup orientation="horizontal" className="h-full">
             {leftPanelOpen ? (
               <Panel
                 id="left-sidebar"
-                defaultSize={`${panels.left.size}px`}
-                minSize={`${panels.left.minSize}px`}
-                maxSize={`${panels.left.maxSize}px`}
-                onResize={(size) => setPanelSize('left', size.inPixels)}
+                defaultSize="20%"
+                minSize="15%"
+                maxSize="30%"
                 className="pb-panel border-r border-[var(--pb-border)]"
               >
                 <div className="pb-panel-header">
@@ -569,7 +570,7 @@ function App() {
 
             <PanelResizeHandle className="panel-resize-handle" />
 
-            <Panel id="canvas" minSize="320px" className="min-w-0">
+            <Panel id="canvas" className="min-w-0">
               <div className="flex-1 pb-canvas-area min-w-0 overflow-hidden relative">
                 <LevelCanvas level={level} />
               </div>
@@ -580,10 +581,9 @@ function App() {
             {rightPanelOpen ? (
               <Panel
                 id="right-sidebar"
-                defaultSize={`${panels.right.size}px`}
-                minSize={`${panels.right.minSize}px`}
-                maxSize={`${panels.right.maxSize}px`}
-                onResize={(size) => setPanelSize('right', size.inPixels)}
+                defaultSize="20%"
+                minSize="15%"
+                maxSize="30%"
                 className="pb-panel border-l border-[var(--pb-border)]"
               >
                 <div className="pb-panel-header">
@@ -639,10 +639,9 @@ function App() {
             <PanelResizeHandle className="panel-resize-handle" />
             <Panel
               id="bottom-panel"
-              defaultSize={`${panels.bottom.size}px`}
-              minSize={`${panels.bottom.minSize}px`}
-              maxSize={`${panels.bottom.maxSize}px`}
-              onResize={(size) => setPanelSize('bottom', size.inPixels)}
+              defaultSize="30%"
+              minSize="15%"
+              maxSize="50%"
               className="pb-panel border-t border-[var(--pb-border)]"
             >
               <div className="pb-panel-header">

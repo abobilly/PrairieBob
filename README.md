@@ -1,27 +1,38 @@
 # PrairieBob
 
-AI-assisted tile editor for pixel art games. Designed to integrate with kimbar's Tiled pipeline.
+LDtk-compatible tile map editor built with React + TypeScript + Vite + Electron.
 
 ---
 
-## 🚀 Quick Start (Windows)
+## Quick Start
 
-### First Time Setup
+### Prerequisites
 
-1. **Install Node.js** (if you don't have it):
-   - Go to [nodejs.org](https://nodejs.org/)
-   - Download the **LTS** version (green button)
-   - Run the installer, accept all defaults
+- [Node.js](https://nodejs.org/) LTS (v20+)
 
-2. **Install PrairieBob**:
-   - Double-click **`INSTALL.bat`**
-   - Wait for it to finish (~2-3 minutes)
+### Install & Run (Development)
 
-### Launch the App
+```bash
+npm install
+npm run dev            # Vite dev server (browser)
+npm run electron:dev   # Full Electron app with hot reload
+```
 
-**Double-click `START.bat`** - that's it!
+### Build & Package
 
-The app will open in a window. The terminal window that appears is normal - keep it open while using the app.
+```bash
+npm run build                         # TypeScript check + Vite production build
+npm run electron:compile              # Compile Electron main process to CJS
+npx electron-builder --win --dir      # Package into release/win-unpacked/
+```
+
+The packaged app is at `release/win-unpacked/PrairieBob.exe`.
+
+To build a distributable installer:
+
+```bash
+npx electron-builder --win            # Creates NSIS installer in release/
+```
 
 ### Keyboard Shortcuts
 
@@ -37,73 +48,57 @@ The app will open in a window. The terminal window that appears is normal - keep
 
 ## Features
 
-- **Tile painting** - Brush, fill, rectangle, eraser tools
-- **Layer management** - Floor, Walls, Trim, Overlays, Collision, Entities
-- **Entity placement** - NPCs, doors, spawn points with properties
-- **Keyboard shortcuts** - B(rush), F(ill), R(ect), E(raser), S(elect), G(rid)
-- **Export** - JSON format compatible with Tiled/LDtk
-- **Embedded AI Agent** - Chat or terminal interface powered by Copilot SDK
+- **Tile painting** — Brush, fill, rectangle, eraser tools
+- **Layer management** — Floor, Walls, Trim, Overlays, Collision, Entities
+- **Entity placement** — NPCs, doors, spawn points with properties
+- **LDtk data model** — Native LDtk format support
+- **Export** — JSON format compatible with Tiled/LDtk
+- **Embedded AI Agent** — Chat or terminal interface powered by Copilot SDK
 
 ---
 
+## Stack
+
+| Layer | Tech |
+|-------|------|
+| UI | React 19, TypeScript, Vite 7 |
+| State | Zustand + Immer |
+| Components | shadcn/ui, @phosphor-icons/react |
+| Desktop | Electron 36 |
+| Data Model | LDtk format (`src/lib/ldtk/`) |
+| Build | Vite + electron-builder |
+
+## Project Structure
+
+```
+src/
+  components/    # React components (panels in components/panels/)
+  stores/        # Zustand stores with Immer middleware
+  lib/ldtk/      # LDtk types, tools, data model
+  hooks/         # Custom React hooks
+electron/        # Electron main/preload process
+samples/         # Sample projects (cottage)
+public/          # Static assets and tilesets
+```
+
 ## Copilot SDK Integration
 
-PrairieBob embeds GitHub Copilot as an AI assistant that can directly manipulate your maps.
+PrairieBob embeds GitHub Copilot as an AI assistant that can directly manipulate maps.
 
-### Agent Panel (bottom of editor)
+### Agent Tools
 
-**Chat tab** - Natural language commands:
+- `paint_tiles` — Paint tiles on any layer
+- `fill_layer` — Fill a layer or region
+- `place_entity` — Add entities (door, npc, spawn_point, trigger, prop)
+- `export_map` — Export to kimbar/tiled/json
+- `get_map_info` — Query current map state
+- `list_tiles` — List available tiles
 
-- "Fill the floor with grass tiles"
-- "Add a door at position 5,3"
-- "Export this map as kimbar format"
+## Known Issues
 
-**Terminal tab** - CLI-style commands:
+- **React 19 + Radix UI**: Radix Slider components (`@radix-ui/react-slider` 1.3.x) cause infinite re-render loops with React 19 due to reference comparison in `useControllableState`. Use native `<input type="range">` instead.
 
-```bash
-pb help                              # Show commands
-pb list layers|tilesets|entities     # List resources
-pb fill --layer Floor --tile 5       # Fill layer
-pb paint --layer Walls --tile 3 --at 5,5
-pb spawn --entity door --at 100,50
-pb ask <natural language>            # Ask agent anything
-```
-
-### Custom Tools
-
-The agent has access to these editor tools:
-
-- `paint_tiles` - Paint tiles on any layer
-- `fill_layer` - Fill a layer or region
-- `place_entity` - Add entities (door, npc, spawn_point, trigger, prop)
-- `export_map` - Export to kimbar/tiled/json
-- `get_map_info` - Query current map state
-- `list_tiles` - List available tiles
-
-### SDK Setup
-
-| SDK | Location | Use |
-|-----|----------|-----|
-| Node.js | `package.json` | Editor UI integration |
-| Go | `cli/` | Standalone CLI tool |
-
-## Development
-
-```bash
-npm install
-npm run dev          # Vite dev server
-npm run electron:dev # Full Electron app
-```
-
-## CLI (Go)
-
-```bash
-cd cli
-go build -o prairiebob.exe .
-./prairiebob --help
-```
-
-## Upgrade dependencies
+## Upgrade Dependencies
 
 ```bash
 npm run upgrade

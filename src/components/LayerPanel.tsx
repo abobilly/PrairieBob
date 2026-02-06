@@ -2,8 +2,6 @@ import { useState, useCallback, useEffect } from 'react'
 import { Eye, EyeSlash, Lock, LockOpen, DotsSixVertical, Trash, Plus, PencilSimple } from '@phosphor-icons/react'
 import { Layer, LayerType } from '@/lib/types'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Slider } from '@/components/ui/slider'
 import { Input } from '@/components/ui/input'
 import {
   Dialog,
@@ -184,14 +182,16 @@ export function LayerPanel({
                     {/* Compact opacity slider */}
                     {onLayerOpacityChange && (
                       <div className="pb-opacity-slider" title={`${Math.round((layer.opacity ?? 1) * 100)}%`}>
-                        <Slider
-                          value={[(layer.opacity ?? 1) * 100]}
-                          onValueChange={([v]) => onLayerOpacityChange(index, v / 100)}
+                        <input
+                          type="range"
+                          title="Layer opacity"
+                          value={Math.round((layer.opacity ?? 1) * 100)}
+                          onChange={(e) => onLayerOpacityChange(index, Number(e.target.value) / 100)}
                           onClick={(e) => e.stopPropagation()}
                           min={0}
                           max={100}
                           step={10}
-                          className="h-[3px]"
+                          className="w-full h-1 accent-primary"
                         />
                       </div>
                     )}

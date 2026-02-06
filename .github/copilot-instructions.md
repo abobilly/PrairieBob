@@ -15,11 +15,18 @@ PrairieBob is an LDtk-compatible tile map editor built with React + TypeScript +
 
 ### Stack
 
-- **UI**: React 18, TypeScript, Vite, Electron
+- **UI**: React 19, TypeScript, Vite 7, Electron 36
 - **State**: Zustand + Immer (stores in `src/stores/`)
 - **Components**: shadcn/ui, @phosphor-icons/react
 - **Data Model**: LDtk format (`src/lib/ldtk/`)
 - **Build**: `npm run build` (must pass before committing)
+- **Package**: `npm run electron:compile && npx electron-builder --win --dir`
+
+### Critical Notes
+
+- **DO NOT use Radix UI Slider** — `@radix-ui/react-slider` is incompatible with React 19 (infinite re-render loop via `useControllableState` reference comparison). Use native `<input type="range">` instead.
+- **DO NOT open localhost** — PrairieBob is an Electron app. Never launch `vite preview` or open browser URLs in production builds. Use `npm run electron:dev` for dev, or package with electron-builder for testing.
+- **Build path**: `npm run build` → `npm run electron:compile` → `npx electron-builder --win --dir` → `release/win-unpacked/PrairieBob.exe`
 
 ### Key Conventions
 

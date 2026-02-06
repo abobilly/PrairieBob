@@ -1,8 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
-import { Slider } from '@/components/ui/slider'
 import { Input } from '@/components/ui/input'
 import { Plus, X, ZoomIn, Search } from 'lucide-react'
 import type { LoadedTileset, TileStamp } from '@/lib/types'
@@ -66,13 +63,15 @@ export function TilesetPanel({
           {/* Compact zoom control */}
           <div className="pb-zoom-control">
             <ZoomIn className="h-3 w-3" />
-            <Slider
-              value={[tilesetZoom]}
-              onValueChange={([v]) => onTilesetZoomChange(v)}
+            <input
+              type="range"
+              title="Tileset zoom"
+              value={tilesetZoom}
+              onChange={(e) => onTilesetZoomChange(Number(e.target.value))}
               min={1}
               max={4}
               step={0.5}
-              className="w-10 h-[3px]"
+              className="w-10 h-1 accent-primary"
             />
             <span className="w-4">{tilesetZoom}x</span>
           </div>
