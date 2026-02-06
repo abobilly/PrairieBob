@@ -1,5 +1,6 @@
 import { EntityData, EntityType } from '@/lib/types'
 import { getAvailableCharacters } from '@/lib/data'
+import { useProjectStore } from '@/stores/projectStore'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
@@ -51,9 +52,13 @@ export function PropertiesPanel({
   onEntityUpdate,
   onEntityDelete,
 }: PropertiesPanelProps) {
+  const isNpcEntity = selectedEntity?.type === 'npc'
+  const isSpawnEntity = selectedEntity?.type === 'spawn_point'
+  const isDoorEntity = selectedEntity?.type === 'door'
   const isTransferEntity = selectedEntity
     ? ['door', 'portal', 'stairs', 'ladder'].includes(selectedEntity.type)
     : false
+  const roomRegistry = useProjectStore((s) => s.roomRegistry)
 
   if (!selectedEntity) {
     return (
@@ -161,13 +166,32 @@ export function PropertiesPanel({
           <>
             <div className="space-y-2">
               <Label htmlFor="target-room" className="text-xs">Target Room</Label>
-              <Input
-                id="target-room"
-                value={(selectedEntity.properties.targetRoom as string) || ''}
-                onChange={(e) => handlePropertyChange('targetRoom', e.target.value)}
-                className="h-8 text-sm"
-                placeholder="room_id"
-              />
+              {roomRegistry.length > 0 ? (
+                <Select
+                  value={(selectedEntity.properties.targetRoom as string) || ''}
+                  onValueChange={(value) => handlePropertyChange('targetRoom', value)}
+                >
+                  <SelectTrigger id="target-room" className="h-8 text-sm">
+                    <SelectValue placeholder="Select target room" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">None</SelectItem>
+                    {roomRegistry.map((room) => (
+                      <SelectItem key={room.id} value={room.id}>
+                        {room.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input
+                  id="target-room"
+                  value={(selectedEntity.properties.targetRoom as string) || ''}
+                  onChange={(e) => handlePropertyChange('targetRoom', e.target.value)}
+                  className="h-8 text-sm"
+                  placeholder="room_id"
+                />
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="target-spawn" className="text-xs">Target Spawn</Label>
@@ -199,7 +223,63 @@ export function PropertiesPanel({
           </>
         )}
 
-        {selectedEntity.type === 'npc' && (
+        {isDoorEntity && (
+          <>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-2">
+                <Label htmlFor="door-interaction-id" className="text-xs">Interaction ID</Label>
+                <Input
+                  id="door-interaction-id"
+                  value={(selectedEntity.properties.interactionId as string) || ''}
+                  onChange={(e) => handlePropertyChange('interactionId', e.target.value)}
+                  className="h-8 text-sm font-mono"
+                  placeholder="sample_door_toggle"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="door-entity-def-id" className="text-xs">Entity Def ID</Label>
+                <Input
+                  id="door-entity-def-id"
+                  value={(selectedEntity.properties.entityDefId as string) || ''}
+                  onChange={(e) => handlePropertyChange('entityDefId', e.target.value)}
+                  className="h-8 text-sm font-mono"
+                  placeholder="sample_door"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-2">
+                <Label htmlFor="door-on-interact-state" className="text-xs">On Interact</Label>
+                <Select
+                  value={(selectedEntity.properties.onInteractState as string) || 'toggle'}
+                  onValueChange={(value) => handlePropertyChange('onInteractState', value)}
+                >
+                  <SelectTrigger id="door-on-interact-state" className="h-8 text-sm">
+                    <SelectValue placeholder="Select behavior" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="toggle">Toggle</SelectItem>
+                    <SelectItem value="open">Open</SelectItem>
+                    <SelectItem value="close">Close</SelectItem>
+                    <SelectItem value="none">None</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="door-preview-state" className="text-xs">Preview State</Label>
+                <Input
+                  id="door-preview-state"
+                  value={(selectedEntity.properties.previewState as string) || ''}
+                  onChange={(e) => handlePropertyChange('previewState', e.target.value)}
+                  className="h-8 text-sm font-mono"
+                  placeholder="closed"
+                />
+              </div>
+            </div>
+          </>
+        )}
+
+        {(isNpcEntity || isSpawnEntity) && (
           <>
             <div className="space-y-2">
               <Label htmlFor="character-id" className="text-xs">Character</Label>
@@ -291,18 +371,20 @@ export function PropertiesPanel({
                 placeholder="ink_knot_name"
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="npc-wander-radius" className="text-xs">Wander Radius</Label>
-              <Input
-                id="npc-wander-radius"
-                type="number"
-                step="1"
-                min="0"
-                value={Number(selectedEntity.properties.wanderRadius ?? 0)}
-                onChange={(e) => handlePropertyChange('wanderRadius', Number(e.target.value))}
-                className="h-8 text-sm font-mono"
-              />
-            </div>
+            {isNpcEntity && (
+              <div className="space-y-2">
+                <Label htmlFor="npc-wander-radius" className="text-xs">Wander Radius</Label>
+                <Input
+                  id="npc-wander-radius"
+                  type="number"
+                  step="1"
+                  min="0"
+                  value={Number(selectedEntity.properties.wanderRadius ?? 0)}
+                  onChange={(e) => handlePropertyChange('wanderRadius', Number(e.target.value))}
+                  className="h-8 text-sm font-mono"
+                />
+              </div>
+            )}
           </>
         )}
 

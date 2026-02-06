@@ -9,7 +9,7 @@ import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
 
 interface PanelConfig {
-  size: number          // Percentage or pixels
+  size: number          // Percentage of panel group (0-100)
   collapsed: boolean
   minSize: number
   maxSize: number
@@ -48,6 +48,9 @@ interface UIState {
   // Startup dialogs
   showProjectSelector: boolean
   showNewProjectWizard: boolean
+
+  // Kimbar auto-load
+  autoLoadKimbar: boolean
 }
 
 interface UIActions {
@@ -79,39 +82,48 @@ interface UIActions {
   closeProjectSelector: () => void
   openNewProjectWizard: () => void
   closeNewProjectWizard: () => void
+
+  // Kimbar auto-load
+  setAutoLoadKimbar: (enabled: boolean) => void
 }
 
 const PERSIST_KEY = 'spudtile-ui-v2'
 
 const DEFAULT_PANELS: UIState['panels'] = {
   left: {
-    size: 280,
+    size: 24,
     collapsed: false,
-    minSize: 200,
-    maxSize: 400,
+    minSize: 16,
+    maxSize: 38,
   },
   right: {
-    size: 280,
+    size: 24,
     collapsed: false,
-    minSize: 200,
-    maxSize: 400,
+    minSize: 16,
+    maxSize: 38,
   },
   bottom: {
-    size: 220,
+    size: 24,
     collapsed: true,
-    minSize: 150,
-    maxSize: 500,
+    minSize: 14,
+    maxSize: 45,
   },
+}
+
+function normalizePercent(value: unknown, fallback: number, min: number, max: number): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return fallback
+  // Migrate legacy pixel-based persisted values (e.g. 220/280/400) back to sane percentage defaults.
+  if (value > 100) return fallback
+  return Math.min(Math.max(value, min), max)
 }
 
 function sanitizePanelConfig(value: unknown, fallback: PanelConfig): PanelConfig {
   const v = (value ?? {}) as Partial<PanelConfig>
 
-  const minSize = typeof v.minSize === 'number' && Number.isFinite(v.minSize) ? v.minSize : fallback.minSize
-  const maxSize = typeof v.maxSize === 'number' && Number.isFinite(v.maxSize) ? v.maxSize : fallback.maxSize
+  const minSize = normalizePercent(v.minSize, fallback.minSize, 1, 80)
+  const maxSize = normalizePercent(v.maxSize, fallback.maxSize, minSize, 95)
 
-  const rawSize = typeof v.size === 'number' && Number.isFinite(v.size) ? v.size : fallback.size
-  const size = Math.min(Math.max(rawSize, minSize), maxSize)
+  const size = normalizePercent(v.size, fallback.size, minSize, maxSize)
 
   return {
     size,
@@ -137,22 +149,22 @@ export const useUIStore = create<UIState & UIActions>()(
         // Initial state
         panels: {
           left: {
-            size: 280,       // pixels
+            size: DEFAULT_PANELS.left.size,
             collapsed: false,
-            minSize: 200,
-            maxSize: 400,
+            minSize: DEFAULT_PANELS.left.minSize,
+            maxSize: DEFAULT_PANELS.left.maxSize,
           },
           right: {
-            size: 280,       // pixels
+            size: DEFAULT_PANELS.right.size,
             collapsed: false,
-            minSize: 200,
-            maxSize: 400,
+            minSize: DEFAULT_PANELS.right.minSize,
+            maxSize: DEFAULT_PANELS.right.maxSize,
           },
           bottom: {
-            size: 220,       // pixels
+            size: DEFAULT_PANELS.bottom.size,
             collapsed: true,
-            minSize: 150,
-            maxSize: 500,
+            minSize: DEFAULT_PANELS.bottom.minSize,
+            maxSize: DEFAULT_PANELS.bottom.maxSize,
           },
         },
         tilesetZoom: 1,      // 1x default for compact panel
@@ -163,6 +175,7 @@ export const useUIStore = create<UIState & UIActions>()(
         pendingImportPath: null,
         showProjectSelector: true,  // Show on startup
         showNewProjectWizard: false,
+        autoLoadKimbar: false,
 
         // Actions
         setPanelSize: (panel, size) => set((state) => ({
@@ -226,6 +239,7 @@ export const useUIStore = create<UIState & UIActions>()(
         closeProjectSelector: () => set({ showProjectSelector: false }),
         openNewProjectWizard: () => set({ showNewProjectWizard: true }),
         closeNewProjectWizard: () => set({ showNewProjectWizard: false }),
+        setAutoLoadKimbar: (enabled) => set({ autoLoadKimbar: enabled }),
       }),
       {
         name: PERSIST_KEY,  // localStorage key
@@ -237,6 +251,7 @@ export const useUIStore = create<UIState & UIActions>()(
           statusBarVisible: state.statusBarVisible,
           theme: state.theme,
           recentProjects: state.recentProjects,
+          autoLoadKimbar: state.autoLoadKimbar,
         }),
         merge: (persistedState, currentState) => {
           // Default merge is shallow; we need to deep-merge + sanitize nested panel config.

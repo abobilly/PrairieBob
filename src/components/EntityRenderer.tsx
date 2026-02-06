@@ -119,13 +119,13 @@ const drawEntityPlaceholder = (ctx: CanvasRenderingContext2D, rect: ScreenRect, 
 
 const drawEntityLabel = (ctx: CanvasRenderingContext2D, rect: ScreenRect, label: string, color: string) => {
   ctx.save()
-  ctx.font = '12px Inter'
+  ctx.font = '10px Inter, system-ui, sans-serif'
   ctx.textAlign = 'center'
   ctx.textBaseline = 'bottom'
   ctx.fillStyle = color
   const x = rect.x + rect.width / 2
-  const y = rect.y - 4
-  ctx.strokeStyle = 'rgba(0, 0, 0, 0.6)'
+  const y = rect.y - 2
+  ctx.strokeStyle = 'rgba(0, 0, 0, 0.7)'
   ctx.lineWidth = 3
   ctx.strokeText(label, x, y)
   ctx.fillText(label, x, y)
@@ -153,7 +153,7 @@ export function EntityRenderer({
     }
 
     if (showNames && entity.__identifier) {
-      drawEntityLabel(ctx, rect, entity.__identifier.slice(0, 16), color)
+      drawEntityLabel(ctx, rect, entity.__identifier.slice(0, 24), color)
     }
   }
 }

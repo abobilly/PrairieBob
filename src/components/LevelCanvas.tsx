@@ -223,6 +223,7 @@ export function LevelCanvas({
   const setActiveTool = useToolStore((s) => s.setActiveTool)
 
   const activeToolId = useLdtkToolStore((s) => s.activeToolId)
+  const setActiveToolId = useLdtkToolStore((s) => s.setActiveToolId)
 
   const [cursor, setCursor] = useState('crosshair')
 
@@ -335,10 +336,14 @@ export function LevelCanvas({
 
   const layerByType = useMemo(() => {
     const reversed = [...layers].reverse()
+    const collisionLayer = reversed.find(
+      (layer) => isTileLayer(layer) && isCollisionLayerIdentifier(layer.__identifier)
+    ) ?? null
     return {
       tile: reversed.find((layer) => isTileLayer(layer)) ?? null,
-      intgrid: reversed.find((layer) => layer.__type === 'IntGrid') ?? null,
+      intgrid: reversed.find((layer) => layer.__type === 'IntGrid') ?? collisionLayer,
       entity: reversed.find((layer) => layer.__type === 'Entities') ?? null,
+      collision: collisionLayer,
     }
   }, [layers])
 
@@ -355,7 +360,7 @@ export function LevelCanvas({
     const tileLayer = activeLayerInstance && isTileLayer(activeLayerInstance)
       ? activeLayerInstance
       : layerByType.tile
-    const intGridLayer = activeLayerInstance?.__type === 'IntGrid'
+    const intGridLayer = (activeLayerInstance?.__type === 'IntGrid' || (activeLayerInstance && isCollisionLayerIdentifier(activeLayerInstance.__identifier)))
       ? activeLayerInstance
       : layerByType.intgrid
     const entityLayer = activeLayerInstance?.__type === 'Entities'
@@ -369,29 +374,14 @@ export function LevelCanvas({
     }
   }, [activeLayerInstance, layerByType])
 
-  const activeToolLayer = useMemo<ToolLayer | null>(() => {
-    if (activeToolId === 'tile' && toolLayers.tile) {
-      return {
-        type: 'tilelayer',
-        width: toolLayers.tile.__cWid,
-        height: toolLayers.tile.__cHei,
-        data: buildTileData(toolLayers.tile),
-      }
-    }
-    if (activeToolId === 'intgrid' && toolLayers.intgrid) {
-      return {
-        type: 'intgrid',
-        width: toolLayers.intgrid.__cWid,
-        height: toolLayers.intgrid.__cHei,
-        intGrid: toolLayers.intgrid.intGridCsv,
-      }
-    }
-    if (activeToolId === 'entity' && toolLayers.entity) {
+  const toToolLayer = useCallback((layer: LayerInstance | null): ToolLayer | null => {
+    if (!layer) return null
+    if (layer.__type === 'Entities') {
       return {
         type: 'objectgroup',
-        width: toolLayers.entity.__cWid,
-        height: toolLayers.entity.__cHei,
-        objects: toolLayers.entity.entityInstances.map((entity) => ({
+        width: layer.__cWid,
+        height: layer.__cHei,
+        objects: layer.entityInstances.map((entity) => ({
           id: entity.iid,
           x: entity.px[0],
           y: entity.px[1],
@@ -400,8 +390,37 @@ export function LevelCanvas({
         })),
       }
     }
+    if (layer.__type === 'IntGrid') {
+      return {
+        type: 'intgrid',
+        width: layer.__cWid,
+        height: layer.__cHei,
+        intGrid: layer.intGridCsv,
+      }
+    }
+    return {
+      type: 'tilelayer',
+      width: layer.__cWid,
+      height: layer.__cHei,
+      data: buildTileData(layer),
+    }
+  }, [])
+
+  const activeToolLayer = useMemo<ToolLayer | null>(() => {
+    if (activeToolId === 'tile') return toToolLayer(toolLayers.tile)
+    if (activeToolId === 'intgrid') return toToolLayer(toolLayers.intgrid ?? layerByType.collision ?? toolLayers.tile)
+    if (activeToolId === 'entity') return toToolLayer(toolLayers.entity)
+    if (activeToolId === 'select') {
+      const fallbackLayer =
+        activeLayerInstance ??
+        toolLayers.entity ??
+        toolLayers.intgrid ??
+        layerByType.collision ??
+        toolLayers.tile
+      return toToolLayer(fallbackLayer)
+    }
     return null
-  }, [activeToolId, toolLayers])
+  }, [activeToolId, toolLayers, layerByType.collision, activeLayerInstance, toToolLayer])
 
   const gridSize = useMemo(() => {
     return (
@@ -644,7 +663,7 @@ export function LevelCanvas({
     toolsRef.current.line.setLayer(toolLayers.tile)
     toolsRef.current.rect.setLayer(toolLayers.tile)
     toolsRef.current.ellipse.setLayer(toolLayers.tile)
-    toolsRef.current.intgrid.setLayer(toolLayers.intgrid)
+    toolsRef.current.intgrid.setLayer(toolLayers.intgrid ?? layerByType.collision ?? toolLayers.tile)
     toolsRef.current.entity.setLayer(toolLayers.entity)
     toolsRef.current.tile.setSelectedTiles(selectedTileIds)
     toolsRef.current.line.setSelectedTiles(selectedTileIds)
@@ -653,7 +672,7 @@ export function LevelCanvas({
     toolsRef.current.tile.setTileStamp(tileStamp.tiles)
     toolsRef.current.intgrid.selectedValue = selectedIntGridValue
     toolsRef.current.entity.setSelectedEntityDef(selectedEntityDefUid)
-  }, [toolLayers, selectedTileIds, tileStamp, selectedIntGridValue, selectedEntityDefUid])
+  }, [toolLayers, selectedTileIds, tileStamp, selectedIntGridValue, selectedEntityDefUid, layerByType.collision])
 
   const getActiveTool = useCallback(() => {
     const tools = toolsRef.current
@@ -687,6 +706,38 @@ export function LevelCanvas({
   useEffect(() => {
     updateCursor()
   }, [updateCursor])
+
+  useEffect(() => {
+    const isEditableTarget = (target: EventTarget | null) => {
+      if (!(target instanceof HTMLElement)) return false
+      if (target.isContentEditable) return true
+      const tag = target.tagName.toLowerCase()
+      return tag === 'input' || tag === 'textarea' || tag === 'select'
+    }
+
+    let temporaryPanSource: string | null = null
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.code !== 'Space' || event.repeat || isEditableTarget(event.target)) return
+      if (activeToolId === 'pan') return
+      temporaryPanSource = activeToolId
+      setActiveToolId('pan')
+    }
+
+    const handleKeyUp = (event: KeyboardEvent) => {
+      if (event.code !== 'Space') return
+      if (!temporaryPanSource) return
+      setActiveToolId(temporaryPanSource)
+      temporaryPanSource = null
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    window.addEventListener('keyup', handleKeyUp)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('keyup', handleKeyUp)
+    }
+  }, [activeToolId, setActiveToolId])
 
   const renderTiles = useCallback(
     (ctx: CanvasRenderingContext2D, layer: LayerInstance, tiles: TileInstance[]) => {
@@ -772,13 +823,13 @@ export function LevelCanvas({
       const offsetY = layer.__pxTotalOffsetY
       const tiles = [...layer.autoLayerTiles, ...layer.gridTiles]
 
+      ctx.save()
+      ctx.globalAlpha = Math.max(0.08, Math.min(1, layer.__opacity)) * 0.18
+      ctx.fillStyle = 'rgba(244, 63, 94, 0.6)'
       for (const tile of tiles) {
-        ctx.save()
-        ctx.globalAlpha = Math.max(0.15, Math.min(1, layer.__opacity)) * 0.55
-        ctx.fillStyle = 'rgba(244, 63, 94, 0.78)'
         ctx.fillRect(tile.px[0] + offsetX, tile.px[1] + offsetY, gridSize, gridSize)
-        ctx.restore()
       }
+      ctx.restore()
     },
     []
   )

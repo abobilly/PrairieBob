@@ -40,6 +40,7 @@ export interface ElectronAPI {
         exists: (path: string) => Promise<boolean>;
         readDir: (path: string) => Promise<DirEntry[]>;
         mkdir: (path: string) => Promise<boolean>;
+        removeFile: (path: string) => Promise<boolean>;
     };
     app: {
         getPaths: () => Promise<{ appPath: string; resourcesPath: string; isPackaged: boolean }>;

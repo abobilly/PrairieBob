@@ -149,6 +149,7 @@ function formatCharacterId(id: string): string {
 export function resolveSpritePath(characterId: string): string | null {
   if (!registryState.rootPath) return null
   const entry = registryState.characters.find((c) => c.id === characterId)
+    ?? registryState.characters.find((c) => c.id.toLowerCase() === characterId.toLowerCase())
   const spriteKey = entry?.spriteKey ?? characterId
   return `${registryState.rootPath}/public/generated/sprites/${spriteKey}.png`
 }
@@ -159,6 +160,7 @@ export function resolveSpritePath(characterId: string): string | null {
 export function resolveSpecPath(characterId: string): string | null {
   if (!registryState.rootPath) return null
   const entry = registryState.characters.find((c) => c.id === characterId)
+    ?? registryState.characters.find((c) => c.id.toLowerCase() === characterId.toLowerCase())
   if (entry?.specUrl) {
     return `${registryState.rootPath}/public${entry.specUrl}`
   }

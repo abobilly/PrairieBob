@@ -28,7 +28,21 @@ import {
   stripTileFlipFlags,
   tilesetToConfig,
 } from '@/lib/tileset'
+import { deserializeActionGroups, serializeActionGroups } from '@/lib/tile-actions'
 import { loadRoomDataFromFile, type RoomTilesetReference } from '@/lib/room-loader'
+import {
+  type WorldLayout,
+  type RoomPosition,
+  type DoorConnection,
+  createEmptyLayout,
+  loadWorldLayout,
+  saveWorldLayout,
+  setRoomPosition,
+  addConnection,
+  removeConnection,
+} from '@/lib/world-layout'
+import { extractDoors } from '@/lib/door-extraction'
+import { importTiledWorldPositions, findWorldFiles } from '@/lib/tiled-world-import'
 import {
   parseEntityDefinitionFile,
   parseInteractionDefinitionFile,
@@ -40,6 +54,7 @@ import {
   loadKimbarRegistry,
 } from '@/lib/kimbar/registry'
 import { clearSpriteCache, preloadCharacterSprite } from '@/lib/kimbar/sprite-resolver'
+import { buildKimbarProjectConfig, getMegalevelPath } from '@/lib/kimbar/project-shim'
 
 const CONFIG_FILENAME = 'spudtile.config.json'
 const LEGACY_CONFIG_FILENAME = 'prairiebob.config.json'
@@ -93,6 +108,23 @@ async function initKimbarLinkedProject(projectPath: string): Promise<void> {
       return
     }
 
+    setKimbarRootPath(kimbarRoot)
+    const characters = await loadKimbarRegistry()
+    console.log(`[projectStore] Kimbar registry loaded: ${characters.length} characters from ${kimbarRoot}`)
+
+    // Preload player sprite (char.kim) eagerly
+    const kimEntry = characters.find((c) => c.id === 'char.kim')
+    if (kimEntry) {
+      preloadCharacterSprite('char.kim')
+    }
+  } catch (err) {
+    console.warn('[projectStore] Failed to initialize Kimbar linked project:', err)
+  }
+}
+
+async function initKimbarLinkedProjectAtRoot(kimbarRoot: string): Promise<void> {
+  try {
+    clearSpriteCache()
     setKimbarRootPath(kimbarRoot)
     const characters = await loadKimbarRegistry()
     console.log(`[projectStore] Kimbar registry loaded: ${characters.length} characters from ${kimbarRoot}`)
@@ -223,6 +255,7 @@ interface ProjectConfig {
     columns?: number
     tileCount?: number
   }>
+  tileActionGroups?: unknown[]
 }
 
 interface HistoryEntry {
@@ -273,21 +306,44 @@ interface ProjectState {
   // Project-driven definitions
   entityDefinitions: Record<string, EntityDefinitionFile>
   interactionDefinitions: Record<string, InteractionDefinitionFile>
+  dirtyEntityDefinitionIds: string[]
+  dirtyInteractionDefinitionIds: string[]
+  deletedEntityDefinitionIds: string[]
+  deletedInteractionDefinitionIds: string[]
 
   // Layer groups
   layerGroups: LayerGroup[]
 
   // Tile actions
   tileActionGroups: TileActionGroup[]
+  customTileActionGroups: TileActionGroup[]
+  customTileActionGroupsDirty: boolean
+
+  // Room registry (multi-room / world view)
+  roomRegistry: RoomFileEntry[]
+  worldLayout: WorldLayout
 
   // Computed
   canUndo: boolean
   canRedo: boolean
 }
 
+/** A discovered room file in the project maps directory. */
+export interface RoomFileEntry {
+  /** File name without extension (used as room ID). */
+  id: string
+  /** Display name derived from file name. */
+  name: string
+  /** Absolute file path. */
+  filePath: string
+  /** File extension (e.g. 'tmx', 'json'). */
+  format: string
+}
+
 interface ProjectActions {
   // Project operations
   loadProject: (projectPath: string) => Promise<void>
+  loadKimbarProject: (kimbarRoot: string) => Promise<void>
   loadSampleProject: () => Promise<void>
   createNewProject: (options: {
     name: string
@@ -363,6 +419,18 @@ interface ProjectActions {
   addTileActionGroup: (group: TileActionGroup) => void
   updateTileActionGroup: (id: string, group: Partial<TileActionGroup>) => void
   deleteTileActionGroup: (id: string) => void
+
+  // Room registry / world layout
+  scanRoomFiles: () => Promise<void>
+  loadWorldLayoutFromDisk: () => Promise<void>
+  saveWorldLayoutToDisk: () => Promise<void>
+  syncDoorConnections: () => Promise<void>
+  importTiledWorldFile: (worldFilePath: string) => Promise<number>
+  autoImportTiledWorlds: () => Promise<void>
+  updateRoomPosition: (roomId: string, x: number, y: number) => void
+  addDoorConnection: (connection: DoorConnection) => void
+  removeDoorConnection: (connectionId: string) => void
+  openRoom: (roomId: string) => Promise<void>
 }
 
 interface ProjectAssetPaths {
@@ -376,6 +444,266 @@ interface ProjectAssetPaths {
 interface LoadedProjectDefinitions {
   entityDefinitions: Record<string, EntityDefinitionFile>
   interactionDefinitions: Record<string, InteractionDefinitionFile>
+  entityDefinitionFilePaths: Record<string, string>
+  interactionDefinitionFilePaths: Record<string, string>
+}
+
+const AUTO_LAYER_GROUP_ENTITIES_ID = 'auto-group-entities'
+const AUTO_LAYER_GROUP_COLLISION_ID = 'auto-group-collision'
+
+function normalizeLayerName(name: string): string {
+  return name.trim().toLowerCase()
+}
+
+function isLikelyCollisionLayer(layer: Layer): boolean {
+  return layer.type === 'tilelayer' && /(collision|collide|solid|block)/i.test(layer.name)
+}
+
+function isLikelyEntityLayer(layer: Layer): boolean {
+  if (layer.type === 'objectgroup') return true
+  return /(entities|entity|objects|spawns|spawn|npcs|npc|doors|door|triggers|portal|portals)/i.test(layer.name)
+}
+
+function deriveDefaultLayerGroups(level: LevelData): LayerGroup[] {
+  const entityLayerNames = level.layers
+    .filter(isLikelyEntityLayer)
+    .map((layer) => layer.name)
+
+  const collisionLayerNames = level.layers
+    .filter(isLikelyCollisionLayer)
+    .map((layer) => layer.name)
+
+  const groups: LayerGroup[] = []
+  if (entityLayerNames.length > 0) {
+    groups.push({
+      id: AUTO_LAYER_GROUP_ENTITIES_ID,
+      name: 'Entities',
+      type: 'static',
+      layerIds: entityLayerNames,
+      collapsed: false,
+      visible: true,
+      locked: false,
+      color: '#4b8cff',
+    })
+  }
+  if (collisionLayerNames.length > 0) {
+    groups.push({
+      id: AUTO_LAYER_GROUP_COLLISION_ID,
+      name: 'Collision',
+      type: 'static',
+      layerIds: collisionLayerNames,
+      collapsed: false,
+      visible: true,
+      locked: false,
+      color: '#ff6b6b',
+    })
+  }
+  return groups
+}
+
+function isAutoLayerGroup(group: LayerGroup): boolean {
+  return group.id === AUTO_LAYER_GROUP_ENTITIES_ID || group.id === AUTO_LAYER_GROUP_COLLISION_ID
+}
+
+function mergeAutoLayerGroups(
+  existingGroups: LayerGroup[],
+  level: LevelData,
+): LayerGroup[] {
+  const manualGroups = existingGroups.filter((group) => !isAutoLayerGroup(group))
+  return [...manualGroups, ...deriveDefaultLayerGroups(level)]
+}
+
+function findFirstTileId(tiles: number[][]): number {
+  for (const row of tiles) {
+    for (const tileId of row) {
+      if (Number.isFinite(tileId)) return Math.max(0, Math.floor(tileId))
+    }
+  }
+  return 0
+}
+
+function deriveTileActionGroupsFromDefinitions(
+  interactionDefinitions: Record<string, InteractionDefinitionFile>,
+  entityDefinitions: Record<string, EntityDefinitionFile>,
+): TileActionGroup[] {
+  const groups: TileActionGroup[] = []
+
+  const interactionIds = Object.keys(interactionDefinitions).sort((a, b) => a.localeCompare(b))
+  for (const interactionId of interactionIds) {
+    const def = interactionDefinitions[interactionId]
+    const states = Object.entries(def.states).map(([stateName, stateDef]) => ({
+      name: stateName,
+      tileId: findFirstTileId(stateDef.tiles),
+      // Use transition duration if present so action previews have timing context.
+      duration: def.transitions?.[`${stateName}→${stateName === 'open' ? 'closed' : 'open'}`]?.duration,
+    }))
+
+    if (states.length === 0) continue
+    const stateNames = states.map((state) => state.name)
+    const defaultState = stateNames.includes(def.defaultState) ? def.defaultState : stateNames[0]
+    groups.push({
+      id: `interaction:${interactionId}`,
+      name: `${interactionId} (${normalizeLayerName(def.type || 'interaction')})`,
+      states,
+      defaultState,
+      triggers: [
+        {
+          type: 'on_interact',
+          parameters: { interactionId },
+        },
+      ],
+      effects: [
+        {
+          type: 'change_state',
+          parameters: {
+            interactionId,
+            mode: stateNames.includes('open') && stateNames.includes('closed') ? 'toggle' : 'cycle',
+            states: stateNames,
+          },
+        },
+      ],
+    })
+  }
+
+  const entityIds = Object.keys(entityDefinitions).sort((a, b) => a.localeCompare(b))
+  for (const entityId of entityIds) {
+    const def = entityDefinitions[entityId]
+    if (!def.states || Object.keys(def.states).length === 0) continue
+    if (groups.some((group) => group.id === `entity:${entityId}`)) continue
+
+    const states = Object.entries(def.states).map(([stateName, stateDef]) => ({
+      name: stateName,
+      tileId: Number.isFinite(stateDef.tileId) ? Math.max(0, Math.floor(stateDef.tileId)) : 0,
+    }))
+    const defaultState = states.some((state) => state.name === def.defaultState)
+      ? (def.defaultState as string)
+      : states[0]?.name
+    if (!defaultState) continue
+
+    groups.push({
+      id: `entity:${entityId}`,
+      name: `${entityId} (entity)`,
+      states,
+      defaultState,
+      triggers: def.triggers?.onInteract
+        ? [{ type: 'on_interact', parameters: { entityId } }]
+        : [],
+      effects: [],
+    })
+  }
+
+  return groups
+}
+
+function isInteractionGroupId(id: string): boolean {
+  return id.startsWith('interaction:')
+}
+
+function isEntityGroupId(id: string): boolean {
+  return id.startsWith('entity:')
+}
+
+function isDefinitionBackedGroupId(id: string): boolean {
+  return isInteractionGroupId(id) || isEntityGroupId(id)
+}
+
+function combineTileActionGroups(
+  interactionDefinitions: Record<string, InteractionDefinitionFile>,
+  entityDefinitions: Record<string, EntityDefinitionFile>,
+  customTileActionGroups: TileActionGroup[],
+): TileActionGroup[] {
+  const derived = deriveTileActionGroupsFromDefinitions(interactionDefinitions, entityDefinitions)
+  if (customTileActionGroups.length === 0) {
+    return derived
+  }
+
+  const derivedIds = new Set(derived.map((group) => group.id))
+  const uniqueCustom = customTileActionGroups.filter((group) => !derivedIds.has(group.id))
+  return [...derived, ...uniqueCustom]
+}
+
+function syncInteractionDefinitionFromActionGroup(
+  group: TileActionGroup,
+  interactionDefinitions: Record<string, InteractionDefinitionFile>,
+): void {
+  if (!group.id.startsWith('interaction:')) return
+  const interactionId = group.id.slice('interaction:'.length)
+  if (!interactionId) return
+  const target = interactionDefinitions[interactionId]
+  if (!target) return
+
+  const nextStates: InteractionDefinitionFile['states'] = {}
+  for (const state of group.states) {
+    const existing = target.states[state.name]
+    const existingHeight = Math.max(1, existing?.tiles.length ?? target.size?.height ?? 1)
+    const existingWidth = Math.max(
+      1,
+      existing?.tiles.reduce((max, row) => Math.max(max, row.length), 0) ?? target.size?.width ?? 1,
+    )
+    const nextTile = Math.max(0, Math.floor(state.tileId))
+    nextStates[state.name] = {
+      tiles: Array.from({ length: existingHeight }, () => Array.from({ length: existingWidth }, () => nextTile)),
+      collision: existing?.collision ?? false,
+    }
+  }
+  if (Object.keys(nextStates).length === 0) {
+    return
+  }
+
+  target.states = nextStates
+  if (!Object.prototype.hasOwnProperty.call(nextStates, target.defaultState)) {
+    target.defaultState = group.defaultState && nextStates[group.defaultState]
+      ? group.defaultState
+      : Object.keys(nextStates)[0]
+  } else {
+    target.defaultState = group.defaultState || target.defaultState
+  }
+}
+
+function syncEntityDefinitionFromActionGroup(
+  group: TileActionGroup,
+  entityDefinitions: Record<string, EntityDefinitionFile>,
+): void {
+  if (!group.id.startsWith('entity:')) return
+  const entityId = group.id.slice('entity:'.length)
+  if (!entityId) return
+  const target = entityDefinitions[entityId]
+  if (!target) return
+
+  const existingStates = target.states ?? {}
+  const nextStates: NonNullable<EntityDefinitionFile['states']> = {}
+  for (const state of group.states) {
+    const existing = existingStates[state.name]
+    nextStates[state.name] = {
+      tileId: Math.max(0, Math.floor(state.tileId)),
+      collision: existing?.collision,
+    }
+  }
+  if (Object.keys(nextStates).length === 0) {
+    return
+  }
+
+  target.states = nextStates
+  if (!Object.prototype.hasOwnProperty.call(nextStates, target.defaultState ?? '')) {
+    target.defaultState = group.defaultState && nextStates[group.defaultState]
+      ? group.defaultState
+      : Object.keys(nextStates)[0]
+  } else {
+    target.defaultState = group.defaultState || target.defaultState
+  }
+}
+
+function addUniqueId(target: string[], id: string): void {
+  if (!target.includes(id)) {
+    target.push(id)
+  }
+}
+
+function removeId(target: string[], id: string): void {
+  const index = target.indexOf(id)
+  if (index !== -1) {
+    target.splice(index, 1)
+  }
 }
 
 function normalizeProjectAssetPaths(paths: ProjectConfig['paths']): ProjectAssetPaths {
@@ -400,22 +728,30 @@ function roomFilePriority(name: string): number {
   return 2
 }
 
+interface LoadedJsonDefinitions<T extends { id: string }> {
+  definitions: Record<string, T>
+  filePaths: Record<string, string>
+}
+
+type DefinitionParser<T extends { id: string }> = (value: unknown) => T | null
+
 async function loadJsonDefinitionFiles<T extends { id: string }>(
   dirPath: string,
-  parser: (value: unknown) => T | null,
-): Promise<Record<string, T>> {
-  const result: Record<string, T> = {}
-  if (!window.electron) return result
+  parser: DefinitionParser<T>,
+): Promise<LoadedJsonDefinitions<T>> {
+  const definitions: Record<string, T> = {}
+  const filePaths: Record<string, string> = {}
+  if (!window.electron) return { definitions, filePaths }
 
   const exists = await window.electron.fs.exists(dirPath)
-  if (!exists) return result
+  if (!exists) return { definitions, filePaths }
 
   let entries: Array<{ name: string; isDirectory: boolean }> = []
   try {
     entries = await window.electron.fs.readDir(dirPath)
   } catch (err) {
     console.warn('[projectStore] Failed to read definition directory:', dirPath, err)
-    return result
+    return { definitions, filePaths }
   }
 
   const jsonFiles = entries.filter((entry) => !entry.isDirectory && entry.name.toLowerCase().endsWith('.json'))
@@ -426,12 +762,13 @@ async function loadJsonDefinitionFiles<T extends { id: string }>(
       const parsedJson = JSON.parse(content)
       const parsedDef = parser(parsedJson)
       if (!parsedDef) continue
-      result[parsedDef.id] = parsedDef
+      definitions[parsedDef.id] = parsedDef
+      filePaths[parsedDef.id] = filePath
     } catch (err) {
       console.warn('[projectStore] Failed to parse definition file:', filePath, err)
     }
   }
-  return result
+  return { definitions, filePaths }
 }
 
 async function loadProjectDefinitions(
@@ -440,11 +777,70 @@ async function loadProjectDefinitions(
 ): Promise<LoadedProjectDefinitions> {
   const entitiesDir = `${projectPath}/${paths.entities}`
   const interactionsDir = `${projectPath}/${paths.interactions}`
-  const [entityDefinitions, interactionDefinitions] = await Promise.all([
+  const [entitiesLoaded, interactionsLoaded] = await Promise.all([
     loadJsonDefinitionFiles(entitiesDir, parseEntityDefinitionFile),
     loadJsonDefinitionFiles(interactionsDir, parseInteractionDefinitionFile),
   ])
-  return { entityDefinitions, interactionDefinitions }
+  return {
+    entityDefinitions: entitiesLoaded.definitions,
+    interactionDefinitions: interactionsLoaded.definitions,
+    entityDefinitionFilePaths: entitiesLoaded.filePaths,
+    interactionDefinitionFilePaths: interactionsLoaded.filePaths,
+  }
+}
+
+async function loadPersistedCustomTileActionGroups(projectPath: string): Promise<TileActionGroup[]> {
+  if (!window.electron) return []
+  const configPath = `${projectPath}/project.json`
+  try {
+    const exists = await window.electron.fs.exists(configPath)
+    if (!exists) return []
+    const content = await window.electron.fs.readFile(configPath)
+    const parsed = JSON.parse(content) as ProjectConfig
+    if (!Array.isArray(parsed.tileActionGroups)) return []
+    return deserializeActionGroups(parsed.tileActionGroups).filter((group) => !isDefinitionBackedGroupId(group.id))
+  } catch (err) {
+    console.warn('[projectStore] Failed loading persisted custom tile actions:', err)
+    return []
+  }
+}
+
+async function persistDefinitionChanges<T extends { id: string }>(
+  directoryPath: string,
+  definitions: Record<string, T>,
+  dirtyIds: string[],
+  deletedIds: string[],
+  parser: DefinitionParser<T>,
+): Promise<{ saved: number; deleted: number }> {
+  if (!window.electron) return { saved: 0, deleted: 0 }
+  if (dirtyIds.length === 0 && deletedIds.length === 0) return { saved: 0, deleted: 0 }
+
+  await window.electron.fs.mkdir(directoryPath)
+  const loaded = await loadJsonDefinitionFiles(directoryPath, parser)
+  const idToFilePath = loaded.filePaths
+  const uniqueDirty = Array.from(new Set(dirtyIds))
+  const uniqueDeleted = Array.from(new Set(deletedIds))
+
+  let saved = 0
+  let deleted = 0
+
+  for (const id of uniqueDeleted) {
+    const filePath = idToFilePath[id] ?? `${directoryPath}/${id}.json`
+    if (await window.electron.fs.exists(filePath)) {
+      await window.electron.fs.removeFile(filePath)
+      deleted += 1
+    }
+  }
+
+  for (const id of uniqueDirty) {
+    const definition = definitions[id]
+    if (!definition) continue
+    const filePath = idToFilePath[id] ?? `${directoryPath}/${id}.json`
+    await window.electron.fs.writeFile(filePath, `${JSON.stringify(definition, null, 2)}\n`)
+    saved += 1
+  }
+
+  return { saved, deleted }
 }
 
 export const useProjectStore = create<ProjectState & ProjectActions>()(
@@ -464,8 +860,16 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
       isLoadingTileset: false,
       entityDefinitions: {},
       interactionDefinitions: {},
+      dirtyEntityDefinitionIds: [],
+      dirtyInteractionDefinitionIds: [],
+      deletedEntityDefinitionIds: [],
+      deletedInteractionDefinitionIds: [],
       layerGroups: [],
       tileActionGroups: [],
+      customTileActionGroups: [],
+      customTileActionGroupsDirty: false,
+      roomRegistry: [],
+      worldLayout: createEmptyLayout(),
       canUndo: false,
       canRedo: false,
 
@@ -580,6 +984,16 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
             projectPath,
             normalizedPaths,
           )
+          const defaultLayerGroups = deriveDefaultLayerGroups(mapData)
+          const persistedCustomTileActionGroups = Array.isArray(config.tileActionGroups)
+            ? deserializeActionGroups(config.tileActionGroups)
+              .filter((group) => !isDefinitionBackedGroupId(group.id))
+            : []
+          const defaultTileActionGroups = combineTileActionGroups(
+            interactionDefinitions,
+            entityDefinitions,
+            persistedCustomTileActionGroups,
+          )
 
           set({
             projectPath,
@@ -588,6 +1002,14 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
             tilesets: effectiveTilesets,
             entityDefinitions,
             interactionDefinitions,
+            dirtyEntityDefinitionIds: [],
+            dirtyInteractionDefinitionIds: [],
+            deletedEntityDefinitionIds: [],
+            deletedInteractionDefinitionIds: [],
+            layerGroups: defaultLayerGroups,
+            tileActionGroups: defaultTileActionGroups,
+            customTileActionGroups: persistedCustomTileActionGroups,
+            customTileActionGroupsDirty: false,
             mapData,
             currentRoomPath: mapPath,
             hasUnsavedChanges: false,
@@ -612,9 +1034,151 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
 
           // Try to initialize Kimbar linked project for character sprites
           initKimbarLinkedProject(projectPath)
+
+          // Scan room files and load world layout for world view
+          const store = get()
+          void Promise.all([
+            store.scanRoomFiles(),
+            store.loadWorldLayoutFromDisk(),
+          ]).then(() => store.autoImportTiledWorlds())
+            .then(() => store.syncDoorConnections())
         } catch (err) {
           console.error('Failed to load project:', err)
           toast.error('Failed to load project')
+        }
+      },
+
+      // Load the Kimbar project directly (no project.json needed)
+      loadKimbarProject: async (kimbarRoot: string) => {
+        if (!window.electron) {
+          toast.error('Kimbar loading requires Electron')
+          return
+        }
+
+        try {
+          const config = await buildKimbarProjectConfig(kimbarRoot)
+
+          // Load tilesets from config
+          const loadedTilesets: LoadedTileset[] = []
+          for (const tilesetRef of config.tilesets) {
+            const tilesetPath = `${kimbarRoot}/${tilesetRef.file}`
+            try {
+              const loaded = await loadTilesetFromPath(
+                {
+                  id: tilesetRef.id,
+                  name: tilesetRef.id,
+                  sourcePath: tilesetPath,
+                  tileSize: tilesetRef.tileSize,
+                  firstGid: getNextFirstGid(loadedTilesets),
+                },
+                window.electron.fs.readFileBase64
+              )
+              loadedTilesets.push(loaded)
+              console.log(`[projectStore] Kimbar tileset loaded: ${tilesetRef.id}`)
+            } catch (err) {
+              console.warn(`[projectStore] Failed to load Kimbar tileset ${tilesetRef.id}:`, err)
+            }
+          }
+
+          // Load megalevel TMX
+          const megalevelPath = getMegalevelPath(kimbarRoot)
+          let mapData = DEFAULT_MAP
+          let mapPath: string | null = null
+          let effectiveTilesets = loadedTilesets
+
+          try {
+            const loaded = await loadRoomDataFromFile(megalevelPath, window.electron.fs.readFile)
+            mapData = ensureCollisionLayer(loaded.data)
+            mapPath = megalevelPath
+
+            // Force all tile layers visible (megalevel.tmx has Floor visible="0")
+            mapData = {
+              ...mapData,
+              layers: mapData.layers.map(layer =>
+                layer.type === 'tilelayer' ? { ...layer, visible: true } : layer
+              ),
+            }
+
+            // Use TMX tileset references if available (preserves correct firstGid mapping)
+            if (loaded.tilesets.length > 0) {
+              const sortedRoomTilesets = [...loaded.tilesets].sort((a, b) => a.firstGid - b.firstGid)
+              const loadedRoomTilesets: LoadedTileset[] = []
+              for (const ref of sortedRoomTilesets) {
+                try {
+                  const ts = await loadTilesetFromPath(
+                    {
+                      id: ref.id,
+                      name: ref.name,
+                      sourcePath: ref.sourcePath,
+                      tileSize: ref.tileSize,
+                      firstGid: ref.firstGid,
+                    },
+                    window.electron.fs.readFileBase64
+                  )
+                  loadedRoomTilesets.push(ts)
+                } catch (err) {
+                  console.warn(`[projectStore] Failed to load Kimbar room tileset "${ref.name}":`, err)
+                }
+              }
+              if (loadedRoomTilesets.length > 0) {
+                effectiveTilesets = loadedRoomTilesets
+              }
+            }
+
+            console.log(`[projectStore] Kimbar megalevel loaded (${loaded.sourceFormat})`)
+          } catch (err) {
+            console.warn('[projectStore] Failed to load Kimbar megalevel:', err)
+            toast.error('Failed to load Kimbar megalevel TMX')
+            return
+          }
+
+          set({
+            projectPath: kimbarRoot,
+            projectName: config.name,
+            projectConfig: config as unknown as ProjectConfig,
+            tilesets: effectiveTilesets,
+            entityDefinitions: {},
+            interactionDefinitions: {},
+            dirtyEntityDefinitionIds: [],
+            dirtyInteractionDefinitionIds: [],
+            deletedEntityDefinitionIds: [],
+            deletedInteractionDefinitionIds: [],
+            layerGroups: deriveDefaultLayerGroups(mapData),
+            tileActionGroups: [],
+            customTileActionGroups: [],
+            customTileActionGroupsDirty: false,
+            mapData,
+            currentRoomPath: mapPath,
+            hasUnsavedChanges: false,
+            past: [],
+            future: [],
+            canUndo: false,
+            canRedo: false,
+          })
+
+          console.log('[projectStore] Kimbar project loaded')
+          console.log('[projectStore] Tilesets:', effectiveTilesets.length)
+
+          // Track in recent projects and close selector
+          const { addRecentProject, closeProjectSelector } = await import('./uiStore').then(m => m.useUIStore.getState())
+          addRecentProject(kimbarRoot, 'Kimbar')
+          closeProjectSelector()
+
+          toast.success('Loaded Kimbar project')
+
+          // Initialize character sprite registry
+          await initKimbarLinkedProjectAtRoot(kimbarRoot)
+
+          // Scan room files and load world layout
+          const store = get()
+          void Promise.all([
+            store.scanRoomFiles(),
+            store.loadWorldLayoutFromDisk(),
+          ]).then(() => store.autoImportTiledWorlds())
+            .then(() => store.syncDoorConnections())
+        } catch (err) {
+          console.error('[projectStore] Failed to load Kimbar project:', err)
+          toast.error('Failed to load Kimbar project')
         }
       },
 
@@ -764,10 +1328,33 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
         try {
           const content = await window.electron.fs.readFile(mapPath)
           const mapData = ensureCollisionLayer(JSON.parse(content))
+          const {
+            entityDefinitions,
+            interactionDefinitions,
+            layerGroups,
+            customTileActionGroups,
+            dirtyEntityDefinitionIds,
+            dirtyInteractionDefinitionIds,
+            deletedEntityDefinitionIds,
+            deletedInteractionDefinitionIds,
+            customTileActionGroupsDirty,
+          } = get()
+          const hasProjectDefinitionChanges =
+            customTileActionGroupsDirty ||
+            dirtyEntityDefinitionIds.length > 0 ||
+            dirtyInteractionDefinitionIds.length > 0 ||
+            deletedEntityDefinitionIds.length > 0 ||
+            deletedInteractionDefinitionIds.length > 0
           set({
             mapData,
+            layerGroups: mergeAutoLayerGroups(layerGroups, mapData),
+            tileActionGroups: combineTileActionGroups(
+              interactionDefinitions,
+              entityDefinitions,
+              customTileActionGroups,
+            ),
             currentRoomPath: mapPath,
-            hasUnsavedChanges: false,
+            hasUnsavedChanges: hasProjectDefinitionChanges,
             past: [],
             future: [],
             canUndo: false,
@@ -781,7 +1368,20 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
 
       // Save the current map
       saveMap: async () => {
-        const { mapData, currentRoomPath, projectPath, projectConfig } = get()
+        const {
+          mapData,
+          currentRoomPath,
+          projectPath,
+          projectConfig,
+          entityDefinitions,
+          interactionDefinitions,
+          dirtyEntityDefinitionIds,
+          dirtyInteractionDefinitionIds,
+          deletedEntityDefinitionIds,
+          deletedInteractionDefinitionIds,
+          customTileActionGroups,
+          customTileActionGroupsDirty,
+        } = get()
         if (!window.electron || !mapData) return
 
         // Update metadata
@@ -801,8 +1401,97 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
 
         if (savePath) {
           await window.electron.fs.writeFile(savePath, JSON.stringify(updatedMap, null, 2))
-          set({ mapData: updatedMap, currentRoomPath: savePath, hasUnsavedChanges: false })
-          toast.success('Map saved!')
+
+          let definitionSaveFailed = false
+          let customGroupSaveFailed = false
+          let definitionSaveSummary: string | null = null
+
+          if (
+            customTileActionGroupsDirty ||
+            dirtyEntityDefinitionIds.length > 0 ||
+            dirtyInteractionDefinitionIds.length > 0 ||
+            deletedEntityDefinitionIds.length > 0 ||
+            deletedInteractionDefinitionIds.length > 0
+          ) {
+            if (!projectPath || !projectConfig?.paths) {
+              definitionSaveFailed = true
+              toast.error('Map saved, but definition files could not be resolved')
+            } else {
+              const normalizedPaths = normalizeProjectAssetPaths(projectConfig.paths)
+              const entitiesDir = `${projectPath}/${normalizedPaths.entities}`
+              const interactionsDir = `${projectPath}/${normalizedPaths.interactions}`
+
+              if (customTileActionGroupsDirty) {
+                try {
+                  const projectJsonPath = `${projectPath}/project.json`
+                  let nextProjectConfig: ProjectConfig = projectConfig
+                  if (await window.electron.fs.exists(projectJsonPath)) {
+                    const rawConfig = await window.electron.fs.readFile(projectJsonPath)
+                    nextProjectConfig = JSON.parse(rawConfig) as ProjectConfig
+                  }
+                  nextProjectConfig = {
+                    ...nextProjectConfig,
+                    tileActionGroups: serializeActionGroups(customTileActionGroups),
+                  }
+                  await window.electron.fs.writeFile(projectJsonPath, `${JSON.stringify(nextProjectConfig, null, 2)}\n`)
+                  set({ projectConfig: nextProjectConfig })
+                } catch (err) {
+                  customGroupSaveFailed = true
+                  console.error('[projectStore] Failed saving custom tile action groups:', err)
+                  toast.error('Map saved, but custom tile action groups failed to save')
+                }
+              }
+
+              try {
+                const [entityResult, interactionResult] = await Promise.all([
+                  persistDefinitionChanges(
+                    entitiesDir,
+                    entityDefinitions,
+                    dirtyEntityDefinitionIds,
+                    deletedEntityDefinitionIds,
+                    parseEntityDefinitionFile,
+                  ),
+                  persistDefinitionChanges(
+                    interactionsDir,
+                    interactionDefinitions,
+                    dirtyInteractionDefinitionIds,
+                    deletedInteractionDefinitionIds,
+                    parseInteractionDefinitionFile,
+                  ),
+                ])
+
+                const totalSaved = entityResult.saved + interactionResult.saved
+                const totalDeleted = entityResult.deleted + interactionResult.deleted
+                if (totalSaved > 0 || totalDeleted > 0) {
+                  definitionSaveSummary = `${totalSaved} definition(s) saved, ${totalDeleted} deleted`
+                }
+              } catch (err) {
+                definitionSaveFailed = true
+                console.error('[projectStore] Failed saving definition files:', err)
+                toast.error('Map saved, but definition files failed to save')
+              }
+            }
+          }
+
+          set({
+            mapData: updatedMap,
+            currentRoomPath: savePath,
+            hasUnsavedChanges: definitionSaveFailed || customGroupSaveFailed,
+            ...((definitionSaveFailed || customGroupSaveFailed)
+              ? {}
+              : {
+                  dirtyEntityDefinitionIds: [],
+                  dirtyInteractionDefinitionIds: [],
+                  deletedEntityDefinitionIds: [],
+                  deletedInteractionDefinitionIds: [],
+                  customTileActionGroupsDirty: false,
+                }),
+          })
+          toast.success(
+            definitionSaveSummary
+              ? `Map saved (${definitionSaveSummary})`
+              : 'Map saved!'
+          )
         }
       },
 
@@ -823,18 +1512,34 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
 
           let entityDefinitions = get().entityDefinitions
           let interactionDefinitions = get().interactionDefinitions
+          let persistedCustomTileActionGroups = get().customTileActionGroups
           if (projectPath && projectConfig?.paths) {
             const normalizedPaths = normalizeProjectAssetPaths(projectConfig.paths)
             const loadedDefinitions = await loadProjectDefinitions(projectPath, normalizedPaths)
             entityDefinitions = loadedDefinitions.entityDefinitions
             interactionDefinitions = loadedDefinitions.interactionDefinitions
+            persistedCustomTileActionGroups = await loadPersistedCustomTileActionGroups(projectPath)
           }
 
+          const refreshedMapData = ensureCollisionLayer(loaded.data)
+          const previousLayerGroups = get().layerGroups
           set({
-            mapData: ensureCollisionLayer(loaded.data),
+            mapData: refreshedMapData,
             entityDefinitions,
             interactionDefinitions,
+            layerGroups: mergeAutoLayerGroups(previousLayerGroups, refreshedMapData),
+            tileActionGroups: combineTileActionGroups(
+              interactionDefinitions,
+              entityDefinitions,
+              persistedCustomTileActionGroups,
+            ),
+            customTileActionGroups: persistedCustomTileActionGroups,
             hasUnsavedChanges: false,
+            dirtyEntityDefinitionIds: [],
+            dirtyInteractionDefinitionIds: [],
+            deletedEntityDefinitionIds: [],
+            deletedInteractionDefinitionIds: [],
+            customTileActionGroupsDirty: false,
             past: [],
             future: [],
             canUndo: false,
@@ -1035,6 +1740,7 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
             ),
           }
           state.mapData.layers.push(newLayer)
+          state.layerGroups = mergeAutoLayerGroups(state.layerGroups, state.mapData)
           state.hasUnsavedChanges = true
         })
       },
@@ -1042,7 +1748,14 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
       deleteLayer: (index) => {
         set((state) => {
           if (state.mapData.layers.length > 1) {
+            const removedLayerName = state.mapData.layers[index]?.name
             state.mapData.layers.splice(index, 1)
+            if (removedLayerName) {
+              for (const group of state.layerGroups) {
+                group.layerIds = group.layerIds.filter((layerName) => layerName !== removedLayerName)
+              }
+            }
+            state.layerGroups = mergeAutoLayerGroups(state.layerGroups, state.mapData)
             state.hasUnsavedChanges = true
           }
         })
@@ -1051,7 +1764,12 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
       renameLayer: (index, name) => {
         set((state) => {
           if (state.mapData.layers[index]) {
+            const previousName = state.mapData.layers[index].name
             state.mapData.layers[index].name = name
+            for (const group of state.layerGroups) {
+              group.layerIds = group.layerIds.map((layerName) => layerName === previousName ? name : layerName)
+            }
+            state.layerGroups = mergeAutoLayerGroups(state.layerGroups, state.mapData)
             state.hasUnsavedChanges = true
           }
         })
@@ -1060,7 +1778,7 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
       // Entity operations
       placeEntity: (entity) => {
         set((state) => {
-          const entityLayer = state.mapData.layers.find(l => l.type === 'objectgroup')
+          const entityLayer = state.mapData.layers.find((layer) => layer.type === 'objectgroup')
           if (entityLayer) {
             if (!entityLayer.objects) entityLayer.objects = []
             entityLayer.objects.push(entity)
@@ -1071,12 +1789,13 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
 
       updateEntity: (id, updates) => {
         set((state) => {
-          const entityLayer = state.mapData.layers.find(l => l.type === 'objectgroup')
-          if (entityLayer?.objects) {
-            const entity = entityLayer.objects.find(o => o.id === id)
+          for (const layer of state.mapData.layers) {
+            if (layer.type !== 'objectgroup' || !layer.objects) continue
+            const entity = layer.objects.find((candidate) => candidate.id === id)
             if (entity) {
               Object.assign(entity, updates)
               state.hasUnsavedChanges = true
+              break
             }
           }
         })
@@ -1088,10 +1807,14 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
 
       deleteEntity: (id) => {
         set((state) => {
-          const entityLayer = state.mapData.layers.find(l => l.type === 'objectgroup')
-          if (entityLayer?.objects) {
-            entityLayer.objects = entityLayer.objects.filter(o => o.id !== id)
-            state.hasUnsavedChanges = true
+          for (const layer of state.mapData.layers) {
+            if (layer.type !== 'objectgroup' || !layer.objects) continue
+            const nextObjects = layer.objects.filter((candidate) => candidate.id !== id)
+            if (nextObjects.length !== layer.objects.length) {
+              layer.objects = nextObjects
+              state.hasUnsavedChanges = true
+              break
+            }
           }
         })
       },
@@ -1361,6 +2084,29 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
       addTileActionGroup: (group: TileActionGroup) => {
         set((state) => {
           state.tileActionGroups.push(group)
+          syncInteractionDefinitionFromActionGroup(group, state.interactionDefinitions)
+          syncEntityDefinitionFromActionGroup(group, state.entityDefinitions)
+          if (isInteractionGroupId(group.id)) {
+            const interactionId = group.id.slice('interaction:'.length)
+            if (interactionId && state.interactionDefinitions[interactionId]) {
+              addUniqueId(state.dirtyInteractionDefinitionIds, interactionId)
+              removeId(state.deletedInteractionDefinitionIds, interactionId)
+              state.hasUnsavedChanges = true
+            }
+          }
+          if (isEntityGroupId(group.id)) {
+            const entityId = group.id.slice('entity:'.length)
+            if (entityId && state.entityDefinitions[entityId]) {
+              addUniqueId(state.dirtyEntityDefinitionIds, entityId)
+              removeId(state.deletedEntityDefinitionIds, entityId)
+              state.hasUnsavedChanges = true
+            }
+          }
+          if (!isDefinitionBackedGroupId(group.id)) {
+            state.customTileActionGroups.push(group)
+            state.customTileActionGroupsDirty = true
+            state.hasUnsavedChanges = true
+          }
         })
       },
 
@@ -1369,6 +2115,32 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
           const idx = state.tileActionGroups.findIndex((g) => g.id === id)
           if (idx !== -1) {
             Object.assign(state.tileActionGroups[idx], updates)
+            syncInteractionDefinitionFromActionGroup(state.tileActionGroups[idx], state.interactionDefinitions)
+            syncEntityDefinitionFromActionGroup(state.tileActionGroups[idx], state.entityDefinitions)
+            if (isInteractionGroupId(id)) {
+              const interactionId = id.slice('interaction:'.length)
+              if (interactionId && state.interactionDefinitions[interactionId]) {
+                addUniqueId(state.dirtyInteractionDefinitionIds, interactionId)
+                removeId(state.deletedInteractionDefinitionIds, interactionId)
+                state.hasUnsavedChanges = true
+              }
+            }
+            if (isEntityGroupId(id)) {
+              const entityId = id.slice('entity:'.length)
+              if (entityId && state.entityDefinitions[entityId]) {
+                addUniqueId(state.dirtyEntityDefinitionIds, entityId)
+                removeId(state.deletedEntityDefinitionIds, entityId)
+                state.hasUnsavedChanges = true
+              }
+            }
+            if (!isDefinitionBackedGroupId(id)) {
+              const customIdx = state.customTileActionGroups.findIndex((group) => group.id === id)
+              if (customIdx !== -1) {
+                Object.assign(state.customTileActionGroups[customIdx], updates)
+                state.customTileActionGroupsDirty = true
+                state.hasUnsavedChanges = true
+              }
+            }
           }
         })
       },
@@ -1376,7 +2148,236 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
       deleteTileActionGroup: (id: string) => {
         set((state) => {
           state.tileActionGroups = state.tileActionGroups.filter((g) => g.id !== id)
+          if (isInteractionGroupId(id)) {
+            const interactionId = id.slice('interaction:'.length)
+            if (interactionId && state.interactionDefinitions[interactionId]) {
+              delete state.interactionDefinitions[interactionId]
+              addUniqueId(state.deletedInteractionDefinitionIds, interactionId)
+              removeId(state.dirtyInteractionDefinitionIds, interactionId)
+              state.hasUnsavedChanges = true
+            }
+          }
+          if (!isDefinitionBackedGroupId(id)) {
+            const beforeCount = state.customTileActionGroups.length
+            state.customTileActionGroups = state.customTileActionGroups.filter((group) => group.id !== id)
+            if (state.customTileActionGroups.length !== beforeCount) {
+              state.customTileActionGroupsDirty = true
+              state.hasUnsavedChanges = true
+            }
+          }
         })
+      },
+
+      // ============== Room Registry / World Layout ==============
+
+      scanRoomFiles: async () => {
+        const { projectPath, projectConfig } = get()
+        if (!window.electron || !projectPath || !projectConfig?.paths) return
+
+        const normalizedPaths = normalizeProjectAssetPaths(projectConfig.paths)
+        const mapsDir = `${projectPath}/${normalizedPaths.maps}`
+
+        try {
+          const exists = await window.electron.fs.exists(mapsDir)
+          if (!exists) {
+            set({ roomRegistry: [] })
+            return
+          }
+
+          const entries = await window.electron.fs.readDir(mapsDir)
+          const roomFiles: RoomFileEntry[] = entries
+            .filter((entry) => !entry.isDirectory)
+            .filter((entry) => /\.(tmx|json|ldtk)$/i.test(entry.name))
+            .map((entry) => {
+              const dotIndex = entry.name.lastIndexOf('.')
+              const baseName = dotIndex > 0 ? entry.name.slice(0, dotIndex) : entry.name
+              const ext = dotIndex > 0 ? entry.name.slice(dotIndex + 1).toLowerCase() : ''
+              return {
+                id: baseName,
+                name: baseName.replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
+                filePath: `${mapsDir}/${entry.name}`,
+                format: ext,
+              }
+            })
+            .sort((a, b) => a.id.localeCompare(b.id))
+
+          set({ roomRegistry: roomFiles })
+          console.log(`[projectStore] Scanned ${roomFiles.length} room files in ${mapsDir}`)
+        } catch (err) {
+          console.warn('[projectStore] Failed to scan room files:', err)
+          set({ roomRegistry: [] })
+        }
+      },
+
+      loadWorldLayoutFromDisk: async () => {
+        const { projectPath } = get()
+        if (!projectPath) return
+        const layout = await loadWorldLayout(projectPath)
+        set({ worldLayout: layout })
+      },
+
+      saveWorldLayoutToDisk: async () => {
+        const { projectPath, worldLayout } = get()
+        if (!projectPath) return
+        await saveWorldLayout(projectPath, worldLayout)
+      },
+
+      syncDoorConnections: async () => {
+        const { roomRegistry, worldLayout } = get()
+        if (!window.electron || roomRegistry.length === 0) return
+
+        const roomIds = new Set(roomRegistry.map((r) => r.id))
+        const autoConnections: DoorConnection[] = []
+
+        for (const room of roomRegistry) {
+          try {
+            const result = await loadRoomDataFromFile(room.filePath, window.electron.fs.readFile)
+            const doors = extractDoors(result.data)
+
+            for (const door of doors) {
+              if (!door.targetRoom || !roomIds.has(door.targetRoom)) continue
+
+              autoConnections.push({
+                id: `auto:${room.id}:${door.entityId}`,
+                sourceRoomId: room.id,
+                sourceEntityId: door.entityId,
+                targetRoomId: door.targetRoom,
+                targetEntityId: door.targetEntityId,
+                connectionType: door.entityType,
+              })
+            }
+          } catch (err) {
+            console.warn(`[projectStore] Failed to extract doors from ${room.id}:`, err)
+          }
+        }
+
+        // Merge: keep manual connections (no auto: prefix), replace all auto connections
+        set((state) => {
+          const manualConnections = state.worldLayout.connections.filter(
+            (c) => !c.id.startsWith('auto:')
+          )
+          state.worldLayout.connections = [...manualConnections, ...autoConnections]
+        })
+
+        // Persist the merged layout
+        const store = get()
+        await saveWorldLayout(store.projectPath!, store.worldLayout)
+        console.log(`[projectStore] Synced ${autoConnections.length} auto door connections`)
+      },
+
+      importTiledWorldFile: async (worldFilePath: string) => {
+        if (!window.electron?.fs) return 0
+
+        try {
+          const content = await window.electron.fs.readFile(worldFilePath)
+          const { roomRegistry } = get()
+          const knownIds = new Set(roomRegistry.map((r) => r.id))
+          const positions = importTiledWorldPositions(content, knownIds)
+
+          if (positions.length === 0) return 0
+
+          set((state) => {
+            for (const pos of positions) {
+              setRoomPosition(state.worldLayout, pos.roomId, pos.x, pos.y)
+            }
+          })
+
+          const store = get()
+          await saveWorldLayout(store.projectPath!, store.worldLayout)
+          console.log(`[projectStore] Imported ${positions.length} room positions from ${worldFilePath}`)
+          return positions.length
+        } catch (err) {
+          console.warn('[projectStore] Failed to import .world file:', err)
+          return 0
+        }
+      },
+
+      autoImportTiledWorlds: async () => {
+        const { projectPath, worldLayout } = get()
+        if (!projectPath) return
+
+        // Skip if we already have saved room positions
+        if (worldLayout.rooms.length > 0) return
+
+        const worldFiles = await findWorldFiles(projectPath)
+        if (worldFiles.length === 0) return
+
+        let totalImported = 0
+        const store = get()
+        for (const wf of worldFiles) {
+          const count = await store.importTiledWorldFile(wf)
+          totalImported += count
+        }
+
+        if (totalImported > 0) {
+          console.log(`[projectStore] Auto-imported ${totalImported} room positions from ${worldFiles.length} .world file(s)`)
+        }
+      },
+
+      updateRoomPosition: (roomId: string, x: number, y: number) => {
+        set((state) => {
+          setRoomPosition(state.worldLayout, roomId, x, y)
+        })
+      },
+
+      addDoorConnection: (connection: DoorConnection) => {
+        set((state) => {
+          addConnection(state.worldLayout, connection)
+        })
+      },
+
+      removeDoorConnection: (connectionId: string) => {
+        set((state) => {
+          removeConnection(state.worldLayout, connectionId)
+        })
+      },
+
+      openRoom: async (roomId: string) => {
+        const { roomRegistry } = get()
+        const entry = roomRegistry.find((r) => r.id === roomId)
+        if (!entry) {
+          toast.error(`Room not found: ${roomId}`)
+          return
+        }
+
+        if (!window.electron) return
+
+        try {
+          const loaded = await loadRoomDataFromFile(entry.filePath, window.electron.fs.readFile)
+          const mapData = ensureCollisionLayer(loaded.data)
+
+          const {
+            entityDefinitions,
+            interactionDefinitions,
+            customTileActionGroups,
+            layerGroups,
+          } = get()
+
+          set({
+            mapData,
+            currentRoomPath: entry.filePath,
+            layerGroups: mergeAutoLayerGroups(layerGroups, mapData),
+            tileActionGroups: combineTileActionGroups(
+              interactionDefinitions,
+              entityDefinitions,
+              customTileActionGroups,
+            ),
+            hasUnsavedChanges: false,
+            past: [],
+            future: [],
+            canUndo: false,
+            canRedo: false,
+          })
+
+          // Exit world view and open room in normal editor
+          const { exitWorldView } = await import('./editorStore').then(m => m.useEditorStore.getState())
+          exitWorldView()
+
+          toast.success(`Opened room: ${entry.name}`)
+        } catch (err) {
+          console.error(`[projectStore] Failed to open room ${roomId}:`, err)
+          toast.error(`Failed to open room: ${roomId}`)
+        }
       },
     })),
     { name: 'project-store' }
@@ -1392,3 +2393,5 @@ export const useCanRedo = () => useProjectStore((s) => s.canRedo)
 export const useHasUnsavedChanges = () => useProjectStore((s) => s.hasUnsavedChanges)
 export const useLayerGroups = () => useProjectStore((s) => s.layerGroups)
 export const useTileActionGroups = () => useProjectStore((s) => s.tileActionGroups)
+export const useRoomRegistry = () => useProjectStore((s) => s.roomRegistry)
+export const useWorldLayout = () => useProjectStore((s) => s.worldLayout)

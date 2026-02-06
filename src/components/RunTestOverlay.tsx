@@ -299,10 +299,16 @@ export function RunTestOverlay({ open, mapData, tilesets, onClose }: RunTestOver
   // Preload Kimbar ULPC sprites for player and NPCs
   useEffect(() => {
     if (!open) return
-    const playerCharId = (spawnEntity?.properties?.characterId as string | undefined) ?? 'char.kim'
+    const playerCharId = (
+      (spawnEntity?.properties?.characterId as string | undefined) ??
+      (spawnEntity?.properties?.character as string | undefined)
+    ) ?? 'char.kim'
     preloadCharacterSprite(playerCharId)
     for (const npc of npcEntities) {
-      const charId = npc.properties?.characterId as string | undefined
+      const charId = (
+        (npc.properties?.characterId as string | undefined) ??
+        (npc.properties?.character as string | undefined)
+      )
       if (charId) preloadCharacterSprite(charId)
     }
   }, [open, spawnEntity, npcEntities])
@@ -781,7 +787,10 @@ export function RunTestOverlay({ open, mapData, tilesets, onClose }: RunTestOver
         if (!drewNpcSprite) {
           // Try Kimbar ULPC sprite for this NPC's characterId
           const npcEntity = npcEntities.find((e) => e.id === npc.id)
-          const npcCharacterId = npcEntity?.properties?.characterId as string | undefined
+          const npcCharacterId = (
+            (npcEntity?.properties?.characterId as string | undefined) ??
+            (npcEntity?.properties?.character as string | undefined)
+          )
           if (npcCharacterId) {
             const npcIsMoving = Math.abs(npc.dirX) > 0 || Math.abs(npc.dirY) > 0
             drewNpcSprite = drawKimbarSprite(
@@ -850,7 +859,10 @@ export function RunTestOverlay({ open, mapData, tilesets, onClose }: RunTestOver
 
       if (!drewPlayerSprite) {
         // Try Kimbar ULPC sprite for the player (char.kim or spawn entity's characterId)
-        const playerCharId = (spawnEntity?.properties?.characterId as string | undefined) ?? 'char.kim'
+        const playerCharId = (
+          (spawnEntity?.properties?.characterId as string | undefined) ??
+          (spawnEntity?.properties?.character as string | undefined)
+        ) ?? 'char.kim'
         drewPlayerSprite = drawKimbarSprite(
           ctx,
           playerCharId,

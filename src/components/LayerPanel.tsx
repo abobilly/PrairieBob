@@ -369,7 +369,7 @@ export function LayerPanel({
         </div>
 
         {/* Layer list */}
-        <div className="flex-1 overflow-y-auto p-1 min-h-[140px] max-h-[280px]">
+        <div className="flex-1 overflow-y-auto p-1 min-h-[140px]">
           {layers.length === 0 ? (
             <div className="text-[10px] text-muted-foreground p-2">No layers</div>
           ) : (
@@ -436,20 +436,20 @@ export function LayerPanel({
                 const ungroupedArt = artEntries.filter(({ layer }) => !groupedLayerNames.has(layer.name))
                 return (
                   <>
-                    {ungroupedGameplay.length > 0 && (
-                      <div className="flex flex-col gap-0.5">
-                        <div className="px-2 pt-1 pb-0.5 text-[9px] uppercase tracking-wide text-[var(--pb-text-muted)]">
-                          Gameplay
-                        </div>
-                        {ungroupedGameplay.map(renderLayerRow)}
-                      </div>
-                    )}
                     {ungroupedArt.length > 0 && (
                       <div className="flex flex-col gap-0.5">
                         <div className="px-2 pt-1 pb-0.5 text-[9px] uppercase tracking-wide text-[var(--pb-text-muted)]">
                           Art Layers
                         </div>
                         {ungroupedArt.map(renderLayerRow)}
+                      </div>
+                    )}
+                    {ungroupedGameplay.length > 0 && (
+                      <div className="flex flex-col gap-0.5">
+                        <div className="px-2 pt-1 pb-0.5 text-[9px] uppercase tracking-wide text-[var(--pb-text-muted)]">
+                          Gameplay
+                        </div>
+                        {ungroupedGameplay.map(renderLayerRow)}
                       </div>
                     )}
                   </>

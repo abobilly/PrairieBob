@@ -54,6 +54,9 @@ interface EditorState {
   // Game preview
   previewMode: boolean
   previewViewport: PreviewViewport
+
+  // World view
+  worldViewMode: boolean
 }
 
 interface EditorActions {
@@ -101,6 +104,11 @@ interface EditorActions {
   setPreviewCamera: (x: number, y: number) => void
   setPreviewZoom: (zoom: number) => void
   setPreviewViewportSize: (width: number, height: number) => void
+
+  // World view
+  enterWorldView: () => void
+  exitWorldView: () => void
+  toggleWorldView: () => void
 }
 
 const DEFAULT_STAMP: TileStamp = {
@@ -134,6 +142,7 @@ export const useEditorStore = create<EditorState & EditorActions>()(
       selection: null,
       previewMode: false,
       previewViewport: { width: 640, height: 480, zoom: 1, x: 0, y: 0 },
+      worldViewMode: false,
 
       // Actions
       setTool: (tool) => set({ currentTool: tool }),
@@ -224,6 +233,15 @@ export const useEditorStore = create<EditorState & EditorActions>()(
       setPreviewViewportSize: (width, height) => set((state) => ({
         previewViewport: { ...state.previewViewport, width, height },
       })),
+
+      // World view
+      enterWorldView: () => set({ worldViewMode: true, previewMode: false }),
+      exitWorldView: () => set({ worldViewMode: false }),
+      toggleWorldView: () => {
+        const { worldViewMode, previewMode } = get()
+        if (previewMode) return // Don't toggle while in preview
+        set({ worldViewMode: !worldViewMode })
+      },
     }),
     { name: 'editor-store' }
   )
@@ -252,3 +270,4 @@ export const useClipboard = () => useEditorStore((s) => s.clipboard)
 export const useSelection = () => useEditorStore((s) => s.selection)
 export const usePreviewMode = () => useEditorStore((s) => s.previewMode)
 export const usePreviewViewport = () => useEditorStore((s) => s.previewViewport)
+export const useWorldViewMode = () => useEditorStore((s) => s.worldViewMode)

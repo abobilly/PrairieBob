@@ -92,6 +92,10 @@ export function normalizeNpcProperties(
   if (!('characterId' in properties) && 'character_id' in properties) {
     properties.characterId = properties.character_id
   }
+  // character -> characterId
+  if (!('characterId' in properties) && 'character' in properties) {
+    properties.characterId = properties.character
+  }
   // story_knot -> storyKnot
   if (!('storyKnot' in properties) && 'story_knot' in properties) {
     properties.storyKnot = properties.story_knot

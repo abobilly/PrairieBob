@@ -544,6 +544,13 @@ ipcMain.handle('fs:mkdir', async (_, dirPath: string) => {
     return true;
 });
 
+ipcMain.handle('fs:removeFile', async (_, filePath: string) => {
+    if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+    }
+    return true;
+});
+
 // App paths for renderer (sample/resources)
 ipcMain.handle('app:getPaths', async () => {
     return {

@@ -18,6 +18,7 @@ contextBridge.exposeInMainWorld('electron', {
         exists: (filePath: string) => ipcRenderer.invoke('fs:exists', filePath),
         readDir: (dirPath: string) => ipcRenderer.invoke('fs:readDir', dirPath),
         mkdir: (dirPath: string) => ipcRenderer.invoke('fs:mkdir', dirPath),
+        removeFile: (filePath: string) => ipcRenderer.invoke('fs:removeFile', filePath),
     },
 
     app: {
@@ -175,6 +176,7 @@ declare global {
                 exists: (filePath: string) => Promise<boolean>;
                 readDir: (dirPath: string) => Promise<Array<{ name: string; isDirectory: boolean }>>;
                 mkdir: (dirPath: string) => Promise<boolean>;
+                removeFile: (filePath: string) => Promise<boolean>;
             };
             app: {
                 getPaths: () => Promise<{ appPath: string; resourcesPath: string; isPackaged: boolean }>;

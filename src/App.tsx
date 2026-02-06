@@ -18,6 +18,7 @@ import {
   FlipHorizontal2,
   FlipVertical2,
   FolderOpen,
+  Globe,
   Package,
   PanelBottomClose,
   PanelBottomOpen,
@@ -61,11 +62,14 @@ import { NewProjectWizard } from '@/components/NewProjectWizard'
 import { GamePreview } from '@/components/GamePreview'
 import { TileActionsPanel } from '@/components/TileActionsPanel'
 import { BakeTilesetDialog } from '@/components/BakeTilesetDialog'
+import { WorldViewCanvas as SpudWorldViewCanvas } from '@/components/WorldViewCanvas'
+import { WorldMinimap } from '@/components/WorldMinimap'
 import { getFileSystemAdapter } from '@/lib/fs-adapter'
 import { Toaster, toast } from 'sonner'
 import { NotificationContainer } from '@/components/Notification'
 import { DialogContainer } from '@/components/Dialog'
 import { useEditorStore, useProjectStore, useUIStore } from '@/stores'
+import { detectKimbarRoot } from '@/lib/kimbar/registry'
 import { useToolStore } from '@/stores/toolStore'
 import { useLdtkToolStore } from '@/stores/ldtkToolStore'
 import { useFileWatcher, type FileWatcherChange } from '@/hooks/useFileWatcher'
@@ -131,12 +135,32 @@ function buildTileInstances(
   return tiles
 }
 
+const ENTITY_TYPE_COLORS: Record<string, string> = {
+  npc: '#60a5fa',         // blue
+  spawn_point: '#4ade80', // green
+  door: '#fb923c',        // orange
+  portal: '#fb923c',      // orange
+  stairs: '#fb923c',      // orange
+  ladder: '#fb923c',      // orange
+  trigger: '#c084fc',     // purple
+  prop: '#94a3b8',        // slate
+}
+
+function entityDisplayLabel(entity: { id: string; type: string; properties: Record<string, unknown> }): string {
+  const typeName = entity.type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+  const charId = entity.properties.characterId as string | undefined
+  const name = entity.properties.name as string | undefined
+  if (charId) return `${typeName}: ${charId}`
+  if (name) return `${typeName}: ${name}`
+  return `${typeName} [${entity.id}]`
+}
+
 function buildEntityInstances(layer: Layer, tileSize: number): EntityInstance[] {
   if (!layer.objects) return []
   return layer.objects.map((entity, index) => ({
     iid: entity.id || `${layer.name}-${index}`,
     defUid: 0,
-    __identifier: entity.id || entity.type,
+    __identifier: entityDisplayLabel(entity),
     __grid: [Math.floor(entity.x / tileSize), Math.floor(entity.y / tileSize)],
     px: [entity.x, entity.y],
     width: entity.width,
@@ -146,7 +170,7 @@ function buildEntityInstances(layer: Layer, tileSize: number): EntityInstance[] 
     __worldY: entity.y,
     __tags: [],
     __tile: null,
-    __smartColor: DEFAULT_ENTITY_COLOR,
+    __smartColor: ENTITY_TYPE_COLORS[entity.type] || DEFAULT_ENTITY_COLOR,
     fieldInstances: [],
   }))
 }
@@ -271,6 +295,19 @@ function applyFlipToStamp(stamp: TileStamp, flipX: boolean, flipY: boolean): Til
   }
 }
 
+function getPanelSizePercent(panelSize: unknown, fallback: number): number {
+  if (typeof panelSize === 'number' && Number.isFinite(panelSize)) {
+    return panelSize
+  }
+  if (typeof panelSize === 'object' && panelSize !== null) {
+    const maybe = panelSize as { inPercentage?: number }
+    if (typeof maybe.inPercentage === 'number' && Number.isFinite(maybe.inPercentage)) {
+      return maybe.inPercentage
+    }
+  }
+  return fallback
+}
+
 function App() {
   const [tileStamp, setTileStamp] = useState<TileStamp>(DEFAULT_STAMP)
   const [isRunTestOpen, setIsRunTestOpen] = useState(false)
@@ -279,6 +316,10 @@ function App() {
   const previewMode = useEditorStore((s) => s.previewMode)
   const enterPreview = useEditorStore((s) => s.enterPreview)
   const exitPreview = useEditorStore((s) => s.exitPreview)
+  const worldViewMode = useEditorStore((s) => s.worldViewMode)
+  const toggleWorldView = useEditorStore((s) => s.toggleWorldView)
+  const exitWorldView = useEditorStore((s) => s.exitWorldView)
+  const roomRegistry = useProjectStore((s) => s.roomRegistry)
 
   const {
     activeTilesetId,
@@ -377,15 +418,15 @@ function App() {
   const leftPanelOpen = !panels.left.collapsed
   const rightPanelOpen = !panels.right.collapsed
   const bottomPanelOpen = !panels.bottom.collapsed
-  const leftPanelDefaultSize = Math.max(260, panels.left.size || 280)
-  const leftPanelMinSize = Math.max(220, panels.left.minSize || 200)
-  const leftPanelMaxSize = Math.max(640, panels.left.maxSize || 400)
-  const rightPanelDefaultSize = Math.max(260, panels.right.size || 280)
-  const rightPanelMinSize = Math.max(220, panels.right.minSize || 200)
-  const rightPanelMaxSize = Math.max(640, panels.right.maxSize || 400)
-  const bottomPanelDefaultSize = Math.max(180, panels.bottom.size || 220)
-  const bottomPanelMinSize = Math.max(150, panels.bottom.minSize || 150)
-  const bottomPanelMaxSize = Math.max(520, panels.bottom.maxSize || 500)
+  const leftPanelDefaultSize = Math.min(Math.max(panels.left.size || 24, 16), 38)
+  const leftPanelMinSize = Math.min(Math.max(panels.left.minSize || 16, 8), 45)
+  const leftPanelMaxSize = Math.min(Math.max(panels.left.maxSize || 38, leftPanelMinSize), 60)
+  const rightPanelDefaultSize = Math.min(Math.max(panels.right.size || 24, 16), 38)
+  const rightPanelMinSize = Math.min(Math.max(panels.right.minSize || 16, 8), 45)
+  const rightPanelMaxSize = Math.min(Math.max(panels.right.maxSize || 38, rightPanelMinSize), 60)
+  const bottomPanelDefaultSize = Math.min(Math.max(panels.bottom.size || 24, 12), 45)
+  const bottomPanelMinSize = Math.min(Math.max(panels.bottom.minSize || 14, 8), 40)
+  const bottomPanelMaxSize = Math.min(Math.max(panels.bottom.maxSize || 45, bottomPanelMinSize), 60)
   const resolvedTheme = useMemo<'dark' | 'light'>(() => {
     if (theme === 'light' || theme === 'dark') return theme
     if (typeof window !== 'undefined' && window.matchMedia) {
@@ -396,15 +437,18 @@ function App() {
   const handleToggleTheme = useCallback(() => {
     setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')
   }, [resolvedTheme, setTheme])
-  const handleLeftPanelResize = useCallback((size: { inPixels: number }) => {
-    setPanelSize('left', Math.round(size.inPixels))
-  }, [setPanelSize])
-  const handleRightPanelResize = useCallback((size: { inPixels: number }) => {
-    setPanelSize('right', Math.round(size.inPixels))
-  }, [setPanelSize])
-  const handleBottomPanelResize = useCallback((size: { inPixels: number }) => {
-    setPanelSize('bottom', Math.round(size.inPixels))
-  }, [setPanelSize])
+  const handleLeftPanelResize = useCallback((panelSize: unknown) => {
+    const size = getPanelSizePercent(panelSize, leftPanelDefaultSize)
+    setPanelSize('left', Math.round(size * 100) / 100)
+  }, [setPanelSize, leftPanelDefaultSize])
+  const handleRightPanelResize = useCallback((panelSize: unknown) => {
+    const size = getPanelSizePercent(panelSize, rightPanelDefaultSize)
+    setPanelSize('right', Math.round(size * 100) / 100)
+  }, [setPanelSize, rightPanelDefaultSize])
+  const handleBottomPanelResize = useCallback((panelSize: unknown) => {
+    const size = getPanelSizePercent(panelSize, bottomPanelDefaultSize)
+    setPanelSize('bottom', Math.round(size * 100) / 100)
+  }, [setPanelSize, bottomPanelDefaultSize])
 
   // Guard against multiple initTilesets calls
   const tilesetsInitRef = useRef(false)
@@ -418,6 +462,29 @@ function App() {
       initTilesets()
     }
   }, [tilesets.length, initTilesets])
+
+  // Effect: Auto-load Kimbar project at startup if enabled
+  const kimbarAutoLoadAttemptedRef = useRef(false)
+  useEffect(() => {
+    if (kimbarAutoLoadAttemptedRef.current) return
+    const { autoLoadKimbar } = useUIStore.getState()
+    if (!autoLoadKimbar) return
+    kimbarAutoLoadAttemptedRef.current = true
+
+    const { loadKimbarProject } = useProjectStore.getState()
+    void (async () => {
+      try {
+        if (!window.electron?.app?.getPaths) return
+        const paths = await window.electron.app.getPaths()
+        const kimbarRoot = await detectKimbarRoot(paths.appPath) ?? await detectKimbarRoot(paths.resourcesPath)
+        if (kimbarRoot) {
+          await loadKimbarProject(kimbarRoot)
+        }
+      } catch (err) {
+        console.warn('[App] Kimbar auto-load failed:', err)
+      }
+    })()
+  }, [])
 
   // Pick a default tileset/tile with non-debug preference when available
   useEffect(() => {
@@ -765,6 +832,19 @@ function App() {
         return
       }
 
+      // W toggle world view (only when not typing in an input)
+      if (e.key.toLowerCase() === 'w' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        const target = e.target as HTMLElement
+        const isTyping = target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.isContentEditable
+        if (!isTyping) {
+          e.preventDefault()
+          toggleWorldView()
+          return
+        }
+      }
+
       if (!e.ctrlKey && !e.metaKey) return
 
       switch (e.key.toLowerCase()) {
@@ -792,7 +872,7 @@ function App() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [handleSave, undo, redo, previewMode, enterPreview, exitPreview])
+  }, [handleSave, undo, redo, previewMode, enterPreview, exitPreview, toggleWorldView])
 
   const fileWatchRoot = useMemo(
     () => projectPath ?? getDirectoryFromPath(currentRoomPath),
@@ -909,8 +989,9 @@ function App() {
   }, [toggleLayerVisible, toggleLayerLocked])
 
   const selectedEntity = mapData.layers
-    .find(layer => layer.type === 'objectgroup')
-    ?.objects?.find(entity => entity.id === selectedEntityId) || null
+    .filter((layer) => layer.type === 'objectgroup')
+    .flatMap((layer) => layer.objects ?? [])
+    .find((entity) => entity.id === selectedEntityId) || null
 
   return (
     <div data-theme={resolvedTheme} className="pb-app h-screen w-screen overflow-hidden flex flex-col">
@@ -1057,6 +1138,16 @@ function App() {
             <Package size={16} />
             <span>Bake</span>
           </button>
+          {roomRegistry.length >= 2 && (
+            <button
+              className={`pb-tool-btn pb-tool-btn-labeled${worldViewMode ? ' pb-tool-btn-active' : ''}`}
+              onClick={toggleWorldView}
+              title="Toggle World View (W)"
+            >
+              <Globe size={16} />
+              <span>{worldViewMode ? 'Editor' : 'World'}</span>
+            </button>
+          )}
         </div>
         <div className="pb-toolbar-divider" />
         <div className="pb-toolbar-group">
@@ -1112,7 +1203,7 @@ function App() {
                   </button>
                 </div>
                 <div className="pb-panel-content h-full min-h-0 flex flex-col gap-3">
-                  <div className="min-h-[170px] max-h-[260px] flex-shrink-0">
+                  <div className="min-h-[220px] max-h-[320px] flex-shrink-0">
                     <ToolPalette />
                   </div>
                   <div className="flex-1 min-h-[280px]">
@@ -1133,7 +1224,7 @@ function App() {
                 </div>
               </Panel>
             ) : (
-              <Panel id="left-collapsed" defaultSize={44} minSize={38} maxSize={64}>
+              <Panel id="left-collapsed" defaultSize={3.2} minSize={2.4} maxSize={6}>
                 <button
                   onClick={() => togglePanelCollapsed('left')}
                   className="pb-panel-toggle pb-panel-toggle-side h-full border-r border-[var(--pb-border)]"
@@ -1149,14 +1240,21 @@ function App() {
 
             <Panel id="canvas" className="min-w-0 h-full">
               <div className="h-full pb-canvas-area min-w-0 overflow-hidden relative">
-                <LevelCanvas
-                  level={level}
-                  tileStamp={tileStamp}
-                  mapData={mapData}
-                  onTilePicked={handleTileSelect}
-                  onEntityPicked={setSelectedEntityId}
-                  onIntGridPicked={setSelectedIntGridValue}
-                />
+                {worldViewMode ? (
+                  <SpudWorldViewCanvas />
+                ) : (
+                  <>
+                    <LevelCanvas
+                      level={level}
+                      tileStamp={tileStamp}
+                      mapData={mapData}
+                      onTilePicked={handleTileSelect}
+                      onEntityPicked={setSelectedEntityId}
+                      onIntGridPicked={setSelectedIntGridValue}
+                    />
+                    <WorldMinimap />
+                  </>
+                )}
               </div>
             </Panel>
 
@@ -1197,7 +1295,7 @@ function App() {
                       toast.success('Entity deleted')
                     }}
                   />
-                  <div className="min-h-[160px] max-h-[320px]">
+                  <div className="min-h-[160px] flex-1">
                     <LayerPanel
                       layers={mapData.layers}
                       activeLayerIndex={activeLayerIndex}
@@ -1229,7 +1327,7 @@ function App() {
                 </div>
               </Panel>
             ) : (
-              <Panel id="right-collapsed" defaultSize={44} minSize={38} maxSize={64}>
+              <Panel id="right-collapsed" defaultSize={3.2} minSize={2.4} maxSize={6}>
                 <button
                   onClick={() => togglePanelCollapsed('right')}
                   className="pb-panel-toggle pb-panel-toggle-side h-full border-l border-[var(--pb-border)]"

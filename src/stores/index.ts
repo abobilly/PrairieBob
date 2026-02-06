@@ -24,6 +24,7 @@ export {
   MIN_ZOOM,
   MAX_ZOOM,
   ZOOM_STEP,
+  useWorldViewMode,
 } from './editorStore'
 
 export {
@@ -35,6 +36,8 @@ export {
   useHasUnsavedChanges,
   useLayerGroups,
   useTileActionGroups,
+  useRoomRegistry,
+  useWorldLayout,
 } from './projectStore'
 
 export {

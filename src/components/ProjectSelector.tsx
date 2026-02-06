@@ -43,7 +43,9 @@ export function ProjectSelector() {
         removeRecentProject,
     } = useUIStore();
 
-    const { loadProject, loadSampleProject } = useProjectStore();
+    const { loadProject, loadKimbarProject, loadSampleProject } = useProjectStore();
+    const autoLoadKimbar = useUIStore((s) => s.autoLoadKimbar);
+    const setAutoLoadKimbar = useUIStore((s) => s.setAutoLoadKimbar);
     const [kimbarPath, setKimbarPath] = useState<string | null>(null);
     const [kimbarSearching, setKimbarSearching] = useState(false);
     const resolvedTheme = useMemo<'dark' | 'light'>(() => {
@@ -115,9 +117,8 @@ export function ProjectSelector() {
 
     const handleOpenKimbar = useCallback(async () => {
         if (!kimbarPath) return;
-        closeProjectSelector();
-        await loadProject(kimbarPath);
-    }, [closeProjectSelector, kimbarPath, loadProject]);
+        await loadKimbarProject(kimbarPath);
+    }, [kimbarPath, loadKimbarProject]);
 
     const handleLocateKimbar = useCallback(async () => {
         if (!window.electron) {
@@ -189,16 +190,27 @@ export function ProjectSelector() {
                     </Button>
 
                     {kimbarPath && (
-                        <Button
-                            variant="outline"
-                            className={`w-full min-w-0 h-12 justify-start gap-2 overflow-hidden ${isLight ? 'bg-[#ffffff] border-[#b8c7df] hover:bg-[#e9f1ff] hover:border-[#22c55e]' : 'bg-[#12121f] border-[#2a2a4a] hover:bg-[#2a2a4a] hover:border-[#22c55e]'}`}
-                            onClick={handleOpenKimbar}
-                            title={kimbarPath}
-                        >
-                            <Link className="h-5 w-5 text-[#22c55e]" />
-                            <span className="flex-1 min-w-0 text-left truncate">Open Kimbar Linked Project</span>
-                            <span className={`text-xs truncate max-w-[170px] shrink-0 ${isLight ? 'text-[#55698d]' : 'text-gray-500'}`}>{kimbarPath}</span>
-                        </Button>
+                        <div className="space-y-1">
+                            <Button
+                                variant="outline"
+                                className={`w-full min-w-0 h-12 justify-start gap-2 overflow-hidden ${isLight ? 'bg-[#ffffff] border-[#b8c7df] hover:bg-[#e9f1ff] hover:border-[#22c55e]' : 'bg-[#12121f] border-[#2a2a4a] hover:bg-[#2a2a4a] hover:border-[#22c55e]'}`}
+                                onClick={handleOpenKimbar}
+                                title={kimbarPath}
+                            >
+                                <Link className="h-5 w-5 text-[#22c55e]" />
+                                <span className="flex-1 min-w-0 text-left truncate">Open Kimbar Linked Project</span>
+                                <span className={`text-xs truncate max-w-[170px] shrink-0 ${isLight ? 'text-[#55698d]' : 'text-gray-500'}`}>{kimbarPath}</span>
+                            </Button>
+                            <label className={`flex items-center gap-2 px-2 text-xs cursor-pointer ${isLight ? 'text-[#55698d]' : 'text-gray-500'}`}>
+                                <input
+                                    type="checkbox"
+                                    checked={autoLoadKimbar}
+                                    onChange={(e) => setAutoLoadKimbar(e.target.checked)}
+                                    className="accent-[#22c55e]"
+                                />
+                                Auto-open Kimbar at startup
+                            </label>
+                        </div>
                     )}
 
                     {kimbarSearching && (
