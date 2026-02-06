@@ -32,8 +32,8 @@ app.setAppUserModelId('com.prairiebob.tileeditor');
 const isDev = !!process.env.VITE_DEV_SERVER_URL;
 const VITE_DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5173';
 
-// Icon path - use the icon pack
-const iconPath = path.join(__dirname, '../pbob_icon_pack/prairiebob.ico');
+// Icon path - SpudTile logo
+const iconPath = path.join(__dirname, '../public/icons/spudtile.ico');
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -66,8 +66,10 @@ function createWindow() {
         mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
     }
 
-    // Always open DevTools for debugging
-    mainWindow.webContents.openDevTools();
+    // Open DevTools only in dev server mode
+    if (isDev) {
+        mainWindow.webContents.openDevTools();
+    }
 
     // Update title when project changes
     mainWindow.on('page-title-updated', (e) => {

@@ -12,7 +12,7 @@
         "lint": "eslint .",
         "preview": "vite preview",
         "upgrade": "npx npm-check-updates -u && npm install",
-        "electron:compile": "cd electron && npx tsc && cd .. && npx move-file dist-electron/main.js dist-electron/main.cjs && npx move-file dist-electron/preload.js dist-electron/preload.cjs && npx move-file dist-electron/agent-main.js dist-electron/agent-main.cjs",
+        "electron:compile": "cd electron && npx tsc && cd .. && node -e \"const fs=require('fs');['main','preload','agent-main'].forEach(n=>fs.copyFileSync('dist-electron/'+n+'.js','dist-electron/'+n+'.cjs'));\"",
         "electron:dev": "npx concurrently -k \"npx vite\" \"npx electron .\"",
         "electron:build": "npm run electron:compile && vite build && electron-builder",
         "electron:preview": "vite build && electron ."
@@ -87,7 +87,8 @@
         "eslint-plugin-react-hooks": "7.0.1",
         "eslint-plugin-react-refresh": "0.4.26",
         "globals": "17.2.0",
-        "move-file-cli": "^3.0.0",
+        "png-to-ico": "^3.0.1",
+        "sharp": "^0.34.5",
         "tailwindcss": "4.1.18",
         "typescript": "5.9.3",
         "typescript-eslint": "8.54.0",
@@ -111,10 +112,6 @@
             {
                 "from": "samples",
                 "to": "samples"
-            },
-            {
-                "from": "pbob_icon_pack",
-                "to": "pbob_icon_pack"
             }
         ],
         "publish": {
@@ -127,7 +124,7 @@
                 "nsis",
                 "portable"
             ],
-            "icon": "public/icon.ico"
+            "icon": "public/icons/spudtile.ico"
         },
         "nsis": {
             "oneClick": true,
