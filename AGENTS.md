@@ -60,6 +60,7 @@ Packaged app: `release/win-unpacked/PrairieBob.exe`
 - Do not use `npm run dev` or `electron:dev` — these spawn a Vite dev server on localhost. Use `npm run build && npx electron .` instead
 - Do not implement large tasks yourself when SDK sessions can do it
 - Do not use CLI polling or the deprecated `CLI:` prefix convention
+- Do not use deprecated `gh copilot` task execution commands
 - Do not terminate persistent SDK sessions after a single task
 - Do not use Radix UI Slider — it's incompatible with React 19
 
@@ -68,5 +69,6 @@ Packaged app: `release/win-unpacked/PrairieBob.exe`
 - Confirm plan with user before launching SDK sessions
 - Run `npm run build` to verify after SDK session completion
 - Share live updates from SDK stream events during execution
+- Use `copilot` CLI only for local authentication/status when required
 - Close non-persistent sessions after capturing output (prevents buildup)
 - Commit and push when bundles are done

@@ -49,10 +49,11 @@ User
 
 ### Mandatory Rules
 
-- "When implementing features, prioritize @github/copilot-sdk sessions over manual shell execution of gh copilot."
-- "NEVER ask the user to wait for a CLI poll; provide real-time updates from the SDK stream."
-- "Use 'Agent Skills' (.agent.md files) instead of the old 'CLI:' prefix convention for specialized tasks."
-- "Maintain active session state; do not 'Exit cleanly' after one task if the SDK session is marked as persistent."
+- When implementing features, prioritize `@github/copilot-sdk` sessions over manual shell execution patterns.
+- Never ask the user to wait for a poll; provide real-time updates from the SDK stream.
+- Use `Agent Skills` (`.agent.md` files) instead of the old `CLI:` prefix convention for specialized tasks.
+- Maintain active session state; do not "exit cleanly" after one task if the SDK session is marked as persistent.
+- Treat `gh copilot` as deprecated for this project and do not use it for task execution.
 
 ### Do NOT
 
@@ -60,6 +61,7 @@ User
 - Ask "ready to start?" or "should I proceed?"
 - Rely on deprecated CLI polling patterns for progress
 - Use the deprecated `CLI:` prefix convention for specialized workflows
+- Use `gh copilot` commands for implementation workflows
 - Terminate persistent SDK sessions after a single task
 - Reference deprecated orchestration mechanics in completion notes
 
@@ -68,5 +70,6 @@ User
 - Execute immediately from the assigned session/task brief
 - Provide real-time updates from SDK stream events (`assistant.message_delta`, `tool.call`)
 - Use relevant `.agent.md` skills for specialized tasks
+- Use `copilot` CLI only for local auth/status flows when required by the app
 - Make file changes and run verification commands to complete the task
 - Run `npm run build` before finishing
