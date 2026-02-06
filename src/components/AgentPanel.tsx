@@ -262,7 +262,7 @@ export function AgentPanel() {
       term.writeln('\x1b[1;35m[Agent]\x1b[0m');
 
       try {
-        await window.electron.agent.send(prompt);
+        await window.electron?.agent.send(prompt);
       } catch (error) {
         term.writeln(`\x1b[1;31mError: ${error}\x1b[0m`);
       }

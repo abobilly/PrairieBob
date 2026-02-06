@@ -62,6 +62,7 @@ Never poll more than ~5 times. If a CLI hasn't finished after ~10 min, check onc
 ## What NOT to do
 
 - Do not open localhost URLs — this is an Electron app, not a web app
+- Do not use `npm run dev` or `electron:dev` — these spawn a Vite dev server on localhost. Use `npm run build && npx electron .` instead
 - Do not implement large tasks yourself when CLIs can do it
 - Do not launch CLIs without the `CLI:` prefix
 - Do not kill CLIs prematurely — wait for them to finish

@@ -214,8 +214,9 @@ LDtk tools:
 }
 
 // PrairieBob-specific tools the agent can use
-const createPrairieBobTools = (handlers: PrairieBobToolHandlers) => {
-  const tools: Array<ReturnType<typeof defineTool>> = [
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const createPrairieBobTools = (handlers: PrairieBobToolHandlers): ReturnType<typeof defineTool<any>>[] => {
+  const tools: ReturnType<typeof defineTool<any>>[] = [
     defineTool('paint_tiles', {
       description: 'Paint tiles on a specific layer of the map. Use this to place individual tiles or patterns.',
       parameters: z.object({
