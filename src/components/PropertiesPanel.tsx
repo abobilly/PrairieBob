@@ -9,6 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Button } from '@/components/ui/button'
 import { Door, DoorOpen, Lock, LockOpen, ToggleLeft, ToggleRight, Trash } from '@phosphor-icons/react'
 
+const SELECT_NONE = '__none__'
+
 const STATE_PRESETS = [
   {
     id: 'door',
@@ -191,14 +193,14 @@ export function PropertiesPanel({
               <Label htmlFor="target-room" className="text-xs">Target Room</Label>
               {roomRegistry.length > 0 ? (
                 <Select
-                  value={(selectedEntity.properties.targetRoom as string) || ''}
-                  onValueChange={(value) => handlePropertyChange('targetRoom', value)}
+                  value={(selectedEntity.properties.targetRoom as string) || SELECT_NONE}
+                  onValueChange={(value) => handlePropertyChange('targetRoom', value === SELECT_NONE ? '' : value)}
                 >
                   <SelectTrigger id="target-room" className="h-8 text-sm">
                     <SelectValue placeholder="Select target room" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">None</SelectItem>
+                    <SelectItem value={SELECT_NONE}>None</SelectItem>
                     {roomRegistry.map((room) => (
                       <SelectItem key={room.id} value={room.id}>
                         {room.name}
@@ -434,14 +436,14 @@ export function PropertiesPanel({
                   <Label htmlFor="npc-zone-id" className="text-xs">Zone</Label>
                   {npcZoneOptions.length > 0 ? (
                     <Select
-                      value={(selectedEntity.properties.zoneId as string) || ''}
-                      onValueChange={(value) => handlePropertyChange('zoneId', value)}
+                      value={(selectedEntity.properties.zoneId as string) || SELECT_NONE}
+                      onValueChange={(value) => handlePropertyChange('zoneId', value === SELECT_NONE ? '' : value)}
                     >
                       <SelectTrigger id="npc-zone-id" className="h-8 text-sm">
                         <SelectValue placeholder="None (free roam around home)" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">None</SelectItem>
+                        <SelectItem value={SELECT_NONE}>None</SelectItem>
                         {npcZoneOptions.map((zone) => (
                           <SelectItem key={zone.id} value={zone.id}>
                             {zone.label}

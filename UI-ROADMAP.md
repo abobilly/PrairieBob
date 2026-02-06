@@ -52,6 +52,27 @@ Stabilize layout and ship a scalable, tool-context editor UI so new features do 
    - Startup modal layout and overflow behavior
    - TMX/Kimbar load path and fallback behavior
 
+## Phase 7
+1. Inspector IA refactor:
+   - Properties collapsed by default with sticky summary row
+   - Tool-aware inspector sections (`Properties`, `Layers`, `Tile Actions`, `Entities`)
+   - Consistent light/dark tokens for all inspector controls (no mixed dark widgets in light theme)
+2. Collision UX model:
+   - Represent source-layer linking as part of collision workflow, not a detached checklist
+   - Show explicit derived collision status (`n linked`, overlay on/off, source strategy)
+   - Add one-click presets (Walls+Furniture default, custom set, manual-only)
+3. Tile actions and entity behavior alignment:
+   - Replace flat list with grouped behavior cards (`Doors`, `NPC`, `Player`, `Props`)
+   - Show visual state previews (frame/row thumbnails) next to state names
+   - Bind action groups directly to entity/interaction definitions to eliminate duplicate door groups
+   - Surface missing NPC/player action mappings in inspector validation
+
+## Handoff Notes
+1. Immediate bug guardrail:
+   - Radix `SelectItem` values must never be empty string; use sentinel values for "None".
+2. Focus follow-up:
+   - Migrate remaining inspector widgets to a unified section scaffold before adding more behavior features.
+
 ## Layout Rules (Do Not Break)
 1. Side panels must never render below usable width.
 2. Global controls stay in top toolbar only.

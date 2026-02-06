@@ -11,6 +11,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Bot,
+  ChevronDown,
+  ChevronRight,
   Crosshair,
   Moon,
   ExternalLink,
@@ -345,6 +347,7 @@ function App() {
   const [tileStamp, setTileStamp] = useState<TileStamp>(DEFAULT_STAMP)
   const [isRunTestOpen, setIsRunTestOpen] = useState(false)
   const [isBakeDialogOpen, setIsBakeDialogOpen] = useState(false)
+  const [inspectorPropertiesCollapsed, setInspectorPropertiesCollapsed] = useState(true)
 
   const previewMode = useEditorStore((s) => s.previewMode)
   const enterPreview = useEditorStore((s) => s.enterPreview)
@@ -1468,11 +1471,28 @@ function App() {
                   </button>
                 </div>
                 <div className="pb-panel-content h-full min-h-0 flex flex-col gap-3">
-                  <PropertiesPanel
-                    selectedEntity={selectedEntity}
-                    onEntityUpdate={handleEntityUpdate}
-                    onEntityDelete={handleEntityDelete}
-                  />
+                  <div className="rounded border border-[var(--pb-border-subtle)] bg-[var(--pb-bg-input)] overflow-hidden">
+                    <button
+                      className="w-full h-8 px-2 flex items-center gap-2 border-b border-[var(--pb-border-subtle)] text-left hover:bg-[var(--pb-bg-hover)]"
+                      onClick={() => setInspectorPropertiesCollapsed((prev) => !prev)}
+                      title={inspectorPropertiesCollapsed ? 'Expand properties' : 'Collapse properties'}
+                    >
+                      {inspectorPropertiesCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+                      <span className="text-[10px] font-semibold uppercase tracking-wide">Properties</span>
+                      <span className="ml-auto text-[10px] text-[var(--pb-text-muted)] truncate max-w-[180px]">
+                        {selectedEntity ? `${selectedEntity.type}: ${selectedEntity.id}` : 'No entity selected'}
+                      </span>
+                    </button>
+                    {!inspectorPropertiesCollapsed && (
+                      <div className="min-h-[120px] max-h-[46vh] overflow-y-auto">
+                        <PropertiesPanel
+                          selectedEntity={selectedEntity}
+                          onEntityUpdate={handleEntityUpdate}
+                          onEntityDelete={handleEntityDelete}
+                        />
+                      </div>
+                    )}
+                  </div>
                   <div className="min-h-[160px] flex-1">
                     <LayerPanel
                       layers={mapData.layers}

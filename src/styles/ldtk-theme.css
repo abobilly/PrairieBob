@@ -912,6 +912,39 @@
     background: var(--pb-compact-properties-bg);
 }
 
+/* Keep form controls theme-consistent in both light and dark panel modes. */
+.pb-compact-panel [data-slot="input"],
+.pb-compact-panel [data-slot="select-trigger"] {
+    background: var(--pb-bg-input) !important;
+    color: var(--pb-text-primary) !important;
+    border-color: var(--pb-border) !important;
+}
+
+.pb-compact-panel [data-slot="input"]::placeholder {
+    color: var(--pb-text-muted) !important;
+}
+
+.pb-compact-panel [data-slot="select-content"] {
+    background: var(--pb-bg-panel) !important;
+    color: var(--pb-text-primary) !important;
+    border-color: var(--pb-border) !important;
+}
+
+.pb-compact-panel [data-slot="select-item"] {
+    color: var(--pb-text-primary) !important;
+}
+
+.pb-compact-panel [data-slot="select-item"][data-highlighted] {
+    background: var(--pb-bg-hover) !important;
+    color: var(--pb-text-primary) !important;
+}
+
+.pb-compact-properties [data-slot="card"] {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
 /* Compact icon buttons */
 .pb-icon-btn-xs {
     width: 20px !important;
