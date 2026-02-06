@@ -1,12 +1,44 @@
 import { EntityData, EntityType } from '@/lib/types'
-import { SAMPLE_CHARACTERS, DOOR_INTERACTIONS } from '@/lib/data'
+import { SAMPLE_CHARACTERS } from '@/lib/data'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
-import { Trash } from '@phosphor-icons/react'
-import { useState } from 'react'
+import { Door, DoorOpen, Lock, LockOpen, ToggleLeft, ToggleRight, Trash } from '@phosphor-icons/react'
+
+const STATE_PRESETS = [
+  {
+    id: 'door',
+    values: ['closed', 'open'],
+    labels: ['Closed', 'Open'],
+    icons: [Door, DoorOpen],
+    activeClasses: [
+      'bg-slate-600 hover:bg-slate-600 text-white',
+      'bg-emerald-600 hover:bg-emerald-600 text-white',
+    ],
+  },
+  {
+    id: 'lock',
+    values: ['locked', 'unlocked'],
+    labels: ['Locked', 'Unlocked'],
+    icons: [Lock, LockOpen],
+    activeClasses: [
+      'bg-rose-600 hover:bg-rose-600 text-white',
+      'bg-emerald-600 hover:bg-emerald-600 text-white',
+    ],
+  },
+  {
+    id: 'switch',
+    values: ['inactive', 'active'],
+    labels: ['Inactive', 'Active'],
+    icons: [ToggleLeft, ToggleRight],
+    activeClasses: [
+      'bg-slate-600 hover:bg-slate-600 text-white',
+      'bg-emerald-600 hover:bg-emerald-600 text-white',
+    ],
+  },
+]
 
 interface PropertiesPanelProps {
   selectedEntity: EntityData | null
@@ -19,7 +51,6 @@ export function PropertiesPanel({
   onEntityUpdate,
   onEntityDelete,
 }: PropertiesPanelProps) {
-  const [doorState, setDoorState] = useState<string>('closed')
   const isTransferEntity = selectedEntity
     ? ['door', 'portal', 'stairs', 'ladder'].includes(selectedEntity.type)
     : false
@@ -43,13 +74,12 @@ export function PropertiesPanel({
     })
   }
 
-  const handleStateChange = (state: string) => {
-    setDoorState(state)
-    const interaction = DOOR_INTERACTIONS.find(i => i.id === selectedEntity.properties.interactionId)
-    if (interaction && interaction.states[state]) {
-      console.log('State changed to:', state, interaction.states[state])
-    }
-  }
+  const stateValue = typeof selectedEntity.properties.state === 'string'
+    ? selectedEntity.properties.state
+    : undefined
+  const statePreset = STATE_PRESETS.find(preset => stateValue && preset.values.includes(stateValue))
+    ?? (selectedEntity.type === 'door' ? STATE_PRESETS[0] : null)
+  const activeState = statePreset?.values.includes(stateValue || '') ? stateValue : statePreset?.values[0]
 
   return (
     <Card className="h-full flex flex-col">
@@ -103,6 +133,30 @@ export function PropertiesPanel({
           </div>
         </div>
 
+        {statePreset && activeState && (
+          <div className="space-y-2">
+            <Label className="text-xs">State Preview</Label>
+            <div className="flex gap-2">
+              {statePreset.values.map((value, index) => {
+                const Icon = statePreset.icons[index]
+                const isActive = activeState === value
+                return (
+                  <Button
+                    key={value}
+                    variant={isActive ? 'default' : 'outline'}
+                    size="sm"
+                    className={`flex-1 gap-1 ${isActive ? statePreset.activeClasses[index] : ''}`}
+                    onClick={() => handlePropertyChange('state', value)}
+                  >
+                    <Icon size={14} />
+                    {statePreset.labels[index]}
+                  </Button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
         {isTransferEntity && (
           <>
             <div className="space-y-2">
@@ -125,29 +179,6 @@ export function PropertiesPanel({
                 placeholder="spawn_id"
               />
             </div>
-            {selectedEntity.type === 'door' && (
-              <div className="space-y-2">
-                <Label className="text-xs">State Preview</Label>
-                <div className="flex gap-2">
-                  <Button
-                    variant={doorState === 'closed' ? 'default' : 'outline'}
-                    size="sm"
-                    className="flex-1"
-                    onClick={() => handleStateChange('closed')}
-                  >
-                    Closed
-                  </Button>
-                  <Button
-                    variant={doorState === 'open' ? 'default' : 'outline'}
-                    size="sm"
-                    className="flex-1"
-                    onClick={() => handleStateChange('open')}
-                  >
-                    Open
-                  </Button>
-                </div>
-              </div>
-            )}
             {(selectedEntity.type === 'stairs' || selectedEntity.type === 'ladder') && (
               <div className="space-y-2">
                 <Label htmlFor="direction" className="text-xs">Direction</Label>

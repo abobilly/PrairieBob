@@ -156,10 +156,10 @@
 
 | Task | Source | Target | Est. Lines | Status |
 |------|--------|--------|------------|--------|
-| 5C.1 Agent integration | `src/lib/agent-service.ts` | Update for LDtk model | ~100 | ⬜ |
+| 5C.1 Agent integration | `src/lib/agent-service.ts` | Update for LDtk model | ~100 | ✅ |
 | 5C.2 Project linking | `prairiebob.config.json` | Bridge to LDtk Project | ~80 | ✅ |
-| 5C.3 Live previews | `src/components/PropertiesPanel.tsx` | Port door state system | ~150 | ⬜ |
-| 5C.4 Tileset processing | `src/lib/tileset.ts` | `src/lib/ldtk/tileset-processing.ts` | ~100 | ⬜ |
+| 5C.3 Live previews | `src/components/PropertiesPanel.tsx` | Port door state system | ~150 | ✅ |
+| 5C.4 Tileset processing | `src/lib/tileset.ts` | `src/lib/ldtk/tileset-processing.ts` | ~100 | ✅ |
 
 ---
 
@@ -199,9 +199,9 @@
 - ✅ 4D.4 Cursor
 - ✅ 4E.3 ContextMenu
 - ✅ 5B.1 ProjectLoader
-- ⬜ 5C.1 Agent integration
-- ⬜ 5C.3 Live previews
-- ⬜ 5C.4 Tileset processing
+- ✅ 5C.1 Agent integration
+- ✅ 5C.3 Live previews
+- ✅ 5C.4 Tileset processing
 
 **Tier 3 - Complex (300-500 lines, many deps)**
 

@@ -25,6 +25,7 @@ User
 
 - **Always prefix** the `-p` payload with `CLI:` on the first line
 - Use the structured prompt format:
+
   ```
   CLI:
   Goal: <what to build/fix>
@@ -32,6 +33,7 @@ User
   Specs: <requirements, reference lines in AGENT_PROMPTS.md>
   Done when: <build passes, file exists, etc.>
   ```
+
 - Launch parallel CLIs for independent tasks
 - Wait patiently for CLI completion before intervening
 

@@ -7,6 +7,10 @@
 
 import { CopilotClient, CopilotSession, defineTool, SessionEvent } from '@github/copilot-sdk';
 import { z } from 'zod';
+import type { LDtkProject } from './ldtk/project';
+import type { EntityDef, LayerDef } from './ldtk/types';
+import type { EntityInstance, LayerInstance } from './ldtk/layer-instance';
+import type { Level } from './ldtk/level';
 
 export interface AgentMessage {
   role: 'user' | 'assistant' | 'system' | 'tool';
@@ -24,15 +28,194 @@ export interface AgentServiceConfig {
   onStateChange?: (state: 'idle' | 'thinking' | 'executing') => void;
 }
 
-// PrairieBob-specific tools the agent can use
-const createPrairieBobTools = (handlers: {
+export interface LDtkEntityFieldSuggestion {
+  identifier: string;
+  type: string;
+  isArray?: boolean;
+  canBeNull?: boolean;
+  doc?: string;
+}
+
+export interface LDtkEntitySuggestion {
+  identifier: string;
+  width?: number;
+  height?: number;
+  tags?: string[];
+  fields?: LDtkEntityFieldSuggestion[];
+  notes?: string;
+}
+
+export interface LDtkAutoLayerRuleSuggestion {
+  layerIdentifier: string;
+  groupName?: string;
+  ruleName: string;
+  description: string;
+  tileIds?: number[];
+  notes?: string;
+}
+
+export interface LDtkAgentHandlers {
+  getProject?: () => LDtkProject | null;
+  project?: LDtkProject | null;
+  getActiveLevelIid?: () => string | null;
+  suggestEntityDef?: (suggestion: LDtkEntitySuggestion) => void | Promise<void>;
+  suggestAutoLayerRule?: (suggestion: LDtkAutoLayerRuleSuggestion) => void | Promise<void>;
+}
+
+export interface PrairieBobToolHandlers {
   paintTiles: (layer: string, tiles: Array<{ x: number; y: number; tileId: number }>) => void;
   fillLayer: (layer: string, tileId: number, region?: { x: number; y: number; width: number; height: number }) => void;
   placeEntity: (type: string, x: number, y: number, properties?: Record<string, unknown>) => void;
   exportMap: (format: string) => Promise<string>;
   getMapInfo: () => { width: number; height: number; layers: string[]; entities: string[] };
   listTiles: (tileset?: string) => Array<{ id: number; name: string }>;
-}) => [
+  ldtk?: LDtkAgentHandlers;
+}
+
+const LAYER_TYPE_SCHEMA = z.enum(['IntGrid', 'Entities', 'Tiles', 'AutoLayer']);
+
+const ldtkEntityFieldSchema = z.object({
+  identifier: z.string().describe('Field identifier'),
+  type: z.string().describe('LDtk field type (Int, Float, Bool, String, Text, Color, Point, Enum, FilePath, Tile, EntityRef, Array)'),
+  isArray: z.boolean().optional().describe('Whether the field is an array'),
+  canBeNull: z.boolean().optional().describe('Whether the field can be null'),
+  doc: z.string().optional().describe('Optional field documentation'),
+});
+
+const ldtkEntitySuggestionSchema = z.object({
+  identifier: z.string().describe('Entity identifier'),
+  width: z.number().optional().describe('Entity width in pixels'),
+  height: z.number().optional().describe('Entity height in pixels'),
+  tags: z.array(z.string()).optional().describe('Tags for the entity'),
+  fields: z.array(ldtkEntityFieldSchema).optional().describe('Custom fields'),
+  notes: z.string().optional().describe('Additional design notes'),
+});
+
+const ldtkRuleSuggestionSchema = z.object({
+  layerIdentifier: z.string().describe('Layer identifier the rule applies to'),
+  groupName: z.string().optional().describe('Auto-layer rule group name'),
+  ruleName: z.string().describe('Rule identifier or label'),
+  description: z.string().describe('Rule intent'),
+  tileIds: z.array(z.number()).optional().describe('Candidate tile IDs'),
+  notes: z.string().optional().describe('Additional notes'),
+});
+
+function getLDtkProject(ldtk?: LDtkAgentHandlers): LDtkProject | null {
+  return ldtk?.getProject?.() ?? ldtk?.project ?? null;
+}
+
+function summarizeLayerDefs(layers: LayerDef[]) {
+  return layers.map((layer) => ({
+    uid: layer.uid,
+    identifier: layer.identifier,
+    type: layer.type,
+    gridSize: layer.gridSize,
+    tilesetDefUid: layer.tilesetDefUid,
+    autoRuleGroupCount: layer.autoRuleGroups.length,
+    intGridValueCount: layer.intGridValues.length,
+  }));
+}
+
+function summarizeEntityDefs(entities: EntityDef[]) {
+  return entities.map((entity) => ({
+    uid: entity.uid,
+    identifier: entity.identifier,
+    size: { width: entity.width, height: entity.height },
+    tags: entity.tags,
+    fieldCount: entity.fieldDefs.length,
+  }));
+}
+
+function summarizeLayerInstance(layer: LayerInstance) {
+  return {
+    iid: layer.iid,
+    layerDefUid: layer.layerDefUid,
+    identifier: layer.__identifier,
+    type: layer.__type,
+    gridSize: layer.__gridSize,
+    tilesetDefUid: layer.__tilesetDefUid,
+    entityCount: layer.entityInstances.length,
+    tileCount: layer.gridTiles.length + layer.autoLayerTiles.length,
+    intGridValueCount: layer.intGridCsv.length,
+    visible: layer.visible,
+  };
+}
+
+function summarizeEntityInstance(entity: EntityInstance) {
+  return {
+    iid: entity.iid,
+    identifier: entity.__identifier,
+    defUid: entity.defUid,
+    position: { x: entity.px[0], y: entity.px[1] },
+    size: { width: entity.width, height: entity.height },
+    tags: entity.__tags,
+  };
+}
+
+function summarizeProject(project: LDtkProject) {
+  const worlds = project.worlds.map((world) => ({
+    identifier: world.identifier,
+    iid: world.iid,
+    worldLayout: world.worldLayout,
+    levelCount: world.levels.length,
+  }));
+
+  const levels = project.worlds.flatMap((world) =>
+    world.levels.map((level) => ({
+      world: world.identifier,
+      uid: level.uid,
+      iid: level.iid,
+      identifier: level.identifier,
+      size: { width: level.pxWid, height: level.pxHei },
+      worldX: level.worldX,
+      worldY: level.worldY,
+      worldDepth: level.worldDepth,
+      layerCount: level.layerInstances.length,
+    }))
+  );
+
+  return {
+    filePath: project.filePath,
+    jsonVersion: project.jsonVersion,
+    worlds,
+    levels,
+    layerDefs: summarizeLayerDefs(project.defs.layers),
+    entityDefs: summarizeEntityDefs(project.defs.entities),
+    tilesetCount: project.defs.tilesets.length,
+    enumCount: project.defs.enums.length + project.defs.externalEnums.length,
+  };
+}
+
+function buildLDtkContext(ldtk?: LDtkAgentHandlers): string {
+  const project = getLDtkProject(ldtk);
+  const summary = project ? JSON.stringify(summarizeProject(project), null, 2) : 'No LDtk project loaded.';
+
+  return `
+<ldtk_context>
+LDtk project structure:
+- Project contains defs (layers, entities, tilesets, enums) and worlds.
+- Worlds contain levels. Levels contain layerInstances; entity layers contain entityInstances.
+- Use LDtk tools to query levels, layers, entities, and to suggest new definitions.
+
+Current LDtk project summary:
+${summary}
+
+LDtk tools:
+- ldtk_project_summary
+- ldtk_list_levels
+- ldtk_list_layer_defs
+- ldtk_list_entity_defs
+- ldtk_list_level_layers
+- ldtk_list_level_entities
+- ldtk_suggest_entity_def
+- ldtk_suggest_autolayer_rule
+</ldtk_context>
+`;
+}
+
+// PrairieBob-specific tools the agent can use
+const createPrairieBobTools = (handlers: PrairieBobToolHandlers) => {
+  const tools: Array<ReturnType<typeof defineTool>> = [
     defineTool('paint_tiles', {
       description: 'Paint tiles on a specific layer of the map. Use this to place individual tiles or patterns.',
       parameters: z.object({
@@ -111,6 +294,246 @@ const createPrairieBobTools = (handlers: {
     }),
   ];
 
+  const ldtkHandlers = handlers.ldtk;
+  const getProject = () => getLDtkProject(ldtkHandlers);
+  const missingProjectResult = { success: false, error: 'No LDtk project available.' };
+
+  const resolveWorlds = (project: LDtkProject, worldIdentifier?: string) => {
+    if (!worldIdentifier) {
+      return project.worlds;
+    }
+    const match = project.worlds.find((world) => world.identifier === worldIdentifier);
+    return match ? [match] : [];
+  };
+
+  const findLevel = (
+    project: LDtkProject,
+    options: { levelIid?: string; levelIdentifier?: string; world?: string }
+  ): { world: string; level: Level } | null => {
+    const worlds = resolveWorlds(project, options.world);
+    if (worlds.length === 0) {
+      return null;
+    }
+
+    const preferredIid = options.levelIid ?? ldtkHandlers?.getActiveLevelIid?.();
+    if (preferredIid) {
+      for (const world of worlds) {
+        const match = world.levels.find((level) => level.iid === preferredIid);
+        if (match) {
+          return { world: world.identifier, level: match };
+        }
+      }
+    }
+
+    if (options.levelIdentifier) {
+      for (const world of worlds) {
+        const match = world.levels.find((level) => level.identifier === options.levelIdentifier);
+        if (match) {
+          return { world: world.identifier, level: match };
+        }
+      }
+    }
+
+    const allLevels = worlds.flatMap((world) =>
+      world.levels.map((level) => ({ world: world.identifier, level }))
+    );
+    if (allLevels.length === 1) {
+      return allLevels[0];
+    }
+
+    return null;
+  };
+
+  tools.push(
+    defineTool('ldtk_project_summary', {
+      description: 'Get a summary of the current LDtk project structure.',
+      parameters: z.object({}),
+      handler: async () => {
+        const project = getProject();
+        if (!project) {
+          return missingProjectResult;
+        }
+        return { success: true, summary: summarizeProject(project) };
+      },
+    }),
+
+    defineTool('ldtk_list_levels', {
+      description: 'List LDtk levels across worlds. Optionally filter by world identifier.',
+      parameters: z.object({
+        world: z.string().optional().describe('World identifier to filter'),
+      }),
+      handler: async ({ world }) => {
+        const project = getProject();
+        if (!project) {
+          return missingProjectResult;
+        }
+
+        const worlds = resolveWorlds(project, world);
+        if (world && worlds.length === 0) {
+          return { success: false, error: `World "${world}" not found.` };
+        }
+
+        const levels = worlds.flatMap((entry) =>
+          entry.levels.map((level) => ({
+            world: entry.identifier,
+            uid: level.uid,
+            iid: level.iid,
+            identifier: level.identifier,
+            size: { width: level.pxWid, height: level.pxHei },
+            worldX: level.worldX,
+            worldY: level.worldY,
+            worldDepth: level.worldDepth,
+            layerCount: level.layerInstances.length,
+          }))
+        );
+
+        return { success: true, levels };
+      },
+    }),
+
+    defineTool('ldtk_list_layer_defs', {
+      description: 'List LDtk layer definitions, optionally filtered by layer type.',
+      parameters: z.object({
+        type: LAYER_TYPE_SCHEMA.optional().describe('Layer type filter'),
+      }),
+      handler: async ({ type }) => {
+        const project = getProject();
+        if (!project) {
+          return missingProjectResult;
+        }
+        const layers = type
+          ? project.defs.layers.filter((layer) => layer.type === type)
+          : project.defs.layers;
+        return { success: true, layers: summarizeLayerDefs(layers) };
+      },
+    }),
+
+    defineTool('ldtk_list_entity_defs', {
+      description: 'List LDtk entity definitions, optionally filtered by tag.',
+      parameters: z.object({
+        tag: z.string().optional().describe('Filter by entity tag'),
+      }),
+      handler: async ({ tag }) => {
+        const project = getProject();
+        if (!project) {
+          return missingProjectResult;
+        }
+
+        const entities = tag
+          ? project.defs.entities.filter((entity) => entity.tags.includes(tag))
+          : project.defs.entities;
+        return { success: true, entities: summarizeEntityDefs(entities) };
+      },
+    }),
+
+    defineTool('ldtk_list_level_layers', {
+      description: 'List layer instances for a specific LDtk level.',
+      parameters: z.object({
+        levelIid: z.string().optional().describe('Level IID'),
+        levelIdentifier: z.string().optional().describe('Level identifier'),
+        world: z.string().optional().describe('World identifier'),
+      }),
+      handler: async ({ levelIid, levelIdentifier, world }) => {
+        const project = getProject();
+        if (!project) {
+          return missingProjectResult;
+        }
+
+        if (world && resolveWorlds(project, world).length === 0) {
+          return { success: false, error: `World "${world}" not found.` };
+        }
+
+        const match = findLevel(project, { levelIid, levelIdentifier, world });
+        if (!match) {
+          return {
+            success: false,
+            error: 'Level not found. Provide levelIid or levelIdentifier, or ensure an active level is set.',
+          };
+        }
+
+        const layers = match.level.layerInstances.map((layer) => summarizeLayerInstance(layer));
+        return { success: true, level: { world: match.world, iid: match.level.iid, identifier: match.level.identifier }, layers };
+      },
+    }),
+
+    defineTool('ldtk_list_level_entities', {
+      description: 'List entity instances for a specific LDtk level, optionally filtered by layer or entity identifier.',
+      parameters: z.object({
+        levelIid: z.string().optional().describe('Level IID'),
+        levelIdentifier: z.string().optional().describe('Level identifier'),
+        world: z.string().optional().describe('World identifier'),
+        layerIdentifier: z.string().optional().describe('Layer identifier to filter'),
+        entityIdentifier: z.string().optional().describe('Entity identifier to filter'),
+      }),
+      handler: async ({ levelIid, levelIdentifier, world, layerIdentifier, entityIdentifier }) => {
+        const project = getProject();
+        if (!project) {
+          return missingProjectResult;
+        }
+
+        if (world && resolveWorlds(project, world).length === 0) {
+          return { success: false, error: `World "${world}" not found.` };
+        }
+
+        const match = findLevel(project, { levelIid, levelIdentifier, world });
+        if (!match) {
+          return {
+            success: false,
+            error: 'Level not found. Provide levelIid or levelIdentifier, or ensure an active level is set.',
+          };
+        }
+
+        const layers = layerIdentifier
+          ? match.level.layerInstances.filter((layer) => layer.__identifier === layerIdentifier)
+          : match.level.layerInstances;
+
+        if (layerIdentifier && layers.length === 0) {
+          return { success: false, error: `Layer "${layerIdentifier}" not found in level.` };
+        }
+
+        const entities = layers.flatMap((layer) =>
+          layer.entityInstances
+            .filter((entity) => !entityIdentifier || entity.__identifier === entityIdentifier)
+            .map((entity) => ({
+              layerIdentifier: layer.__identifier,
+              ...summarizeEntityInstance(entity),
+            }))
+        );
+
+        return {
+          success: true,
+          level: { world: match.world, iid: match.level.iid, identifier: match.level.identifier },
+          entities,
+        };
+      },
+    }),
+
+    defineTool('ldtk_suggest_entity_def', {
+      description: 'Suggest a new LDtk entity definition to add to the project.',
+      parameters: ldtkEntitySuggestionSchema,
+      handler: async (suggestion) => {
+        if (ldtkHandlers?.suggestEntityDef) {
+          await ldtkHandlers.suggestEntityDef(suggestion);
+        }
+        return { success: true, recorded: Boolean(ldtkHandlers?.suggestEntityDef), suggestion };
+      },
+    }),
+
+    defineTool('ldtk_suggest_autolayer_rule', {
+      description: 'Suggest a new LDtk auto-layer rule to add to a layer definition.',
+      parameters: ldtkRuleSuggestionSchema,
+      handler: async (suggestion) => {
+        if (ldtkHandlers?.suggestAutoLayerRule) {
+          await ldtkHandlers.suggestAutoLayerRule(suggestion);
+        }
+        return { success: true, recorded: Boolean(ldtkHandlers?.suggestAutoLayerRule), suggestion };
+      },
+    })
+  );
+
+  return tools;
+};
+
 export class AgentService {
   private client: CopilotClient | null = null;
   private session: CopilotSession | null = null;
@@ -124,7 +547,7 @@ export class AgentService {
     };
   }
 
-  async start(toolHandlers?: Parameters<typeof createPrairieBobTools>[0]): Promise<void> {
+  async start(toolHandlers?: PrairieBobToolHandlers): Promise<void> {
     if (this.client) {
       console.warn('AgentService already started');
       return;
@@ -138,6 +561,7 @@ export class AgentService {
     await this.client.start();
 
     const tools = toolHandlers ? createPrairieBobTools(toolHandlers) : [];
+    const ldtkContext = buildLDtkContext(toolHandlers?.ldtk);
 
     this.session = await this.client.createSession({
       model: this.config.model,
@@ -149,13 +573,14 @@ export class AgentService {
 You are the PrairieBob AI assistant, embedded in a tile map editor for 2D game development.
 You help users edit maps, place tiles, manage entities, and export their work.
 
-Available layers: Floor, Walls, Trim, Overlays, Collision, Entities
-Entity types: spawn_point, door, npc, trigger, prop
+Available layers (legacy defaults): Floor, Walls, Trim, Overlays, Collision, Entities
+Entity types (legacy defaults): spawn_point, door, npc, trigger, prop
 
 When users ask to paint or fill tiles, use the appropriate tools.
 When users describe what they want visually, translate that into tile operations.
 Be concise and action-oriented. Execute commands rather than just explaining how.
 </prairiebob_context>
+${ldtkContext}
 `,
       },
     });
