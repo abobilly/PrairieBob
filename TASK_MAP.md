@@ -38,9 +38,9 @@
 | Task | Source (Lines) | Target | Est. Lines | Status |
 |------|----------------|--------|------------|--------|
 | 2B.1 LevelRender | `display/LevelRender.hx` (650) | `src/components/LevelCanvas.tsx` | ~400 | ⬜ |
-| 2B.2 LayerRender | `display/LayerRender.hx` (420) | `src/components/LayerRenderer.tsx` | ~250 | ⬜ |
+| 2B.2 LayerRender | `display/LayerRender.hx` (420) | `src/components/LayerRenderer.tsx` | ~250 | ✅ |
 | 2B.3 EntityRender | `display/EntityRender.hx` (380) | `src/components/EntityRenderer.tsx` | ~200 | ✅ |
-| 2B.4 FieldInstanceRender | `display/FieldInstanceRender.hx` (554) | `src/components/FieldRenderer.tsx` | ~300 | ⬜ |
+| 2B.4 FieldInstanceRender | `display/FieldInstanceRender.hx` (554) | `src/components/FieldRenderer.tsx` | ~300 | ✅ |
 
 ### 2C. World Rendering
 
@@ -88,7 +88,7 @@
 | Task | Source (Lines) | Target | Est. Lines | Status |
 |------|----------------|--------|------------|--------|
 | 4A.1 ToolPalette | `ui/ToolPalette.hx` (123) | `src/components/ToolPalette.tsx` | ~100 | ✅ |
-| 4A.2 TilePalette | `ui/palette/TilePalette.hx` (380) | `src/components/TilePalette.tsx` | ~250 | ⬜ |
+| 4A.2 TilePalette | `ui/palette/TilePalette.hx` (380) | `src/components/TilePalette.tsx` | ~250 | ✅ |
 | 4A.3 EntityPalette | `ui/palette/EntityPalette.hx` (280) | `src/components/EntityPalette.tsx` | ~180 | ✅ |
 | 4A.4 IntGridPalette | `ui/palette/IntGridPalette.hx` (220) | `src/components/IntGridPalette.tsx` | ~140 | ✅ |
 
@@ -98,7 +98,7 @@
 |------|----------------|--------|------------|--------|
 | 4B.1 EntityInstanceEditor | `ui/EntityInstanceEditor.hx` (420) | `src/components/EntityEditor.tsx` | ~280 | ✅ |
 | 4B.2 FieldInstancesForm | `ui/FieldInstancesForm.hx` (827) | `src/components/FieldsForm.tsx` | ~500 | ⬜ |
-| 4B.3 LevelInstanceForm | `ui/LevelInstanceForm.hx` (380) | `src/components/LevelEditor.tsx` | ~250 | ⬜ |
+| 4B.3 LevelInstanceForm | `ui/LevelInstanceForm.hx` (380) | `src/components/LevelEditor.tsx` | ~250 | ✅ |
 | 4B.4 RulePatternEditor | `ui/RulePatternEditor.hx` (253) | `src/components/RulePatternEditor.tsx` | ~200 | ✅ |
 
 ### 4C. Tileset UI
