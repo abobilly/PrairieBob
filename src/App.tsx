@@ -254,28 +254,39 @@ function App() {
   const tilesetsInitRef = useRef(false)
 
   useEffect(() => {
-    if (tilesets.length === 0 && !tilesetsInitRef.current) {
-      tilesetsInitRef.current = true
-      initTilesets()
+    if (tilesets.length === 0) {
+      if (!tilesetsInitRef.current) {
+        tilesetsInitRef.current = true
+        initTilesets()
+      }
       return
     }
 
-    if (tilesets.length > 0 && !activeTilesetId) {
-      setActiveTilesetId(tilesets[0].id)
+    const defaultTileset = tilesets[0]
+    const hasActiveTileset = !!activeTilesetId && tilesets.some((ts) => ts.id === activeTilesetId)
+
+    if (!hasActiveTileset) {
+      setActiveTilesetId(defaultTileset.id)
     }
 
-    if (tilesets.length > 0 && selectedTileId === null) {
-      setSelectedTileId(tilesets[0].firstGid)
+    if (selectedTileId === null) {
+      setSelectedTileId(defaultTileset.firstGid)
       setTileStamp({
         width: 1,
         height: 1,
-        tiles: [[tilesets[0].firstGid]],
-        tilesetId: tilesets[0].id,
+        tiles: [[defaultTileset.firstGid]],
+        tilesetId: defaultTileset.id,
       })
     }
-    // Only re-run when tilesets change — don't include values we're setting
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tilesets])
+  }, [
+    tilesets,
+    activeTilesetId,
+    selectedTileId,
+    initTilesets,
+    setActiveTilesetId,
+    setSelectedTileId,
+    setTileStamp,
+  ])
 
   // Sync active layer name to tool store — only when layer index changes
   const activeLayerName = level.layerInstances[activeLayerIndex]?.__identifier

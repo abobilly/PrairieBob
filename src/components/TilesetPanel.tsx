@@ -46,14 +46,6 @@ export function TilesetPanel({
   // If no active tileset, default to first one and notify parent
   const effectiveActiveId = activeTilesetId || tilesets[0]?.id || null
 
-  // Auto-select first tileset if none selected
-  useEffect(() => {
-    if (!activeTilesetId && tilesets.length > 0) {
-      console.log('[TilesetPanel] Auto-selecting first tileset:', tilesets[0].id)
-      onTilesetSelect(tilesets[0].id)
-    }
-  }, [activeTilesetId, tilesets, onTilesetSelect])
-
   return (
     <div className="pb-compact-panel h-full flex flex-col">
       {/* Compact header */}

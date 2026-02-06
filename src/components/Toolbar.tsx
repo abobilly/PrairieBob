@@ -60,6 +60,7 @@ export function Toolbar({
                 className="pb-tool-btn"
                 onClick={onUndo}
                 disabled={!canUndo}
+                title="Undo (Ctrl+Z)"
               >
                 <ArrowUUpLeft size={18} weight="bold" />
               </button>
@@ -74,6 +75,7 @@ export function Toolbar({
                 className="pb-tool-btn"
                 onClick={onRedo}
                 disabled={!canRedo}
+                title="Redo (Ctrl+Y)"
               >
                 <ArrowUUpRight size={18} weight="bold" />
               </button>
@@ -113,6 +115,7 @@ export function Toolbar({
             <button
               className={`pb-tool-btn ${gridVisible ? 'active' : ''}`}
               onClick={onGridToggle}
+              title="Toggle Grid (G)"
             >
               <GridFour size={18} weight="bold" />
             </button>
@@ -128,7 +131,7 @@ export function Toolbar({
         <div className="pb-toolbar-group">
           <Tooltip>
             <TooltipTrigger asChild>
-              <button className="pb-tool-btn" onClick={onZoomOut}>
+              <button className="pb-tool-btn" onClick={onZoomOut} title="Zoom Out (Ctrl+-)">
                 <MagnifyingGlassMinus size={18} weight="bold" />
               </button>
             </TooltipTrigger>
@@ -151,7 +154,7 @@ export function Toolbar({
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
-              <button className="pb-tool-btn" onClick={onZoomIn}>
+              <button className="pb-tool-btn" onClick={onZoomIn} title="Zoom In (Ctrl+=)">
                 <MagnifyingGlassPlus size={18} weight="bold" />
               </button>
             </TooltipTrigger>
@@ -165,7 +168,7 @@ export function Toolbar({
         <div className="ml-auto pb-toolbar-group">
           <Tooltip>
             <TooltipTrigger asChild>
-              <button className="pb-btn pb-btn-icon" onClick={onSave}>
+              <button className="pb-btn pb-btn-icon" onClick={onSave} title="Save (Ctrl+S)">
                 <FloppyDisk size={16} weight="bold" />
               </button>
             </TooltipTrigger>
@@ -175,7 +178,7 @@ export function Toolbar({
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
-              <button className="pb-btn pb-btn-primary pb-btn-icon" onClick={onExport}>
+              <button className="pb-btn pb-btn-primary pb-btn-icon" onClick={onExport} title="Export (Ctrl+E)">
                 <Export size={16} weight="bold" />
               </button>
             </TooltipTrigger>
