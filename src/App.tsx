@@ -49,6 +49,7 @@ import {
 } from '@/lib/tileset'
 import { loadRoomDataFromContent } from '@/lib/room-loader'
 import { resolveCollisionSourcesFromMetadata } from '@/lib/collision-model'
+import { syncMapDataWithLevelEdits } from '@/lib/map-sync'
 import { ToolPalette } from '@/components/ToolPalette'
 import { TilesetPanel } from '@/components/TilesetPanel'
 import { LevelCanvas } from '@/components/LevelCanvas'
@@ -545,6 +546,59 @@ function App() {
     }
   }, [hasUnsavedChanges])
 
+  /** Import a .spudtile file from a filesystem path (reused by Open dialog + OS file association). */
+  const importSpudtileFromPath = useCallback(async (filePath: string) => {
+    if (!window.electron) return
+    try {
+      const json = await window.electron.fs.readFile(filePath)
+      const baked = deserializeBakedTileset(json)
+      if (!baked) {
+        toast.error('Invalid .spudtile file')
+        return
+      }
+
+      const { projectPath, projectConfig } = useProjectStore.getState()
+      const tilesetsDir = projectPath && projectConfig?.paths
+        ? `${projectPath}/${projectConfig.paths.tilesets ?? 'tilesets'}`
+        : null
+
+      const safeName = baked.name.replace(/[^a-zA-Z0-9_-]/g, '_')
+      const targetDir = tilesetsDir ?? (filePath.replace(/[/\\][^/\\]+$/, ''))
+      const pngPath = `${targetDir}/${safeName}.png`
+
+      const base64Data = baked.imageDataUrl.split(',')[1]
+      if (!base64Data) {
+        toast.error('No image data in .spudtile file')
+        return
+      }
+      await window.electron.fs.writeFileBase64(pngPath, base64Data)
+
+      await addTileset({
+        name: baked.name,
+        sourcePath: pngPath,
+        tileSize: baked.tileWidth,
+      })
+
+      const newTileset = useProjectStore.getState().tilesets.slice(-1)[0]
+      if (newTileset) {
+        const nextTileId = applyFlipToTileId(newTileset.firstGid, tileFlipX, tileFlipY)
+        setActiveTilesetId(newTileset.id)
+        setSelectedTileId(nextTileId)
+        setTileStamp({
+          width: 1,
+          height: 1,
+          tiles: [[nextTileId]],
+          tilesetId: newTileset.id,
+        })
+      }
+
+      toast.success(`Imported .spudtile: ${baked.name}`)
+    } catch (err) {
+      console.error('Failed to import .spudtile:', err)
+      toast.error('Failed to import .spudtile file')
+    }
+  }, [addTileset, tileFlipX, tileFlipY, setActiveTilesetId, setSelectedTileId])
+
   const handleAddTileset = useCallback(async () => {
     if (!window.electron) {
       toast.error('Tileset import requires Electron')
@@ -564,63 +618,11 @@ function App() {
 
     // Branch: .spudtile import vs raw image
     if (result.filePath.toLowerCase().endsWith('.spudtile')) {
-      try {
-        const json = await window.electron.fs.readFile(result.filePath)
-        const baked = deserializeBakedTileset(json)
-        if (!baked) {
-          toast.error('Invalid .spudtile file')
-          return
-        }
-
-        // Extract embedded PNG to project tilesets directory
-        const { projectPath, projectConfig } = useProjectStore.getState()
-        const tilesetsDir = projectPath && projectConfig?.paths
-          ? `${projectPath}/${projectConfig.paths.tilesets ?? 'tilesets'}`
-          : null
-
-        // Sanitize name for filename
-        const safeName = baked.name.replace(/[^a-zA-Z0-9_-]/g, '_')
-        const targetDir = tilesetsDir ?? (result.filePath.replace(/[/\\][^/\\]+$/, ''))
-        const pngPath = `${targetDir}/${safeName}.png`
-
-        // Write embedded image as PNG
-        const base64Data = baked.imageDataUrl.split(',')[1]
-        if (!base64Data) {
-          toast.error('No image data in .spudtile file')
-          return
-        }
-        await window.electron.fs.writeFileBase64(pngPath, base64Data)
-
-        // Import via existing addTileset flow (uses the extracted PNG on disk)
-        await addTileset({
-          name: baked.name,
-          sourcePath: pngPath,
-          tileSize: baked.tileWidth,
-        })
-
-        // Select the newly added tileset
-        const newTileset = useProjectStore.getState().tilesets.slice(-1)[0]
-        if (newTileset) {
-          const nextTileId = applyFlipToTileId(newTileset.firstGid, tileFlipX, tileFlipY)
-          setActiveTilesetId(newTileset.id)
-          setSelectedTileId(nextTileId)
-          setTileStamp({
-            width: 1,
-            height: 1,
-            tiles: [[nextTileId]],
-            tilesetId: newTileset.id,
-          })
-        }
-
-        toast.success(`Imported .spudtile: ${baked.name}`)
-      } catch (err) {
-        console.error('Failed to import .spudtile:', err)
-        toast.error('Failed to import .spudtile file')
-      }
+      await importSpudtileFromPath(result.filePath)
     } else {
       openImportDialog(result.filePath)
     }
-  }, [openImportDialog, addTileset, tileFlipX, tileFlipY, setActiveTilesetId, setSelectedTileId])
+  }, [openImportDialog, importSpudtileFromPath])
 
   const handleImportConfirm = useCallback(async (importResult: TilesetImportResult) => {
     if (!pendingImportPath) return
@@ -706,8 +708,11 @@ function App() {
   }, [tileFlipX, tileFlipY, setActiveTilesetId, setSelectedTileId])
 
   const handleSave = useCallback(async () => {
+    const latestMapData = useProjectStore.getState().mapData
+    const syncedMapData = syncMapDataWithLevelEdits(latestMapData, level)
+    setMapData(syncedMapData, false, 'Sync canvas edits')
     await saveMap()
-  }, [saveMap])
+  }, [level, saveMap, setMapData])
 
   const handleRefreshFromDisk = useCallback(async (source: 'manual' | 'watch' = 'manual') => {
     if (!currentRoomPath) {
@@ -1017,7 +1022,10 @@ function App() {
       window.electron.onAgentTool((toolName, args) => {
         handleAgentToolCall(toolName, args)
       }),
-    ]
+      window.electron.onSpudtileOpened?.((filePath) => {
+        void importSpudtileFromPath(filePath)
+      }),
+    ].filter(Boolean) as Array<() => void>
 
     return () => cleanups.forEach(cleanup => cleanup())
   }, [
@@ -1030,6 +1038,7 @@ function App() {
     setCurrentRoomPath,
     setHasUnsavedChanges,
     handleAgentToolCall,
+    importSpudtileFromPath,
     loadRoomTilesets,
     tileFlipX,
     tileFlipY,

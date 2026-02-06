@@ -82,6 +82,7 @@ export interface ElectronAPI {
     onProjectOpened: (callback: (path: string) => void) => () => void;
     onRoomOpened: (callback: (data: { path: string; content: string }) => void) => () => void;
     onRoomSaveAs: (callback: (path: string) => void) => () => void;
+    onSpudtileOpened?: (callback: (path: string) => void) => () => void;
     onProjectFileChanged: (callback: (change: { path: string; eventType: 'change' | 'rename' }) => void) => () => void;
     // Agent event listeners
     onAgentMessage: (callback: (message: AgentMessage) => void) => () => void;

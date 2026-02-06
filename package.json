@@ -127,7 +127,15 @@
             "target": [
                 "dir"
             ],
-            "icon": "public/icons/spudtile.ico"
+            "icon": "public/icons/spudtile.ico",
+            "fileAssociations": [
+                {
+                    "ext": "spudtile",
+                    "name": "SpudTile Tileset Package",
+                    "description": "SpudTile baked tileset package",
+                    "role": "Editor"
+                }
+            ]
         }
     }
 }

@@ -118,6 +118,10 @@ contextBridge.exposeInMainWorld('electron', {
         ipcRenderer.on('room:saveAs', (_, path) => callback(path));
         return () => ipcRenderer.removeAllListeners('room:saveAs');
     },
+    onSpudtileOpened: (callback: (path: string) => void) => {
+        ipcRenderer.on('spudtile:opened', (_, path) => callback(path));
+        return () => ipcRenderer.removeAllListeners('spudtile:opened');
+    },
     onProjectFileChanged: (callback: (change: { path: string; eventType: 'change' | 'rename' }) => void) => {
         const handler = (
             _: Electron.IpcRendererEvent,
@@ -221,6 +225,7 @@ declare global {
             onProjectOpened: (callback: (path: string) => void) => () => void;
             onRoomOpened: (callback: (data: { path: string; content: string }) => void) => () => void;
             onRoomSaveAs: (callback: (path: string) => void) => () => void;
+            onSpudtileOpened: (callback: (path: string) => void) => () => void;
             onProjectFileChanged: (callback: (change: { path: string; eventType: 'change' | 'rename' }) => void) => () => void;
             onAgentMessage: (callback: (message: { role: string; content: string; timestamp: string; toolName?: string }) => void) => () => void;
             onAgentDelta: (callback: (delta: string) => void) => () => void;

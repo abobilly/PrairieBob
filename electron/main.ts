@@ -37,6 +37,9 @@ const iconPath = path.join(__dirname, '../public/icons/spudtile.ico');
 
 let mainWindow: BrowserWindow | null = null;
 
+// File opened via OS file association (argv or second-instance)
+let pendingSpudtileFile: string | null = null;
+
 // Track current project state
 let currentProjectPath: string | null = null;
 let currentRoomPath: string | null = null;
@@ -69,6 +72,55 @@ const WATCH_IGNORED_SEGMENTS = new Set([
 interface AppSettings {
     bobTilePath?: string;
 }
+
+// ============== .spudtile File Association ==============
+
+/** Extract the first .spudtile file path from command-line arguments. */
+function findSpudtileArg(argv: string[]): string | null {
+    for (const arg of argv) {
+        if (arg.toLowerCase().endsWith('.spudtile') && fs.existsSync(arg)) {
+            return arg;
+        }
+    }
+    return null;
+}
+
+/** Send a .spudtile file path to the renderer for import. */
+function sendSpudtileFile(filePath: string) {
+    if (!mainWindow) {
+        pendingSpudtileFile = filePath;
+        return;
+    }
+    mainWindow.webContents.send('spudtile:opened', filePath);
+}
+
+// Request single-instance lock so double-clicking a .spudtile file
+// brings the existing window to front instead of spawning a new one.
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+    app.quit();
+}
+
+app.on('second-instance', (_event, argv) => {
+    // Another instance was launched (e.g. user double-clicked a .spudtile file).
+    // Focus existing window and forward the file path.
+    if (mainWindow) {
+        if (mainWindow.isMinimized()) mainWindow.restore();
+        mainWindow.focus();
+    }
+    const spudtileFile = findSpudtileArg(argv);
+    if (spudtileFile) {
+        sendSpudtileFile(spudtileFile);
+    }
+});
+
+// macOS: open-file event fires when a file is dropped on the dock icon or double-clicked
+app.on('open-file', (event, filePath) => {
+    event.preventDefault();
+    if (filePath.toLowerCase().endsWith('.spudtile')) {
+        sendSpudtileFile(filePath);
+    }
+});
 
 const SETTINGS_FILENAME = 'spudtile.settings.json';
 
@@ -641,6 +693,22 @@ app.whenReady().then(() => {
     createWindow();
     // Check for updates after window is ready
     setupAutoUpdater();
+
+    // Check initial argv for .spudtile file (launched via file association)
+    const startupFile = findSpudtileArg(process.argv);
+    if (startupFile) {
+        pendingSpudtileFile = startupFile;
+    }
+
+    // Send pending .spudtile file once the renderer is ready
+    if (mainWindow) {
+        mainWindow.webContents.on('did-finish-load', () => {
+            if (pendingSpudtileFile) {
+                mainWindow?.webContents.send('spudtile:opened', pendingSpudtileFile);
+                pendingSpudtileFile = null;
+            }
+        });
+    }
 });
 
 app.on('window-all-closed', () => {
