@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Plus, X, ZoomIn, Search } from 'lucide-react'
 import type { LoadedTileset, TileStamp } from '@/lib/types'
 import { DEBUG_TILESET_ID } from '@/lib/types'
+import { useToolStore } from '@/stores/toolStore'
 
 interface TilesetPanelProps {
   tilesets: LoadedTileset[]
@@ -36,6 +37,8 @@ export function TilesetPanel({
   onRemoveTileset,
 }: TilesetPanelProps) {
   const activeTileset = tilesets.find(t => t.id === activeTilesetId)
+  const selectedTileIds = useToolStore((s) => s.selectedTileIds)
+  const setSelectedTileIds = useToolStore((s) => s.setSelectedTileIds)
 
   // Debug: log tilesets state
   useEffect(() => {
@@ -132,10 +135,12 @@ export function TilesetPanel({
                       <TileGrid
                         tileset={ts}
                         selectedGlobalTileId={selectedTileId}
+                        selectedTileIds={selectedTileIds}
                         stamp={stamp}
                         tilesetZoom={tilesetZoom}
                         onTileSelect={onTileSelect}
                         onStampSelect={onStampSelect}
+                        onSelectedTileIdsChange={setSelectedTileIds}
                       />
                     )}
                   </div>
@@ -154,19 +159,23 @@ export function TilesetPanel({
 interface TileGridProps {
   tileset: LoadedTileset
   selectedGlobalTileId: number
+  selectedTileIds: number[]
   stamp: TileStamp
   tilesetZoom: number
   onTileSelect: (globalId: number) => void
   onStampSelect: (stamp: TileStamp) => void
+  onSelectedTileIdsChange: (tileIds: number[]) => void
 }
 
 function TileGrid({
   tileset,
   selectedGlobalTileId,
+  selectedTileIds,
   stamp,
   tilesetZoom,
   onTileSelect,
-  onStampSelect
+  onStampSelect,
+  onSelectedTileIdsChange
 }: TileGridProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -270,9 +279,10 @@ function TileGrid({
       setSelectionEnd({ col, row })
     } else {
       // Single tile selection
+      onSelectedTileIdsChange([globalId])
       onTileSelect(globalId)
     }
-  }, [tileset, onTileSelect])
+  }, [tileset, onTileSelect, onSelectedTileIdsChange])
 
   // Handle mouse enter during selection
   const handleTileMouseEnter = useCallback((globalId: number) => {
@@ -322,6 +332,7 @@ function TileGrid({
         tiles,
         tilesetId: tileset.id,
       })
+      onSelectedTileIdsChange(tiles.flat().filter((tileId) => tileId > 0))
 
       setIsSelecting(false)
       setSelectionStart(null)
@@ -330,7 +341,7 @@ function TileGrid({
 
     window.addEventListener('mouseup', handleMouseUp)
     return () => window.removeEventListener('mouseup', handleMouseUp)
-  }, [isSelecting, selectionStart, selectionEnd, getSelectionBounds, tileset, onStampSelect])
+  }, [isSelecting, selectionStart, selectionEnd, getSelectionBounds, tileset, onStampSelect, onSelectedTileIdsChange])
 
   // Handle search input
   const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -339,12 +350,18 @@ function TileGrid({
 
   const handleSearchKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && highlightedTile !== null) {
+      onSelectedTileIdsChange([highlightedTile])
       onTileSelect(highlightedTile)
     }
     if (e.key === 'Escape') {
       setSearchQuery('')
     }
-  }, [highlightedTile, onTileSelect])
+  }, [highlightedTile, onTileSelect, onSelectedTileIdsChange])
+
+  const resolvedSelectedTileIds = useMemo(() => {
+    if (selectedTileIds.length > 0) return selectedTileIds
+    return selectedGlobalTileId ? [selectedGlobalTileId] : []
+  }, [selectedTileIds, selectedGlobalTileId])
 
   return (
     <div className="flex flex-col h-full">
@@ -381,7 +398,7 @@ function TileGrid({
             const localId = globalId - tileset.firstGid
             const col = localId % tileset.tilesPerRow
             const row = Math.floor(localId / tileset.tilesPerRow)
-            const isSelected = selectedGlobalTileId === globalId
+            const isSelected = resolvedSelectedTileIds.includes(globalId)
             const inStamp = isTileInStamp(globalId)
             const inActiveSelection = isTileInActiveSelection(localId)
             const isHighlighted = highlightedTile === globalId

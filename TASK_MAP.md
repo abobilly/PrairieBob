@@ -39,7 +39,7 @@
 |------|----------------|--------|------------|--------|
 | 2B.1 LevelRender | `display/LevelRender.hx` (650) | `src/components/LevelCanvas.tsx` | ~400 | ⬜ |
 | 2B.2 LayerRender | `display/LayerRender.hx` (420) | `src/components/LayerRenderer.tsx` | ~250 | ⬜ |
-| 2B.3 EntityRender | `display/EntityRender.hx` (380) | `src/components/EntityRenderer.tsx` | ~200 | ⬜ |
+| 2B.3 EntityRender | `display/EntityRender.hx` (380) | `src/components/EntityRenderer.tsx` | ~200 | ✅ |
 | 2B.4 FieldInstanceRender | `display/FieldInstanceRender.hx` (554) | `src/components/FieldRenderer.tsx` | ~300 | ⬜ |
 
 ### 2C. World Rendering
@@ -47,7 +47,7 @@
 | Task | Source (Lines) | Target | Est. Lines | Status |
 |------|----------------|--------|------------|--------|
 | 2C.1 WorldRender | `display/WorldRender.hx` (985) | `src/components/WorldCanvas.tsx` | ~500 | ⬜ |
-| 2C.2 Rulers | `display/Rulers.hx` (280) | `src/components/Rulers.tsx` | ~150 | ⬜ |
+| 2C.2 Rulers | `display/Rulers.hx` (280) | `src/components/Rulers.tsx` | ~150 | ✅ |
 
 ---
 
@@ -59,7 +59,7 @@
 |------|----------------|--------|------------|--------|
 | 3A.1 Base Tool | `Tool.hx` (373) | `src/lib/ldtk/tools/tool.ts` | ~200 | ✅ |
 | 3A.2 Tool Registry | - | `src/lib/ldtk/tools/registry.ts` | ~80 | ✅ |
-| 3A.3 Tool Store | - | `src/stores/toolStore.ts` | ~150 | ⬜ |
+| 3A.3 Tool Store | - | `src/stores/toolStore.ts` | ~150 | ✅ |
 
 ### 3B. Layer Tools
 
@@ -67,7 +67,7 @@
 |------|----------------|--------|------------|--------|
 | 3B.1 LayerTool base | `tool/LayerTool.hx` (290) | `src/lib/ldtk/tools/layer-tool.ts` | ~150 | ✅ |
 | 3B.2 IntGridTool | `tool/lt/IntGridTool.hx` (320) | `src/lib/ldtk/tools/intgrid-tool.ts` | ~180 | ✅ |
-| 3B.3 TileTool | `tool/lt/TileTool.hx` (380) | `src/lib/ldtk/tools/tile-tool.ts` | ~200 | ⬜ |
+| 3B.3 TileTool | `tool/lt/TileTool.hx` (380) | `src/lib/ldtk/tools/tile-tool.ts` | ~200 | ✅ |
 | 3B.4 EntityTool | `tool/lt/EntityTool.hx` (350) | `src/lib/ldtk/tools/entity-tool.ts` | ~180 | ✅ |
 
 ### 3C. Navigation Tools
@@ -87,7 +87,7 @@
 
 | Task | Source (Lines) | Target | Est. Lines | Status |
 |------|----------------|--------|------------|--------|
-| 4A.1 ToolPalette | `ui/ToolPalette.hx` (123) | `src/components/ToolPalette.tsx` | ~100 | ⬜ |
+| 4A.1 ToolPalette | `ui/ToolPalette.hx` (123) | `src/components/ToolPalette.tsx` | ~100 | ✅ |
 | 4A.2 TilePalette | `ui/palette/TilePalette.hx` (380) | `src/components/TilePalette.tsx` | ~250 | ⬜ |
 | 4A.3 EntityPalette | `ui/palette/EntityPalette.hx` (280) | `src/components/EntityPalette.tsx` | ~180 | ⬜ |
 | 4A.4 IntGridPalette | `ui/palette/IntGridPalette.hx` (220) | `src/components/IntGridPalette.tsx` | ~140 | ⬜ |
@@ -173,7 +173,7 @@
 - ✅ 3A.2 Tool Registry
 - ✅ 3C.1 PanView
 - ✅ 3C.4 PickPoint
-- ⬜ 4A.1 ToolPalette
+- ✅ 4A.1 ToolPalette
 - ✅ 4D.3 Notification
 - ✅ 4E.1 Modal base
 - ✅ 4E.2 Dialog base
@@ -182,10 +182,10 @@
 **Tier 2 - Medium (150-300 lines, some deps)**
 
 - ✅ 2A.1 Camera
-- ⬜ 2B.3 EntityRender
-- ⬜ 2C.2 Rulers
+- ✅ 2B.3 EntityRender
+- ✅ 2C.2 Rulers
 - ✅ 3A.1 Base Tool
-- ⬜ 3A.3 Tool Store
+- ✅ 3A.3 Tool Store
 - ✅ 3B.1 LayerTool base
 - ✅ 3B.2 IntGridTool
 - ✅ 3B.4 EntityTool
@@ -208,7 +208,7 @@
 - ⬜ 2B.1 LevelRender
 - ⬜ 2B.2 LayerRender
 - ⬜ 2B.4 FieldInstanceRender
-- ⬜ 3B.3 TileTool
+- ✅ 3B.3 TileTool
 - ⬜ 4A.2 TilePalette
 - ⬜ 4B.1 EntityInstanceEditor
 - ⬜ 4B.3 LevelEditor

@@ -16,6 +16,7 @@ import {
   TilesetConfig,
   DEBUG_TILESET_ID,
 } from '@/lib/types'
+import type { LDtkProject } from '@/lib/ldtk/project'
 import {
   createDebugTileset,
   loadTilesetFromPath,
@@ -90,6 +91,7 @@ interface ProjectState {
   projectPath: string | null
   projectName: string | null
   projectConfig: ProjectConfig | null
+  project: LDtkProject | null
 
   // Map data
   mapData: LevelData
@@ -177,6 +179,7 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
       projectPath: null,
       projectName: null,
       projectConfig: null,
+      project: null,
       mapData: DEFAULT_MAP,
       currentRoomPath: null,
       hasUnsavedChanges: false,

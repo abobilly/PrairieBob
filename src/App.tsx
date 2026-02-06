@@ -10,7 +10,7 @@
 
 import { useEffect, useCallback, useState, useRef } from 'react'
 import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, PanelBottomClose, PanelBottomOpen } from 'lucide-react'
-import { EntityType, EntityData } from '@/lib/types'
+import { EntityData } from '@/lib/types'
 import { resolveTileId } from '@/lib/tileset'
 import { Toolbar } from '@/components/Toolbar'
 import { MapCanvas } from '@/components/MapCanvas'
@@ -488,48 +488,6 @@ function App() {
     toast.success(`${entity.type} placed`)
   }, [placeEntity])
 
-  const handleEntityTypeSelect = useCallback((type: EntityType) => {
-    const entityId = `${type}_${Date.now()}`
-    const baseSize = mapData?.tileSize || 32
-
-    const getEntityDimensions = () => {
-      switch (type) {
-        case 'ladder':
-          return { width: baseSize, height: baseSize * 2 }
-        default:
-          return { width: baseSize, height: baseSize }
-      }
-    }
-
-    const getEntityProperties = () => {
-      switch (type) {
-        case 'door':
-          return { interactionId: 'door_wooden', targetRoom: '', targetSpawn: '' }
-        case 'portal':
-          return { targetRoom: '', targetSpawn: '', portalType: 'default' }
-        case 'stairs':
-        case 'ladder':
-          return { targetRoom: '', targetSpawn: '', direction: 'up' }
-        default:
-          return {}
-      }
-    }
-
-    const { width, height } = getEntityDimensions()
-    const entity: EntityData = {
-      id: entityId,
-      type,
-      x: 100,
-      y: 100,
-      width,
-      height,
-      properties: getEntityProperties(),
-    }
-
-    handleEntityPlace(entity)
-    setSelectedEntityId(entityId)
-  }, [handleEntityPlace, setSelectedEntityId])
-
   const handleLayerToggle = useCallback((index: number, prop: 'visible' | 'locked') => {
     if (prop === 'visible') {
       toggleLayerVisible(index)
@@ -621,7 +579,7 @@ function App() {
                   onAddTileset={handleAddTileset}
                   onRemoveTileset={handleRemoveTileset}
                 />
-                <EntityPalette onEntityTypeSelect={handleEntityTypeSelect} />
+                <EntityPalette />
               </div>
             </div>
           )}

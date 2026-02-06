@@ -17,6 +17,7 @@ interface ToolState {
   activeTool: string
   activeLayer: string | null
   selectedTileId: number | null
+  selectedTileIds: number[]
   selectedEntityDefUid: number | null
   selectedIntGridValue: number
   brushSize: number
@@ -29,6 +30,7 @@ interface ToolActions {
   setActiveTool: (tool: string) => void
   setActiveLayer: (layer: string | null) => void
   setSelectedTileId: (tileId: number | null) => void
+  setSelectedTileIds: (tileIds: number[]) => void
   setSelectedEntityDefUid: (uid: number | null) => void
   setSelectedIntGridValue: (value: number) => void
   setBrushSize: (size: number) => void
@@ -45,6 +47,7 @@ export const useToolStore = create<ToolState & ToolActions>()(
         activeTool: 'tile',
         activeLayer: null,
         selectedTileId: null,
+        selectedTileIds: [],
         selectedEntityDefUid: null,
         selectedIntGridValue: 1,
         brushSize: DEFAULT_BRUSH_SIZE,
@@ -62,6 +65,12 @@ export const useToolStore = create<ToolState & ToolActions>()(
 
         setSelectedTileId: (tileId) => set((state) => {
           state.selectedTileId = tileId
+          state.selectedTileIds = tileId === null ? [] : [tileId]
+        }),
+
+        setSelectedTileIds: (tileIds) => set((state) => {
+          state.selectedTileIds = [...tileIds]
+          state.selectedTileId = tileIds[0] ?? null
         }),
 
         setSelectedEntityDefUid: (uid) => set((state) => {
@@ -112,6 +121,7 @@ export const useToolStore = create<ToolState & ToolActions>()(
           activeTool: state.activeTool,
           brushSize: state.brushSize,
           selectedTileId: state.selectedTileId,
+          selectedTileIds: state.selectedTileIds,
           selectedEntityDefUid: state.selectedEntityDefUid,
           selectedIntGridValue: state.selectedIntGridValue,
         }),

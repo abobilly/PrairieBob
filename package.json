@@ -6,7 +6,8 @@
     "type": "module",
     "main": "dist-electron/main.cjs",
     "scripts": {
-        "dev": "vite",
+        "dev": "npx concurrently -k \"npx vite\" \"npx electron .\"",
+        "dev:web": "vite",
         "build": "tsc -b && vite build",
         "lint": "eslint .",
         "preview": "vite preview",
