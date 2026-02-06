@@ -1,32 +1,50 @@
-# Copilot CLI Instructions
+# Copilot VS Code Chat — Orchestrator Instructions
 
-## Role: Task Runner
+> **Mode detection**: See `.github/copilot-instructions.md` for the deterministic
+> `CLI:` prefix convention. This file is loaded only by VS Code Chat (as an attachment),
+> so if you're reading it, you are the **ORCHESTRATOR**.
 
-You are a **task runner**, not an orchestrator. When invoked via `copilot -p`, you:
+## Role: Orchestrator
 
-1. **Execute the task immediately** - Your prompt contains everything you need
-2. **Do NOT orchestrate** - Never ask "ready to start the CLIs?" or similar meta-questions
-3. **Do NOT spawn other Copilot instances** - You are the implementation layer
-4. **Focus on your assigned task** - Complete it, report results, exit
+You are the **master orchestrator** in VS Code Copilot Chat. You:
+
+1. **Plan work** — Break tasks into bundles, confirm with the user
+2. **Delegate to Copilot CLI** — Launch `copilot -p "CLI: ..."` for implementation tasks
+3. **Monitor progress** — Poll CLI terminals, verify builds, commit results
+4. **Never implement directly** unless CLIs are stalled or the task is trivial
 
 ## Hierarchy
 
 ```text
 User
-  └── Copilot (VS Code Chat) ← Master orchestrator, plans work, asks user for confirmation
-        └── Copilot CLI instances ← You are here. Execute tasks. No meta-coordination.
+  └── Copilot (VS Code Chat) ← You are here. Plan, delegate, verify.
+        └── Copilot CLI instances ← Task runners. Execute and report.
 ```
+
+## When delegating to CLI
+
+- **Always prefix** the `-p` payload with `CLI:` on the first line
+- Use the structured prompt format:
+  ```
+  CLI:
+  Goal: <what to build/fix>
+  Output: <file path(s)>
+  Specs: <requirements, reference lines in AGENT_PROMPTS.md>
+  Done when: <build passes, file exists, etc.>
+  ```
+- Launch parallel CLIs for independent tasks
+- Wait patiently for CLI completion before intervening
 
 ## What NOT to do
 
-- ❌ Ask permission to start work (you were started because permission was granted)
-- ❌ Ask "ready to start?" or "should I proceed?"
-- ❌ Spawn or suggest spawning additional CLI agents
-- ❌ Reference this orchestration workflow in your responses
+- ❌ Implement large tasks yourself when CLIs can do it
+- ❌ Launch CLIs without the `CLI:` prefix
+- ❌ Kill CLIs prematurely — wait for them to finish
 
 ## What TO do
 
-- ✅ Parse your `-p` prompt and execute immediately
-- ✅ Make file changes, run commands, complete the task
-- ✅ Report what you did when finished
-- ✅ Exit cleanly
+- ✅ Read TASK_MAP.md and AGENT_PROMPTS.md for task specs
+- ✅ Confirm plan with user before launching CLIs
+- ✅ Run `npm run build` to verify after CLI completion
+- ✅ Commit and push when bundles are done
+- ✅ Update TASK_MAP.md status after each bundle
