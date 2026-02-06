@@ -252,18 +252,26 @@ function App() {
 
   // Guard against multiple initTilesets calls
   const tilesetsInitRef = useRef(false)
+  const tilesetsReadyRef = useRef(false)
 
+  // Effect: Initialize tilesets if empty
   useEffect(() => {
-    if (tilesets.length === 0) {
-      if (!tilesetsInitRef.current) {
-        tilesetsInitRef.current = true
-        initTilesets()
-      }
-      return
+    if (tilesets.length === 0 && !tilesetsInitRef.current) {
+      tilesetsInitRef.current = true
+      initTilesets()
     }
+  }, [tilesets.length, initTilesets])
+
+  // Effect: Set default tileset/tile once tilesets are loaded
+  useEffect(() => {
+    // Skip if no tilesets yet or already initialized
+    if (tilesets.length === 0 || tilesetsReadyRef.current) return
 
     const defaultTileset = tilesets[0]
     const hasActiveTileset = !!activeTilesetId && tilesets.some((ts) => ts.id === activeTilesetId)
+
+    // Only run once when tilesets first become available
+    tilesetsReadyRef.current = true
 
     if (!hasActiveTileset) {
       setActiveTilesetId(defaultTileset.id)
@@ -278,15 +286,9 @@ function App() {
         tilesetId: defaultTileset.id,
       })
     }
-  }, [
-    tilesets,
-    activeTilesetId,
-    selectedTileId,
-    initTilesets,
-    setActiveTilesetId,
-    setSelectedTileId,
-    setTileStamp,
-  ])
+    // Intentionally only depend on tilesets.length to run once when tilesets load
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tilesets.length])
 
   // Sync active layer name to tool store — only when layer index changes
   const activeLayerName = level.layerInstances[activeLayerIndex]?.__identifier
