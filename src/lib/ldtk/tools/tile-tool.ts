@@ -10,6 +10,7 @@ export class TileTool extends LayerTool {
     readonly name = 'Tile'
 
     private selectedTileIds: number[] = []
+    private tileStamp: number[][] = []
     private stampMode: 'single' | 'rectangle' | 'random' = 'single'
     private previewGrid: GridPoint | null = null
     private rectangleStart: GridPoint | null = null
@@ -23,6 +24,10 @@ export class TileTool extends LayerTool {
         this.selectedTileIds = [...tileIds]
     }
 
+    setTileStamp(stamp: number[][]): void {
+        this.tileStamp = stamp.map((row) => row.map((tileId) => Math.max(0, Math.floor(tileId))))
+    }
+
     setStampMode(mode: 'single' | 'rectangle' | 'random'): void {
         this.stampMode = mode
     }
@@ -30,6 +35,10 @@ export class TileTool extends LayerTool {
     paintAt(gridX: number, gridY: number): void {
         const layer = this.layerInstance
         if (!layer) return
+        if (this.hasStampPattern()) {
+            this.paintStamp(layer, gridX, gridY)
+            return
+        }
         const tileId = this.getPaintTileId()
         if (tileId === null) return
         this.setTileAt(layer, gridX, gridY, tileId)
@@ -111,16 +120,28 @@ export class TileTool extends LayerTool {
                 (bottom - top + 1) * gridSize
             )
         } else if (this.previewGrid) {
-            this.drawPreviewTile(
-                ctx,
-                camera,
-                this.previewGrid.x,
-                this.previewGrid.y,
-                gridSize,
-                offsetX,
-                offsetY,
-                tileId
-            )
+            if (this.hasStampPattern()) {
+                this.drawPreviewStamp(
+                    ctx,
+                    camera,
+                    this.previewGrid.x,
+                    this.previewGrid.y,
+                    gridSize,
+                    offsetX,
+                    offsetY
+                )
+            } else {
+                this.drawPreviewTile(
+                    ctx,
+                    camera,
+                    this.previewGrid.x,
+                    this.previewGrid.y,
+                    gridSize,
+                    offsetX,
+                    offsetY,
+                    tileId
+                )
+            }
         }
 
         ctx.restore()
@@ -133,8 +154,8 @@ export class TileTool extends LayerTool {
     private paintRectangle(start: GridPoint, end: GridPoint): void {
         const layer = this.layerInstance
         if (!layer) return
-        const tileId = this.selectedTileIds[0]
-        if (!tileId) return
+        const tileId = this.getPaintTileId()
+        if (tileId === null) return
 
         const left = Math.min(start.x, end.x)
         const right = Math.max(start.x, end.x)
@@ -165,10 +186,11 @@ export class TileTool extends LayerTool {
             return
         }
 
+        const resolvedSrc = this.context.resolveTileSource?.(tileId)
         const nextTile: TileInstance = {
             t: tileId,
             px: [pxX, pxY],
-            src: [0, 0],
+            src: resolvedSrc ? [resolvedSrc.x, resolvedSrc.y] : [0, 0],
             f: 0,
             a: 1,
         }
@@ -190,7 +212,29 @@ export class TileTool extends LayerTool {
     }
 
     private getPreviewTileId(): number | null {
+        if (this.hasStampPattern()) {
+            for (const row of this.tileStamp) {
+                for (const tileId of row) {
+                    if (tileId > 0) return tileId
+                }
+            }
+        }
         return this.selectedTileIds[0] ?? null
+    }
+
+    private hasStampPattern(): boolean {
+        return this.tileStamp.length > 0 && this.tileStamp.some((row) => row.some((tileId) => tileId > 0))
+    }
+
+    private paintStamp(layer: LayerInstance, gridX: number, gridY: number): void {
+        for (let row = 0; row < this.tileStamp.length; row++) {
+            const stampRow = this.tileStamp[row]
+            for (let col = 0; col < stampRow.length; col++) {
+                const tileId = stampRow[col] ?? 0
+                if (tileId <= 0) continue
+                this.setTileAt(layer, gridX + col, gridY + row, tileId)
+            }
+        }
     }
 
     private drawPreviewTile(
@@ -218,6 +262,34 @@ export class TileTool extends LayerTool {
             ctx.textAlign = 'center'
             ctx.textBaseline = 'middle'
             ctx.fillText(String(tileId), x + gridSize / 2, y + gridSize / 2)
+        }
+    }
+
+    private drawPreviewStamp(
+        ctx: CanvasRenderingContext2D,
+        camera: Camera,
+        gridX: number,
+        gridY: number,
+        gridSize: number,
+        offsetX: number,
+        offsetY: number
+    ): void {
+        for (let row = 0; row < this.tileStamp.length; row++) {
+            const stampRow = this.tileStamp[row]
+            for (let col = 0; col < stampRow.length; col++) {
+                const tileId = stampRow[col] ?? 0
+                if (tileId <= 0) continue
+                this.drawPreviewTile(
+                    ctx,
+                    camera,
+                    gridX + col,
+                    gridY + row,
+                    gridSize,
+                    offsetX,
+                    offsetY,
+                    tileId
+                )
+            }
         }
     }
 

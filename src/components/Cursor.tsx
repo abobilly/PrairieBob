@@ -157,10 +157,8 @@ const drawBrushPreview = (ctx: CanvasRenderingContext2D, size: number, brushSize
 }
 
 export function Cursor({ containerRef }: CursorProps) {
-  const { activeTool, brushSize } = useToolStore((state) => ({
-    activeTool: state.activeTool as ToolId,
-    brushSize: state.brushSize,
-  }))
+  const activeTool = useToolStore((state) => state.activeTool as ToolId)
+  const brushSize = useToolStore((state) => state.brushSize)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null)
 

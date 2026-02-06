@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Crosshair, LocateFixed, Plus, Search, Minus } from 'lucide-react'
 import type { Level } from '@/lib/ldtk/level'
 import type { LayerInstance, TileInstance } from '@/lib/ldtk/layer-instance'
 import type { IntGridValueDef } from '@/lib/ldtk/types'
-import { Camera } from '@/lib/ldtk/camera'
+import { Camera, MAX_ZOOM, MIN_ZOOM } from '@/lib/ldtk/camera'
 import {
   PanTool,
   TileTool,
@@ -19,9 +20,21 @@ import { Rulers } from '@/components/Rulers'
 import { useProjectStore } from '@/stores'
 import { useToolStore } from '@/stores/toolStore'
 import { useLdtkToolStore } from '@/stores/ldtkToolStore'
+import type { TileStamp } from '@/lib/types'
+import { resolveTileId } from '@/lib/tileset'
 
 const DEFAULT_BG_COLOR = '#1f2430'
 const DEFAULT_INTGRID_ALPHA = 0.35
+const MINIMAP_WIDTH = 196
+const MINIMAP_HEIGHT = 132
+const MINIMAP_PADDING = 8
+
+type Bounds = {
+  x: number
+  y: number
+  width: number
+  height: number
+}
 
 type RenderableTool = { render: (ctx: CanvasRenderingContext2D, camera: Camera) => void }
 
@@ -59,6 +72,24 @@ const buildTileData = (layer: LayerInstance) => {
   return data
 }
 
+const createBounds = (x: number, y: number, width: number, height: number): Bounds => ({
+  x,
+  y,
+  width: Math.max(1, width),
+  height: Math.max(1, height),
+})
+
+const mergeBounds = (target: Bounds | null, next: Bounds): Bounds => {
+  if (!target) return next
+  const minX = Math.min(target.x, next.x)
+  const minY = Math.min(target.y, next.y)
+  const maxX = Math.max(target.x + target.width, next.x + next.width)
+  const maxY = Math.max(target.y + target.height, next.y + next.height)
+  return createBounds(minX, minY, maxX - minX, maxY - minY)
+}
+
+const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value))
+
 async function loadImageCanvas(path: string): Promise<HTMLCanvasElement> {
   const img = new Image()
 
@@ -81,9 +112,17 @@ async function loadImageCanvas(path: string): Promise<HTMLCanvasElement> {
   return canvas
 }
 
-export function LevelCanvas({ level }: { level: Level }) {
+export function LevelCanvas({ level, tileStamp }: { level: Level; tileStamp: TileStamp }) {
+  const containerRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const minimapRef = useRef<HTMLCanvasElement>(null)
   const cameraRef = useRef<Camera | null>(null)
+  const minimapTransformRef = useRef<{
+    bounds: Bounds
+    scale: number
+    offsetX: number
+    offsetY: number
+  } | null>(null)
   const toolContextRef = useRef<ToolContext>({
     viewport: { zoom: 1, panX: 0, panY: 0 },
     setPan: () => {},
@@ -93,16 +132,15 @@ export function LevelCanvas({ level }: { level: Level }) {
   const activeToolLayerRef = useRef<ToolLayer | null>(null)
 
   const project = useProjectStore((s) => s.project)
+  const tilesets = useProjectStore((s) => s.tilesets)
   const projectDir = project?.filePath ? getDirectoryPath(project.filePath) : null
 
-  const { zoom, panX, panY, setPan, setZoom, zoomToPoint } = useToolStore((s) => ({
-    zoom: s.zoom,
-    panX: s.panX,
-    panY: s.panY,
-    setPan: s.setPan,
-    setZoom: s.setZoom,
-    zoomToPoint: s.zoomToPoint,
-  }))
+  const zoom = useToolStore((s) => s.zoom)
+  const panX = useToolStore((s) => s.panX)
+  const panY = useToolStore((s) => s.panY)
+  const setPan = useToolStore((s) => s.setPan)
+  const setZoom = useToolStore((s) => s.setZoom)
+  const zoomToPoint = useToolStore((s) => s.zoomToPoint)
   const selectedTileIds = useToolStore((s) => s.selectedTileIds)
   const selectedEntityDefUid = useToolStore((s) => s.selectedEntityDefUid)
   const selectedIntGridValue = useToolStore((s) => s.selectedIntGridValue)
@@ -118,6 +156,42 @@ export function LevelCanvas({ level }: { level: Level }) {
   }
 
   const layers = level.layerInstances ?? []
+
+  const contentBounds = useMemo<Bounds>(() => {
+    let aggregate: Bounds | null = null
+
+    for (const layer of layers) {
+      const layerGridSize = layer.__gridSize || 1
+      const layerBounds = createBounds(
+        layer.__pxTotalOffsetX,
+        layer.__pxTotalOffsetY,
+        layer.__cWid * layerGridSize,
+        layer.__cHei * layerGridSize
+      )
+      aggregate = mergeBounds(aggregate, layerBounds)
+
+      if (layer.__type === 'Entities') {
+        for (const entity of layer.entityInstances) {
+          const entityBounds = createBounds(
+            entity.px[0],
+            entity.px[1],
+            entity.width || layerGridSize,
+            entity.height || layerGridSize
+          )
+          aggregate = mergeBounds(aggregate, entityBounds)
+        }
+      }
+    }
+
+    if (aggregate) return aggregate
+
+    return createBounds(
+      level.worldX || 0,
+      level.worldY || 0,
+      level.pxWid || 1,
+      level.pxHei || 1
+    )
+  }, [layers, level.pxHei, level.pxWid, level.worldX, level.worldY])
 
   const layerDefs = useMemo(
     () => project?.defs.layers ?? [],
@@ -287,11 +361,56 @@ export function LevelCanvas({ level }: { level: Level }) {
     context.worldToTile = worldToTile
     context.tileSize = gridSize
     context.getActiveLayer = () => activeToolLayerRef.current
-  }, [zoom, panX, panY, setPan, setZoom, zoomToPoint, screenToWorld, worldToTile, gridSize])
+    context.resolveTileSource = (tileId) => {
+      const resolved = resolveTileId(tileId, tilesets)
+      if (!resolved) return null
+      const col = resolved.localTileId % resolved.tileset.tilesPerRow
+      const row = Math.floor(resolved.localTileId / resolved.tileset.tilesPerRow)
+      return {
+        x: col * resolved.tileset.tileSize,
+        y: row * resolved.tileset.tileSize,
+      }
+    }
+  }, [zoom, panX, panY, setPan, setZoom, zoomToPoint, screenToWorld, worldToTile, gridSize, tilesets])
 
   useEffect(() => {
     activeToolLayerRef.current = activeToolLayer
   }, [activeToolLayer])
+
+  const centerViewportOnWorld = useCallback((worldX: number, worldY: number, nextZoom = zoom) => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const rect = canvas.getBoundingClientRect()
+    if (rect.width <= 0 || rect.height <= 0) return
+
+    const clampedZoom = clamp(nextZoom, MIN_ZOOM, MAX_ZOOM)
+    setZoom(clampedZoom)
+    setPan(
+      rect.width * 0.5 - worldX * clampedZoom,
+      rect.height * 0.5 - worldY * clampedZoom
+    )
+  }, [setPan, setZoom, zoom])
+
+  const fitViewportToContent = useCallback(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const rect = canvas.getBoundingClientRect()
+    if (rect.width <= 0 || rect.height <= 0) return
+
+    const safeWidth = Math.max(contentBounds.width, 1)
+    const safeHeight = Math.max(contentBounds.height, 1)
+    const fitZoom = Math.min((rect.width * 0.9) / safeWidth, (rect.height * 0.9) / safeHeight)
+    const targetZoom = clamp(fitZoom, MIN_ZOOM, MAX_ZOOM)
+    centerViewportOnWorld(
+      contentBounds.x + contentBounds.width * 0.5,
+      contentBounds.y + contentBounds.height * 0.5,
+      targetZoom
+    )
+  }, [centerViewportOnWorld, contentBounds])
+
+  const jumpToOrigin = useCallback(() => {
+    centerViewportOnWorld(0, 0, zoom)
+  }, [centerViewportOnWorld, zoom])
 
   useEffect(() => {
     if (!toolsRef.current) return
@@ -299,9 +418,10 @@ export function LevelCanvas({ level }: { level: Level }) {
     toolsRef.current.intgrid.setLayer(toolLayers.intgrid)
     toolsRef.current.entity.setLayer(toolLayers.entity)
     toolsRef.current.tile.setSelectedTiles(selectedTileIds)
+    toolsRef.current.tile.setTileStamp(tileStamp.tiles)
     toolsRef.current.intgrid.selectedValue = selectedIntGridValue
     toolsRef.current.entity.setSelectedEntityDef(selectedEntityDefUid)
-  }, [toolLayers, selectedTileIds, selectedIntGridValue, selectedEntityDefUid])
+  }, [toolLayers, selectedTileIds, tileStamp, selectedIntGridValue, selectedEntityDefUid])
 
   const getActiveTool = useCallback(() => {
     const tools = toolsRef.current
@@ -456,6 +576,95 @@ export function LevelCanvas({ level }: { level: Level }) {
     [activeToolId, getActiveTool]
   )
 
+  const renderMinimap = useCallback((camera: Camera) => {
+    const minimap = minimapRef.current
+    if (!minimap) return
+
+    if (minimap.width !== MINIMAP_WIDTH || minimap.height !== MINIMAP_HEIGHT) {
+      minimap.width = MINIMAP_WIDTH
+      minimap.height = MINIMAP_HEIGHT
+    }
+
+    const ctx = minimap.getContext('2d')
+    if (!ctx) return
+
+    const mapWidth = MINIMAP_WIDTH
+    const mapHeight = MINIMAP_HEIGHT
+    const safeWidth = Math.max(contentBounds.width, 1)
+    const safeHeight = Math.max(contentBounds.height, 1)
+    const scale = Math.min(
+      (mapWidth - MINIMAP_PADDING * 2) / safeWidth,
+      (mapHeight - MINIMAP_PADDING * 2) / safeHeight
+    )
+    const scaledWidth = safeWidth * scale
+    const scaledHeight = safeHeight * scale
+    const offsetX = (mapWidth - scaledWidth) * 0.5
+    const offsetY = (mapHeight - scaledHeight) * 0.5
+
+    minimapTransformRef.current = {
+      bounds: contentBounds,
+      scale,
+      offsetX,
+      offsetY,
+    }
+
+    const toMiniX = (worldX: number) => (worldX - contentBounds.x) * scale + offsetX
+    const toMiniY = (worldY: number) => (worldY - contentBounds.y) * scale + offsetY
+
+    ctx.clearRect(0, 0, mapWidth, mapHeight)
+    ctx.fillStyle = 'rgba(11, 16, 24, 0.95)'
+    ctx.fillRect(0, 0, mapWidth, mapHeight)
+
+    ctx.fillStyle = 'rgba(44, 64, 96, 0.45)'
+    ctx.fillRect(offsetX, offsetY, scaledWidth, scaledHeight)
+
+    for (const layer of layers) {
+      if (!layer.visible) continue
+      const layerGridSize = layer.__gridSize || 1
+      const layerX = toMiniX(layer.__pxTotalOffsetX)
+      const layerY = toMiniY(layer.__pxTotalOffsetY)
+      const layerWidth = layer.__cWid * layerGridSize * scale
+      const layerHeight = layer.__cHei * layerGridSize * scale
+      if (layer.__type === 'Entities') {
+        ctx.strokeStyle = 'rgba(95, 194, 255, 0.85)'
+      } else if (layer.__type === 'IntGrid') {
+        ctx.strokeStyle = 'rgba(128, 255, 171, 0.7)'
+      } else {
+        ctx.strokeStyle = 'rgba(222, 231, 243, 0.5)'
+      }
+      ctx.lineWidth = 1
+      ctx.strokeRect(layerX, layerY, Math.max(layerWidth, 1), Math.max(layerHeight, 1))
+
+      if (layer.__type === 'Entities') {
+        ctx.fillStyle = 'rgba(95, 194, 255, 0.95)'
+        for (const entity of layer.entityInstances) {
+          const ex = toMiniX(entity.px[0])
+          const ey = toMiniY(entity.px[1])
+          const ew = Math.max((entity.width || layerGridSize) * scale, 2)
+          const eh = Math.max((entity.height || layerGridSize) * scale, 2)
+          ctx.fillRect(ex, ey, ew, eh)
+        }
+      }
+    }
+
+    const worldTopLeft = camera.screenToWorld(0, 0)
+    const worldBottomRight = camera.screenToWorld(camera.width, camera.height)
+    const viewportX = toMiniX(worldTopLeft.x)
+    const viewportY = toMiniY(worldTopLeft.y)
+    const viewportWidth = (worldBottomRight.x - worldTopLeft.x) * scale
+    const viewportHeight = (worldBottomRight.y - worldTopLeft.y) * scale
+
+    ctx.fillStyle = 'rgba(0, 210, 255, 0.15)'
+    ctx.fillRect(viewportX, viewportY, viewportWidth, viewportHeight)
+    ctx.strokeStyle = 'rgba(0, 217, 255, 0.95)'
+    ctx.lineWidth = 1.5
+    ctx.strokeRect(viewportX, viewportY, viewportWidth, viewportHeight)
+
+    ctx.strokeStyle = 'rgba(122, 148, 184, 0.7)'
+    ctx.lineWidth = 1
+    ctx.strokeRect(0.5, 0.5, mapWidth - 1, mapHeight - 1)
+  }, [contentBounds, layers])
+
   const renderCanvas = useCallback(() => {
     const canvas = canvasRef.current
     const camera = cameraRef.current
@@ -510,7 +719,8 @@ export function LevelCanvas({ level }: { level: Level }) {
     })
 
     renderActiveTool(ctx, camera)
-  }, [level.__bgColor, layers, gridSize, panX, zoom, renderLayer, renderEntities, renderActiveTool])
+    renderMinimap(camera)
+  }, [level.__bgColor, layers, gridSize, panX, zoom, renderLayer, renderEntities, renderActiveTool, renderMinimap])
 
   useEffect(() => {
     let frameId = 0
@@ -567,6 +777,31 @@ export function LevelCanvas({ level }: { level: Level }) {
     setPan(panX - event.deltaX, panY - event.deltaY)
   }, [panX, panY, setPan, zoom, zoomToPoint])
 
+  const handleZoomInClick = useCallback(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    zoomToPoint(zoom * 1.2, canvas.clientWidth * 0.5, canvas.clientHeight * 0.5)
+  }, [zoom, zoomToPoint])
+
+  const handleZoomOutClick = useCallback(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    zoomToPoint(zoom / 1.2, canvas.clientWidth * 0.5, canvas.clientHeight * 0.5)
+  }, [zoom, zoomToPoint])
+
+  const handleMinimapPointer = useCallback((event: React.MouseEvent<HTMLCanvasElement>) => {
+    if (event.type === 'mousemove' && event.buttons !== 1) return
+    const transform = minimapTransformRef.current
+    if (!transform) return
+
+    const rect = event.currentTarget.getBoundingClientRect()
+    const localX = event.clientX - rect.left
+    const localY = event.clientY - rect.top
+    const worldX = transform.bounds.x + (localX - transform.offsetX) / transform.scale
+    const worldY = transform.bounds.y + (localY - transform.offsetY) / transform.scale
+    centerViewportOnWorld(worldX, worldY)
+  }, [centerViewportOnWorld])
+
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
@@ -575,15 +810,73 @@ export function LevelCanvas({ level }: { level: Level }) {
   }, [handleWheel])
 
   return (
-    <canvas
-      ref={canvasRef}
-      className="w-full h-full"
-      style={{ cursor }}
-      onMouseDown={handleMouseDown}
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
-      onMouseLeave={handleMouseUp}
-      onContextMenu={handleContextMenu}
-    />
+    <div ref={containerRef} className="pb-level-canvas">
+      <canvas
+        ref={canvasRef}
+        className="w-full h-full"
+        style={{ cursor }}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+        onContextMenu={handleContextMenu}
+      />
+
+      <div className="pb-canvas-hud">
+        <button
+          type="button"
+          className="pb-canvas-hud-btn"
+          title="Zoom out"
+          onClick={handleZoomOutClick}
+        >
+          <Minus size={13} />
+        </button>
+        <button
+          type="button"
+          className="pb-canvas-hud-zoom"
+          title="Current zoom level"
+        >
+          {Math.round(zoom * 100)}%
+        </button>
+        <button
+          type="button"
+          className="pb-canvas-hud-btn"
+          title="Zoom in"
+          onClick={handleZoomInClick}
+        >
+          <Plus size={13} />
+        </button>
+        <button
+          type="button"
+          className="pb-canvas-hud-btn"
+          title="Fit view to content"
+          onClick={fitViewportToContent}
+        >
+          <Search size={13} />
+        </button>
+        <button
+          type="button"
+          className="pb-canvas-hud-btn"
+          title="Go to origin (0,0)"
+          onClick={jumpToOrigin}
+        >
+          <Crosshair size={13} />
+        </button>
+      </div>
+
+      <div className="pb-minimap-shell">
+        <div className="pb-minimap-title">
+          <LocateFixed size={11} />
+          <span>Minimap</span>
+        </div>
+        <canvas
+          ref={minimapRef}
+          className="pb-minimap-canvas"
+          onMouseDown={handleMinimapPointer}
+          onMouseMove={handleMinimapPointer}
+          onContextMenu={handleContextMenu}
+        />
+      </div>
+    </div>
   )
 }

@@ -19,6 +19,16 @@ export interface AgentResult {
     success: boolean;
     error?: string;
     alreadyStarted?: boolean;
+    authRequired?: boolean;
+    authStatus?: {
+        isAuthenticated: boolean;
+        authType?: string;
+        host?: string;
+        login?: string;
+        statusMessage?: string;
+    };
+    resumedSessionId?: string | null;
+    sessionId?: string;
 }
 
 export interface ElectronAPI {
@@ -45,11 +55,13 @@ export interface ElectronAPI {
     };
     // Agent API for Copilot SDK communication
     agent: {
-        start: () => Promise<AgentResult>;
+        start: (projectPath?: string) => Promise<AgentResult>;
         send: (prompt: string) => Promise<AgentResult>;
         abort: () => Promise<AgentResult>;
         stop: () => Promise<AgentResult>;
         isConnected: () => Promise<boolean>;
+        getAuthStatus: () => Promise<{ success: boolean; error?: string; authStatus?: AgentResult['authStatus'] }>;
+        setContext: (context: Record<string, unknown>) => Promise<AgentResult>;
     };
     // Menu event listeners - return unsubscribe function
     onMenuSave: (callback: () => void) => () => void;

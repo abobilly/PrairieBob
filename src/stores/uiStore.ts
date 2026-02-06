@@ -97,8 +97,8 @@ const DEFAULT_PANELS: UIState['panels'] = {
     maxSize: 400,
   },
   bottom: {
-    size: 250,
-    collapsed: false,
+    size: 220,
+    collapsed: true,
     minSize: 150,
     maxSize: 500,
   },
@@ -149,8 +149,8 @@ export const useUIStore = create<UIState & UIActions>()(
             maxSize: 400,
           },
           bottom: {
-            size: 250,       // pixels
-            collapsed: false,
+            size: 220,       // pixels
+            collapsed: true,
             minSize: 150,
             maxSize: 500,
           },
@@ -229,7 +229,7 @@ export const useUIStore = create<UIState & UIActions>()(
       }),
       {
         name: PERSIST_KEY,  // localStorage key
-        version: 1,
+        version: 2,
         partialize: (state) => ({
           // Only persist these fields
           panels: state.panels,
@@ -255,9 +255,14 @@ export const useUIStore = create<UIState & UIActions>()(
         migrate: (persistedState) => {
           // Normalize older/corrupted persisted values (e.g. null minSize/maxSize)
           const p = (persistedState ?? {}) as Partial<UIState>
+          const migratedPanels = sanitizePanels(p.panels, DEFAULT_PANELS)
+          migratedPanels.bottom = {
+            ...migratedPanels.bottom,
+            collapsed: true,
+          }
           return {
             ...p,
-            panels: sanitizePanels(p.panels, DEFAULT_PANELS),
+            panels: migratedPanels,
           } as UIState
         },
       }

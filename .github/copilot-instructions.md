@@ -1,14 +1,5 @@
 # PrairieBob — Copilot Instructions
 
-## Deterministic Mode Selection
-
-- If the first non-empty line of the prompt starts with `CLI:` → **TASK RUNNER** mode.
-- Otherwise → **ORCHESTRATOR** (VS Code Copilot Chat) mode.
-
-When ORCHESTRATOR delegates to Copilot CLI, it **MUST** prefix the `-p` payload with `CLI:`.
-
----
-
 ## Project Context
 
 PrairieBob is an LDtk-compatible tile map editor built with React + TypeScript + Vite + Electron.
@@ -26,7 +17,7 @@ PrairieBob is an LDtk-compatible tile map editor built with React + TypeScript +
 
 - **DO NOT use Radix UI Slider** — `@radix-ui/react-slider` is incompatible with React 19 (infinite re-render loop via `useControllableState` reference comparison). Use native `<input type="range">` instead.
 - **DO NOT open localhost** — PrairieBob is an Electron app. Never launch `vite preview` or open browser URLs in production builds. Use `npm run build && npx electron .` for testing, or package with electron-builder for release.
-- **Build path**: `npm run build` → `npm run electron:compile` → `npx electron-builder --win --dir` → `release/win-unpacked/PrairieBob.exe`
+- **Build path**: `npm run build` -> `npm run electron:compile` -> `npx electron-builder --win --dir` -> `release/win-unpacked/PrairieBob.exe`
 
 ### Key Conventions
 
@@ -39,44 +30,43 @@ PrairieBob is an LDtk-compatible tile map editor built with React + TypeScript +
 
 ---
 
-## Task Runner Instructions (CLI mode)
+## SDK Agent Instructions
 
-When operating as a **TASK RUNNER** (prompt starts with `CLI:`):
+When operating as an implementation agent via SDK sessions:
 
 ### Role
 
-You are an implementation agent. Execute the task, don't orchestrate.
+You are an implementation agent. Execute assigned tasks, stream progress, and verify results.
 
 ### Hierarchy
 
 ```text
 User
-  └── Copilot (VS Code Chat) ← Orchestrator — plans work, asks user for confirmation
-        └── Copilot CLI instances ← You are here. Execute tasks. No meta-coordination.
+  └── VS Code Chat
+        └── @github/copilot-sdk (Main Process)
+              └── Sidecar Agent
 ```
+
+### Mandatory Rules
+
+- "When implementing features, prioritize @github/copilot-sdk sessions over manual shell execution of gh copilot."
+- "NEVER ask the user to wait for a CLI poll; provide real-time updates from the SDK stream."
+- "Use 'Agent Skills' (.agent.md files) instead of the old 'CLI:' prefix convention for specialized tasks."
+- "Maintain active session state; do not 'Exit cleanly' after one task if the SDK session is marked as persistent."
 
 ### Do NOT
 
-- ❌ Ask permission to start work (you were started because permission was granted)
-- ❌ Ask "ready to start?" or "should I proceed?"
-- ❌ Spawn or suggest spawning additional CLI agents
-- ❌ Reference the orchestration workflow in your responses
-- ❌ Read the entire codebase before acting — read only what you need
+- Ask permission to start work when a task is already assigned
+- Ask "ready to start?" or "should I proceed?"
+- Rely on deprecated CLI polling patterns for progress
+- Use the deprecated `CLI:` prefix convention for specialized workflows
+- Terminate persistent SDK sessions after a single task
+- Reference deprecated orchestration mechanics in completion notes
 
 ### Do
 
-- ✅ Parse your prompt and execute immediately
-- ✅ Make file changes, run commands, complete the task
-- ✅ Run `npm run build` to verify before finishing
-- ✅ Report what you did when finished
-- ✅ Exit cleanly
-
-### CLI Prompt Format
-
-```
-CLI:
-Goal: <what to build/fix>
-Output: <file path(s)>
-Specs: <requirements, reference lines in AGENT_PROMPTS.md>
-Done when: <build passes, file exists, etc.>
-```
+- Execute immediately from the assigned session/task brief
+- Provide real-time updates from SDK stream events (`assistant.message_delta`, `tool.call`)
+- Use relevant `.agent.md` skills for specialized tasks
+- Make file changes and run verification commands to complete the task
+- Run `npm run build` before finishing

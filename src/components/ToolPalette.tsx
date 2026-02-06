@@ -23,10 +23,8 @@ const CATEGORY_LABELS: Record<ToolDefinition['category'], string> = {
 }
 
 export function ToolPalette() {
-  const { activeToolId, setActiveToolId } = useLdtkToolStore((state) => ({
-    activeToolId: state.activeToolId,
-    setActiveToolId: state.setActiveToolId,
-  }))
+  const activeToolId = useLdtkToolStore((state) => state.activeToolId)
+  const setActiveToolId = useLdtkToolStore((state) => state.setActiveToolId)
 
   const toolsByCategory = useMemo(() => ({
     layer: toolRegistry.getToolsByCategory('layer'),
@@ -35,7 +33,7 @@ export function ToolPalette() {
   }), [])
 
   return (
-    <div className="pb-compact-panel flex flex-col h-full">
+    <div className="pb-compact-panel pb-compact-tools flex flex-col h-full">
       <div className="pb-compact-header">
         <span className="pb-compact-title">Tools</span>
       </div>

@@ -111,11 +111,13 @@ contextBridge.exposeInMainWorld('electron', {
 
     // ============== Agent IPC ==============
     agent: {
-        start: () => ipcRenderer.invoke('agent:start'),
+        start: (projectPath?: string) => ipcRenderer.invoke('agent:start', projectPath),
         send: (prompt: string) => ipcRenderer.invoke('agent:send', prompt),
         abort: () => ipcRenderer.invoke('agent:abort'),
         stop: () => ipcRenderer.invoke('agent:stop'),
         isConnected: () => ipcRenderer.invoke('agent:isConnected'),
+        getAuthStatus: () => ipcRenderer.invoke('agent:getAuthStatus'),
+        setContext: (context: Record<string, unknown>) => ipcRenderer.invoke('agent:setContext', context),
     },
     onAgentMessage: (callback: (message: { role: string; content: string; timestamp: string; toolName?: string }) => void) => {
         const handler = (_: Electron.IpcRendererEvent, message: { role: string; content: string; timestamp: string; toolName?: string }) => callback(message);
@@ -169,11 +171,12 @@ declare global {
                 setUnsaved: (unsaved: boolean) => void;
             };
             agent: {
-                start: () => Promise<{ success: boolean; error?: string; alreadyStarted?: boolean }>;
+                start: (projectPath?: string) => Promise<{ success: boolean; error?: string; alreadyStarted?: boolean; authRequired?: boolean; authStatus?: { isAuthenticated: boolean; authType?: string; host?: string; login?: string; statusMessage?: string }; resumedSessionId?: string | null; sessionId?: string }>;
                 send: (prompt: string) => Promise<{ success: boolean; error?: string }>;
                 abort: () => Promise<{ success: boolean; error?: string }>;
                 stop: () => Promise<{ success: boolean; error?: string }>;
                 isConnected: () => Promise<boolean>;
+                getAuthStatus: () => Promise<{ success: boolean; error?: string; authStatus?: { isAuthenticated: boolean; authType?: string; host?: string; login?: string; statusMessage?: string } }>;
             };
             onMenuSave: (callback: () => void) => () => void;
             onMenuUndo: (callback: () => void) => () => void;

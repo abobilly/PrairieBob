@@ -57,9 +57,9 @@ export function PropertiesPanel({
 
   if (!selectedEntity) {
     return (
-      <Card className="h-full">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm">Properties</CardTitle>
+      <Card className="h-full pb-compact-panel pb-compact-properties">
+        <CardHeader className="pb-compact-header">
+          <CardTitle className="pb-compact-title">Properties</CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground">Select an entity to edit properties</p>
@@ -82,9 +82,9 @@ export function PropertiesPanel({
   const activeState = statePreset?.values.includes(stateValue || '') ? stateValue : statePreset?.values[0]
 
   return (
-    <Card className="h-full flex flex-col">
-      <CardHeader className="pb-3 flex flex-row items-center justify-between">
-        <CardTitle className="text-sm">Properties</CardTitle>
+    <Card className="h-full flex flex-col pb-compact-panel pb-compact-properties">
+      <CardHeader className="pb-compact-header flex flex-row items-center justify-between">
+        <CardTitle className="pb-compact-title">Properties</CardTitle>
         <Button
           variant="ghost"
           size="icon"

@@ -2,10 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
-import { ScrollArea } from './ui/scroll-area';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
-import { Button } from './ui/button';
-import { Textarea } from './ui/textarea';
+import { Tabs, TabsContent } from './ui/tabs';
 import { Terminal as TerminalIcon, Bot, Send, Loader2, Plug, PlugZap } from 'lucide-react';
 import { useProjectStore } from '@/stores';
 
@@ -30,7 +27,7 @@ export function AgentPanel() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Get store actions for tool handlers
-  const { paintTiles, fillArea, placeEntity, mapData, tilesets } = useProjectStore();
+  const { paintTiles, fillArea, placeEntity, mapData, tilesets, projectPath } = useProjectStore();
 
   // Setup IPC event listeners for agent communication
   useEffect(() => {
@@ -141,14 +138,20 @@ export function AgentPanel() {
     setIsLoading(true);
 
     try {
-      const result = await window.electron.agent.start();
+      const result = await window.electron.agent.start(projectPath ?? undefined);
 
       if (result.success) {
         setIsConnected(true);
+      } else if (result.authRequired) {
+        setMessages(prev => [...prev, {
+          role: 'system',
+          content: 'Copilot auth required. Run `copilot login` once in a terminal, then reconnect in PrairieBob.',
+          timestamp: new Date(),
+        }]);
       } else {
         setMessages(prev => [...prev, {
           role: 'system',
-          content: `Failed to connect: ${result.error}. Make sure Copilot CLI is installed.`,
+          content: `Failed to connect: ${result.error}. Make sure Copilot CLI is installed and authenticated.`,
           timestamp: new Date(),
         }]);
       }
@@ -162,16 +165,7 @@ export function AgentPanel() {
     } finally {
       setIsLoading(false);
     }
-  }, [isConnected]);
-
-  // Disconnect agent on unmount
-  useEffect(() => {
-    return () => {
-      if (typeof window !== 'undefined' && window.electron) {
-        window.electron.agent.stop();
-      }
-    };
-  }, []);
+  }, [isConnected, projectPath]);
 
   // Initialize terminal
   useEffect(() => {
@@ -412,6 +406,8 @@ export function AgentPanel() {
     }
   };
 
+  const connectionLabel = isConnected ? 'Connected' : 'Disconnected';
+
   return (
     <div className="h-full flex flex-col pb-compact-panel">
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'chat' | 'terminal')} className="flex flex-col h-full">
@@ -429,9 +425,12 @@ export function AgentPanel() {
             className={`pb-console-tab ${activeTab === 'terminal' ? 'active' : ''}`}
           >
             <TerminalIcon size={10} className="inline mr-1" />
-            Term
+            Terminal
           </button>
-          <div className="ml-auto flex items-center pr-2">
+          <div className="ml-auto flex items-center gap-2 pr-2">
+            <span className={`text-[9px] uppercase tracking-wide ${isConnected ? 'text-emerald-400' : 'text-[var(--pb-text-muted)]'}`}>
+              {connectionLabel}
+            </span>
             <button
               onClick={connectAgent}
               disabled={isConnected || isLoading}
@@ -451,9 +450,16 @@ export function AgentPanel() {
           {/* Compact messages area */}
           <div className="pb-console-messages flex-1 overflow-y-auto">
             {messages.length === 0 && !isConnected && (
-              <div className="text-center text-[10px] py-4 opacity-50">
+              <div className="text-center text-[10px] py-4 opacity-70">
                 <Bot size={16} className="mx-auto mb-1" />
-                <p>Connect to agent</p>
+                <p>Connect to AI agent</p>
+                <button
+                  onClick={connectAgent}
+                  disabled={isLoading}
+                  className="mt-2 inline-flex items-center rounded border border-[var(--pb-border)] bg-[var(--pb-bg-hover)] px-2 py-1 text-[10px] text-[var(--pb-text-primary)]"
+                >
+                  {isLoading ? 'Connecting...' : 'Connect'}
+                </button>
               </div>
             )}
             {messages.map((msg, i) => (

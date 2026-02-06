@@ -1,19 +1,22 @@
 import { ScrollArea } from '@/components/ui/scroll-area'
+import type { EntityDef } from '@/lib/ldtk/types'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/stores'
 import { useToolStore } from '@/stores/toolStore'
+
+const EMPTY_ENTITY_DEFS: EntityDef[] = []
 
 function formatEntityColor(color: number): string {
   return `#${color.toString(16).padStart(6, '0')}`
 }
 
 export function EntityPalette() {
-  const entityDefs = useProjectStore((s) => s.project?.defs.entities ?? [])
+  const entityDefs = useProjectStore((s) => s.project?.defs.entities ?? EMPTY_ENTITY_DEFS)
   const selectedUid = useToolStore((s) => s.selectedEntityDefUid)
   const setSelected = useToolStore((s) => s.setSelectedEntityDefUid)
 
   return (
-    <div className="pb-compact-panel h-full flex flex-col mt-4">
+    <div className="pb-compact-panel pb-compact-entities h-full flex flex-col">
       <div className="pb-compact-header">
         <span className="pb-compact-title">Entities</span>
       </div>

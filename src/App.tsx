@@ -10,6 +10,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
+  Bot,
+  Crosshair,
   FolderOpen,
   PanelBottomClose,
   PanelBottomOpen,
@@ -19,11 +21,15 @@ import {
   PanelRightOpen,
   Redo2,
   Save,
+  SlidersHorizontal,
+  SwatchBook,
   Undo2,
+  ZoomIn,
+  ZoomOut,
 } from 'lucide-react'
 import { Group as PanelGroup, Panel, Separator as PanelResizeHandle } from 'react-resizable-panels'
 import type { EntityInstance, LayerInstance, Level, TileInstance } from '@/lib/ldtk'
-import type { Layer, LevelData, LoadedTileset, TileStamp } from '@/lib/types'
+import { DEBUG_TILESET_ID, type Layer, type LevelData, type LoadedTileset, type TileStamp } from '@/lib/types'
 import { resolveTileId } from '@/lib/tileset'
 import { ToolPalette } from '@/components/ToolPalette'
 import { TilesetPanel } from '@/components/TilesetPanel'
@@ -54,6 +60,12 @@ const DEFAULT_STAMP: TileStamp = {
   height: 1,
   tiles: [[1]],
   tilesetId: null,
+}
+
+function getPreferredTileset(tilesets: LoadedTileset[]): LoadedTileset | null {
+  if (tilesets.length === 0) return null
+  const firstNonDebug = tilesets.find((tileset) => tileset.id !== DEBUG_TILESET_ID)
+  return firstNonDebug ?? tilesets[0]
 }
 
 function pickLayerTileset(layer: Layer, tilesets: LoadedTileset[]): LoadedTileset | null {
@@ -181,7 +193,6 @@ function buildLdtkLevel(mapData: LevelData, tilesets: LoadedTileset[]): Level {
 }
 
 function App() {
-  console.log('[App] render')
   const [tileStamp, setTileStamp] = useState<TileStamp>(DEFAULT_STAMP)
 
   const {
@@ -195,7 +206,6 @@ function App() {
 
   const {
     mapData,
-    currentRoomPath,
     hasUnsavedChanges,
     canUndo,
     canRedo,
@@ -231,12 +241,13 @@ function App() {
     closeImportDialog,
     togglePanelCollapsed,
     setTilesetZoom,
-    setPanelSize,
   } = useUIStore()
 
   // Use individual selectors to avoid creating new objects every render
   const selectedTileId = useToolStore((s) => s.selectedTileId)
   const zoom = useToolStore((s) => s.zoom)
+  const setZoom = useToolStore((s) => s.setZoom)
+  const resetViewport = useToolStore((s) => s.resetViewport)
   const setSelectedTileId = useToolStore((s) => s.setSelectedTileId)
   const setActiveLayer = useToolStore((s) => s.setActiveLayer)
 
@@ -252,7 +263,7 @@ function App() {
 
   // Guard against multiple initTilesets calls
   const tilesetsInitRef = useRef(false)
-  const tilesetsReadyRef = useRef(false)
+  const autoSelectedNonDebugTilesetRef = useRef(false)
 
   // Effect: Initialize tilesets if empty
   useEffect(() => {
@@ -262,33 +273,40 @@ function App() {
     }
   }, [tilesets.length, initTilesets])
 
-  // Effect: Set default tileset/tile once tilesets are loaded
+  // Pick a default tileset/tile with non-debug preference when available
   useEffect(() => {
-    // Skip if no tilesets yet or already initialized
-    if (tilesets.length === 0 || tilesetsReadyRef.current) return
-
-    const defaultTileset = tilesets[0]
+    const defaultTileset = getPreferredTileset(tilesets)
+    if (!defaultTileset) return
     const hasActiveTileset = !!activeTilesetId && tilesets.some((ts) => ts.id === activeTilesetId)
 
-    // Only run once when tilesets first become available
-    tilesetsReadyRef.current = true
+    let nextTileset: LoadedTileset | null = null
 
     if (!hasActiveTileset) {
-      setActiveTilesetId(defaultTileset.id)
+      nextTileset = defaultTileset
+    } else if (
+      !autoSelectedNonDebugTilesetRef.current &&
+      activeTilesetId === DEBUG_TILESET_ID &&
+      defaultTileset.id !== DEBUG_TILESET_ID
+    ) {
+      // Promote from debug tileset once when a real tileset appears.
+      nextTileset = defaultTileset
+      autoSelectedNonDebugTilesetRef.current = true
     }
 
-    if (selectedTileId === null) {
-      setSelectedTileId(defaultTileset.firstGid)
+    if (!nextTileset) return
+
+    setActiveTilesetId(nextTileset.id)
+
+    if (selectedTileId === null || activeTilesetId === DEBUG_TILESET_ID) {
+      setSelectedTileId(nextTileset.firstGid)
       setTileStamp({
         width: 1,
         height: 1,
-        tiles: [[defaultTileset.firstGid]],
-        tilesetId: defaultTileset.id,
+        tiles: [[nextTileset.firstGid]],
+        tilesetId: nextTileset.id,
       })
     }
-    // Intentionally only depend on tilesets.length to run once when tilesets load
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tilesets.length])
+  }, [tilesets, activeTilesetId, selectedTileId, setActiveTilesetId, setSelectedTileId])
 
   // Sync active layer name to tool store — only when layer index changes
   const activeLayerName = level.layerInstances[activeLayerIndex]?.__identifier
@@ -349,7 +367,7 @@ function App() {
 
     if (activeTilesetId === tilesetId) {
       const remaining = useProjectStore.getState().tilesets
-      const nextTileset = remaining[0]
+      const nextTileset = getPreferredTileset(remaining)
       setActiveTilesetId(nextTileset?.id || null)
       if (nextTileset) {
         setSelectedTileId(nextTileset.firstGid)
@@ -390,6 +408,18 @@ function App() {
   const handleSave = useCallback(async () => {
     await saveMap()
   }, [saveMap])
+
+  const handleZoomIn = useCallback(() => {
+    setZoom(zoom * 1.2)
+  }, [setZoom, zoom])
+
+  const handleZoomOut = useCallback(() => {
+    setZoom(zoom / 1.2)
+  }, [setZoom, zoom])
+
+  const handleRecenter = useCallback(() => {
+    resetViewport()
+  }, [resetViewport])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -482,49 +512,78 @@ function App() {
         <span className="pb-toolbar-brand">PrairieBob</span>
         <div className="pb-toolbar-group">
           <button
-            className="pb-tool-btn"
+            className="pb-tool-btn pb-tool-btn-labeled"
             onClick={openProjectSelector}
             title="Open Project"
           >
             <FolderOpen size={18} />
+            <span>Open</span>
           </button>
           <button
-            className="pb-tool-btn"
+            className="pb-tool-btn pb-tool-btn-labeled"
             onClick={handleSave}
             title="Save"
           >
             <Save size={18} />
+            <span>Save</span>
           </button>
         </div>
         <div className="pb-toolbar-divider" />
         <div className="pb-toolbar-group">
           <button
-            className="pb-tool-btn"
+            className="pb-tool-btn pb-tool-btn-labeled"
             onClick={() => { undo(); toast.info('Undo') }}
             title="Undo"
             disabled={!canUndo}
           >
             <Undo2 size={18} />
+            <span>Undo</span>
           </button>
           <button
-            className="pb-tool-btn"
+            className="pb-tool-btn pb-tool-btn-labeled"
             onClick={() => { redo(); toast.info('Redo') }}
             title="Redo"
             disabled={!canRedo}
           >
             <Redo2 size={18} />
+            <span>Redo</span>
+          </button>
+        </div>
+        <div className="pb-toolbar-divider" />
+        <div className="pb-toolbar-group">
+          <button
+            className="pb-tool-btn pb-tool-btn-labeled"
+            onClick={handleZoomOut}
+            title="Zoom out"
+          >
+            <ZoomOut size={16} />
+            <span>Zoom -</span>
+          </button>
+          <button
+            className="pb-tool-btn pb-tool-btn-labeled"
+            onClick={handleZoomIn}
+            title="Zoom in"
+          >
+            <ZoomIn size={16} />
+            <span>Zoom +</span>
+          </button>
+          <button
+            className="pb-tool-btn pb-tool-btn-labeled"
+            onClick={handleRecenter}
+            title="Go to origin (0,0)"
+          >
+            <Crosshair size={16} />
+            <span>Origin</span>
           </button>
         </div>
         {projectName && (
-          <span className="ml-3 text-xs text-[var(--pb-text-muted)]">
+          <span className="pb-toolbar-chip">
             {projectName}
           </span>
         )}
-        {currentRoomPath && (
-          <span className="ml-2 text-[10px] text-[var(--pb-text-muted)] truncate">
-            {currentRoomPath.split(/[/\\]/).pop()}
-          </span>
-        )}
+        <span className="pb-toolbar-chip">
+          Tool: {activeToolId}
+        </span>
       </div>
 
       <PanelGroup orientation="vertical" className="flex-1 min-h-0">
@@ -536,10 +595,16 @@ function App() {
                 defaultSize="20%"
                 minSize="15%"
                 maxSize="30%"
-                className="pb-panel border-r border-[var(--pb-border)]"
+                className="pb-panel pb-panel-palette border-r border-[var(--pb-border)]"
               >
-                <div className="pb-panel-header">
-                  <span className="pb-panel-title">Palette</span>
+                <div className="pb-panel-header pb-panel-header-palette">
+                  <div className="pb-panel-title-wrap">
+                    <SwatchBook className="pb-panel-title-icon" size={14} />
+                    <div className="pb-panel-title-copy">
+                      <span className="pb-panel-kicker">Workspace</span>
+                      <span className="pb-panel-title">Palette</span>
+                    </div>
+                  </div>
                   <button
                     onClick={() => togglePanelCollapsed('left')}
                     className="pb-panel-btn"
@@ -548,11 +613,11 @@ function App() {
                     <PanelLeftClose className="w-4 h-4" />
                   </button>
                 </div>
-                <div className="pb-panel-content flex flex-col gap-4">
-                  <div className="h-48">
+                <div className="pb-panel-content h-full min-h-0 flex flex-col gap-3">
+                  <div className="min-h-[170px] max-h-[260px] flex-shrink-0">
                     <ToolPalette />
                   </div>
-                  <div className="flex-1 min-h-0">
+                  <div className="flex-1 min-h-[280px]">
                     <TilesetPanel
                       tilesets={tilesets}
                       activeTilesetId={activeTilesetId}
@@ -570,13 +635,14 @@ function App() {
                 </div>
               </Panel>
             ) : (
-              <Panel id="left-collapsed" defaultSize="32px" minSize="32px" maxSize="32px">
+              <Panel id="left-collapsed" defaultSize="44px" minSize="44px" maxSize="44px">
                 <button
                   onClick={() => togglePanelCollapsed('left')}
-                  className="pb-panel-toggle h-full border-r border-[var(--pb-border)]"
+                  className="pb-panel-toggle pb-panel-toggle-side h-full border-r border-[var(--pb-border)]"
                   title="Open Palette"
                 >
                   <PanelLeftOpen className="w-4 h-4 text-[var(--pb-text-muted)]" />
+                  <span className="pb-panel-toggle-label">Palette</span>
                 </button>
               </Panel>
             )}
@@ -585,7 +651,7 @@ function App() {
 
             <Panel id="canvas" className="min-w-0">
               <div className="flex-1 pb-canvas-area min-w-0 overflow-hidden relative">
-                <LevelCanvas level={level} />
+                <LevelCanvas level={level} tileStamp={tileStamp} />
               </div>
             </Panel>
 
@@ -597,10 +663,16 @@ function App() {
                 defaultSize="20%"
                 minSize="15%"
                 maxSize="30%"
-                className="pb-panel border-l border-[var(--pb-border)]"
+                className="pb-panel pb-panel-inspector border-l border-[var(--pb-border)]"
               >
-                <div className="pb-panel-header">
-                  <span className="pb-panel-title">Inspector</span>
+                <div className="pb-panel-header pb-panel-header-inspector">
+                  <div className="pb-panel-title-wrap">
+                    <SlidersHorizontal className="pb-panel-title-icon" size={14} />
+                    <div className="pb-panel-title-copy">
+                      <span className="pb-panel-kicker">Edit</span>
+                      <span className="pb-panel-title">Inspector</span>
+                    </div>
+                  </div>
                   <button
                     onClick={() => togglePanelCollapsed('right')}
                     className="pb-panel-btn"
@@ -609,7 +681,7 @@ function App() {
                     <PanelRightClose className="w-4 h-4" />
                   </button>
                 </div>
-                <div className="pb-panel-content space-y-4">
+                <div className="pb-panel-content h-full min-h-0 flex flex-col gap-3">
                   <PropertiesPanel
                     selectedEntity={selectedEntity}
                     onEntityUpdate={updateEntity}
@@ -619,28 +691,33 @@ function App() {
                       toast.success('Entity deleted')
                     }}
                   />
-                  <LayerPanel
-                    layers={mapData.layers}
-                    activeLayerIndex={activeLayerIndex}
-                    onLayerSelect={setActiveLayerIndex}
-                    onLayerToggle={handleLayerToggle}
-                    onLayerReorder={reorderLayers}
-                    onLayerAdd={addLayer}
-                    onLayerDelete={deleteLayer}
-                    onLayerRename={renameLayer}
-                    onLayerOpacityChange={setLayerOpacity}
-                  />
-                  <EntityPalette />
+                  <div className="min-h-[160px] max-h-[320px]">
+                    <LayerPanel
+                      layers={mapData.layers}
+                      activeLayerIndex={activeLayerIndex}
+                      onLayerSelect={setActiveLayerIndex}
+                      onLayerToggle={handleLayerToggle}
+                      onLayerReorder={reorderLayers}
+                      onLayerAdd={addLayer}
+                      onLayerDelete={deleteLayer}
+                      onLayerRename={renameLayer}
+                      onLayerOpacityChange={setLayerOpacity}
+                    />
+                  </div>
+                  <div className="flex-1 min-h-[140px]">
+                    <EntityPalette />
+                  </div>
                 </div>
               </Panel>
             ) : (
-              <Panel id="right-collapsed" defaultSize="32px" minSize="32px" maxSize="32px">
+              <Panel id="right-collapsed" defaultSize="44px" minSize="44px" maxSize="44px">
                 <button
                   onClick={() => togglePanelCollapsed('right')}
-                  className="pb-panel-toggle h-full border-l border-[var(--pb-border)]"
+                  className="pb-panel-toggle pb-panel-toggle-side h-full border-l border-[var(--pb-border)]"
                   title="Open Inspector"
                 >
                   <PanelRightOpen className="w-4 h-4 text-[var(--pb-text-muted)]" />
+                  <span className="pb-panel-toggle-label">Inspector</span>
                 </button>
               </Panel>
             )}
@@ -652,13 +729,19 @@ function App() {
             <PanelResizeHandle className="panel-resize-handle" />
             <Panel
               id="bottom-panel"
-              defaultSize="30%"
-              minSize="15%"
-              maxSize="50%"
-              className="pb-panel border-t border-[var(--pb-border)]"
+              defaultSize="18%"
+              minSize="10%"
+              maxSize="40%"
+              className="pb-panel pb-panel-agent border-t border-[var(--pb-border)]"
             >
-              <div className="pb-panel-header">
-                <span className="pb-panel-title">Agent</span>
+              <div className="pb-panel-header pb-panel-header-agent">
+                <div className="pb-panel-title-wrap">
+                  <Bot className="pb-panel-title-icon" size={14} />
+                  <div className="pb-panel-title-copy">
+                    <span className="pb-panel-kicker">Assistant</span>
+                    <span className="pb-panel-title">Agent</span>
+                  </div>
+                </div>
                 <button
                   onClick={() => togglePanelCollapsed('bottom')}
                   className="pb-panel-btn"
@@ -698,7 +781,7 @@ function App() {
           <span className="text-[var(--pb-text-muted)]">Zoom:</span> {Math.round(zoom * 100)}%
         </span>
         <span className="pb-statusbar-item">
-          <span className="text-[var(--pb-text-muted)]">Tile:</span> {effectiveTileId}
+          <span className="text-[var(--pb-text-muted)]">Tile ID:</span> {effectiveTileId}
         </span>
         {tileStamp.width > 1 || tileStamp.height > 1 ? (
           <span className="pb-statusbar-item">
@@ -709,7 +792,7 @@ function App() {
           {hasUnsavedChanges ? (
             <span className="pb-statusbar-unsaved">● Unsaved</span>
           ) : (
-            <span className="text-[var(--pb-success)]">✓ Saved</span>
+            <span className="pb-statusbar-saved">✓ Saved</span>
           )}
         </span>
       </div>

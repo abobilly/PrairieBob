@@ -23,6 +23,7 @@ export interface ToolContext {
     worldToTile?: (worldX: number, worldY: number) => { x: number; y: number }
     tileSize?: number
     getActiveLayer?: () => ToolLayer | null
+    resolveTileSource?: (tileId: number) => { x: number; y: number } | null
     onPickTile?: (tileId: number) => void
     onPickEntity?: (entityId: string) => void
     onPickIntGrid?: (value: number) => void

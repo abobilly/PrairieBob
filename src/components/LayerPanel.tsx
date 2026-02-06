@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback } from 'react'
 import { Eye, EyeSlash, Lock, LockOpen, DotsSixVertical, Trash, Plus, PencilSimple } from '@phosphor-icons/react'
 import { Layer, LayerType } from '@/lib/types'
 import { Button } from '@/components/ui/button'
@@ -50,12 +50,6 @@ export function LayerPanel({
   const [editingName, setEditingName] = useState('')
   const [dragIndex, setDragIndex] = useState<number | null>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
-
-  // Debug: log layers state
-  useEffect(() => {
-    console.log('[LayerPanel] layers:', layers.length, layers.map(l => ({ name: l.name, type: l.type, visible: l.visible })))
-    console.log('[LayerPanel] activeLayerIndex:', activeLayerIndex)
-  }, [layers, activeLayerIndex])
 
   // Handle add layer dialog
   const handleAddLayer = useCallback(() => {
@@ -110,7 +104,7 @@ export function LayerPanel({
 
   return (
     <>
-      <div className="pb-compact-panel flex flex-col h-full">
+      <div className="pb-compact-panel pb-compact-layers flex flex-col h-full">
         {/* Compact header */}
         <div className="pb-compact-header">
           <span className="pb-compact-title">Layers</span>
@@ -126,7 +120,7 @@ export function LayerPanel({
         </div>
 
         {/* Layer list */}
-        <div className="flex-1 overflow-y-auto p-1 max-h-[180px]">
+        <div className="flex-1 overflow-y-auto p-1 min-h-[140px] max-h-[280px]">
           {layers.length === 0 ? (
             <div className="text-[10px] text-muted-foreground p-2">No layers</div>
           ) : (
@@ -299,4 +293,3 @@ export function LayerPanel({
     </>
   )
 }
-

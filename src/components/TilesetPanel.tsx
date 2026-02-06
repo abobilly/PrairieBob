@@ -1,9 +1,8 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Plus, X, ZoomIn, Search } from 'lucide-react'
+import { Plus, X, Search } from 'lucide-react'
 import type { LoadedTileset, TileStamp } from '@/lib/types'
-import { DEBUG_TILESET_ID } from '@/lib/types'
 import { useToolStore } from '@/stores/toolStore'
 
 interface TilesetPanelProps {
@@ -37,35 +36,30 @@ export function TilesetPanel({
   const selectedTileIds = useToolStore((s) => s.selectedTileIds)
   const setSelectedTileIds = useToolStore((s) => s.setSelectedTileIds)
 
-  // Debug: log tilesets state
-  useEffect(() => {
-    console.log('[TilesetPanel] tilesets:', tilesets.length, tilesets.map(t => ({ id: t.id, name: t.name, status: t.status })))
-    console.log('[TilesetPanel] activeTilesetId:', activeTilesetId)
-  }, [tilesets, activeTilesetId])
-
   // If no active tileset, default to first one and notify parent
   const effectiveActiveId = activeTilesetId || tilesets[0]?.id || null
 
   return (
-    <div className="pb-compact-panel h-full flex flex-col">
+    <div className="pb-compact-panel pb-compact-tilesets h-full flex flex-col">
       {/* Compact header */}
       <div className="pb-compact-header">
         <span className="pb-compact-title">Tilesets</span>
         <div className="flex items-center gap-2">
           {/* Compact zoom control */}
           <div className="pb-zoom-control">
-            <ZoomIn className="h-3 w-3" />
+            <span className="pb-zoom-label">Zoom</span>
             <input
               type="range"
               title="Tileset zoom"
+              aria-label="Tileset zoom"
               value={tilesetZoom}
               onChange={(e) => onTilesetZoomChange(Number(e.target.value))}
               min={1}
               max={4}
               step={0.5}
-              className="w-10 h-1 accent-primary"
+              className="w-14 h-1 accent-primary"
             />
-            <span className="w-4">{tilesetZoom}x</span>
+            <span className="w-7 text-right">{tilesetZoom}x</span>
           </div>
           <button
             className="pb-icon-btn-xs"
@@ -105,6 +99,7 @@ export function TilesetPanel({
             {/* Tileset info bar */}
             {activeTileset && activeTileset.status === 'ready' && (
               <div className="pb-tileset-info">
+                <span className="pb-tileset-info-name" title={activeTileset.name}>{activeTileset.name}</span>
                 <span>{activeTileset.tileSize}px</span>
                 <span>{activeTileset.tilesPerRow}×{Math.ceil(activeTileset.totalTiles / activeTileset.tilesPerRow)}</span>
                 <span>{activeTileset.totalTiles} tiles</span>
@@ -361,7 +356,7 @@ function TileGrid({
         <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
         <Input
           type="text"
-          placeholder="Tile ID or #tag..."
+          placeholder="Search tile ID (global or local)"
           value={searchQuery}
           onChange={handleSearchChange}
           onKeyDown={handleSearchKeyDown}

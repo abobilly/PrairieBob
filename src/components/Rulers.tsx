@@ -40,29 +40,44 @@ export function Rulers({ camera, ctx, gridSize, showGrid, showRulers }: RulersPr
 
   if (showGrid) {
     ctx.save()
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)'
     ctx.lineWidth = 1 / zoom
-    ctx.beginPath()
     for (let x = startX; x <= endX; x += lineStep) {
       const screenX = toScreenX(x)
+      const isAxis = Math.abs(x) < 0.0001
+      const isMajor = Math.abs(x % labelStep) < 0.0001
+      ctx.strokeStyle = isAxis
+        ? 'rgba(0, 217, 255, 0.16)'
+        : isMajor
+          ? 'rgba(255, 255, 255, 0.06)'
+          : 'rgba(255, 255, 255, 0.03)'
+      ctx.beginPath()
       ctx.moveTo(screenX, 0)
       ctx.lineTo(screenX, camera.height)
+      ctx.stroke()
     }
     for (let y = startY; y <= endY; y += lineStep) {
       const screenY = toScreenY(y)
+      const isAxis = Math.abs(y) < 0.0001
+      const isMajor = Math.abs(y % labelStep) < 0.0001
+      ctx.strokeStyle = isAxis
+        ? 'rgba(0, 217, 255, 0.16)'
+        : isMajor
+          ? 'rgba(255, 255, 255, 0.06)'
+          : 'rgba(255, 255, 255, 0.03)'
+      ctx.beginPath()
       ctx.moveTo(0, screenY)
       ctx.lineTo(camera.width, screenY)
+      ctx.stroke()
     }
-    ctx.stroke()
     ctx.restore()
   }
 
   if (showRulers) {
     ctx.save()
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.65)'
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.85)'
+    ctx.strokeStyle = 'rgba(186, 204, 224, 0.8)'
+    ctx.fillStyle = 'rgba(236, 244, 255, 0.96)'
     ctx.lineWidth = 1
-    ctx.font = '10px Inter'
+    ctx.font = '11px JetBrains Mono'
     ctx.textAlign = 'center'
     ctx.textBaseline = 'top'
 
@@ -76,7 +91,13 @@ export function Rulers({ camera, ctx, gridSize, showGrid, showRulers }: RulersPr
       ctx.stroke()
 
       if (isLabel) {
-        ctx.fillText(`${Math.round(x)}`, screenX, tick + 2)
+        const label = `${Math.round(x)}`
+        ctx.strokeStyle = 'rgba(10, 16, 24, 0.95)'
+        ctx.lineWidth = 3
+        ctx.strokeText(label, screenX, tick + 2)
+        ctx.fillText(label, screenX, tick + 2)
+        ctx.strokeStyle = 'rgba(186, 204, 224, 0.8)'
+        ctx.lineWidth = 1
       }
     }
 
@@ -93,7 +114,13 @@ export function Rulers({ camera, ctx, gridSize, showGrid, showRulers }: RulersPr
       ctx.stroke()
 
       if (isLabel) {
-        ctx.fillText(`${Math.round(y)}`, tick + 2, screenY)
+        const label = `${Math.round(y)}`
+        ctx.strokeStyle = 'rgba(10, 16, 24, 0.95)'
+        ctx.lineWidth = 3
+        ctx.strokeText(label, tick + 2, screenY)
+        ctx.fillText(label, tick + 2, screenY)
+        ctx.strokeStyle = 'rgba(186, 204, 224, 0.8)'
+        ctx.lineWidth = 1
       }
     }
 
