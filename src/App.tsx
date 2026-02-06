@@ -11,8 +11,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Bot,
-  ChevronDown,
-  ChevronRight,
   Crosshair,
   Moon,
   ExternalLink,
@@ -67,6 +65,7 @@ import { BakeTilesetDialog } from '@/components/BakeTilesetDialog'
 import { WorldViewCanvas as SpudWorldViewCanvas } from '@/components/WorldViewCanvas'
 import { WorldMinimap } from '@/components/WorldMinimap'
 import { ToolContextBar } from '@/components/ToolContextBar'
+import { InspectorSection } from '@/components/InspectorSection'
 import { getFileSystemAdapter } from '@/lib/fs-adapter'
 import { deserializeBakedTileset } from '@/lib/tileset-baker'
 import { Toaster, toast } from 'sonner'
@@ -348,6 +347,9 @@ function App() {
   const [isRunTestOpen, setIsRunTestOpen] = useState(false)
   const [isBakeDialogOpen, setIsBakeDialogOpen] = useState(false)
   const [inspectorPropertiesCollapsed, setInspectorPropertiesCollapsed] = useState(true)
+  const [inspectorLayersCollapsed, setInspectorLayersCollapsed] = useState(false)
+  const [inspectorActionsCollapsed, setInspectorActionsCollapsed] = useState(false)
+  const [inspectorEntitiesCollapsed, setInspectorEntitiesCollapsed] = useState(false)
 
   const previewMode = useEditorStore((s) => s.previewMode)
   const enterPreview = useEditorStore((s) => s.enterPreview)
@@ -448,6 +450,11 @@ function App() {
   const activeToolId = useLdtkToolStore((state) => state.activeToolId)
   const undoCount = useProjectStore((state) => state.past.length)
   const redoCount = useProjectStore((state) => state.future.length)
+
+  const TILE_TOOLS = useMemo(() => new Set(['tile', 'line', 'rect', 'ellipse']), [])
+  const ENTITY_TOOLS = useMemo(() => new Set(['entity', 'select']), [])
+  const showTileActions = TILE_TOOLS.has(activeToolId) || activeToolId === 'pan'
+  const showEntities = ENTITY_TOOLS.has(activeToolId) || activeToolId === 'pan'
 
   const fsAdapter = getFileSystemAdapter()
   const level = useMemo(() => buildLdtkLevel(mapData, tilesets), [mapData, tilesets])
@@ -1470,30 +1477,27 @@ function App() {
                     <PanelRightClose className="w-4 h-4" />
                   </button>
                 </div>
-                <div className="pb-panel-content h-full min-h-0 flex flex-col gap-3">
-                  <div className="shrink-0 rounded border border-[var(--pb-border-subtle)] bg-[var(--pb-bg-input)] overflow-hidden">
-                    <button
-                      className="w-full h-8 px-2 flex items-center gap-2 border-b border-[var(--pb-border-subtle)] text-left hover:bg-[var(--pb-bg-hover)]"
-                      onClick={() => setInspectorPropertiesCollapsed((prev) => !prev)}
-                      title={inspectorPropertiesCollapsed ? 'Expand properties' : 'Collapse properties'}
-                    >
-                      {inspectorPropertiesCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
-                      <span className="text-[10px] font-semibold uppercase tracking-wide">Properties</span>
-                      <span className="ml-auto text-[10px] text-[var(--pb-text-muted)] truncate max-w-[180px]">
-                        {selectedEntity ? `${selectedEntity.type}: ${selectedEntity.id}` : 'No entity selected'}
-                      </span>
-                    </button>
-                    {!inspectorPropertiesCollapsed && (
-                      <div className="max-h-[40vh] overflow-y-auto">
-                        <PropertiesPanel
-                          selectedEntity={selectedEntity}
-                          onEntityUpdate={handleEntityUpdate}
-                          onEntityDelete={handleEntityDelete}
-                        />
-                      </div>
-                    )}
-                  </div>
-                  <div className="min-h-[160px] flex-1">
+                <div className="pb-inspector-scroll">
+                  <InspectorSection
+                    title="Properties"
+                    badge={selectedEntity ? `${selectedEntity.type}: ${selectedEntity.id}` : 'No selection'}
+                    collapsed={inspectorPropertiesCollapsed}
+                    onToggleCollapsed={() => setInspectorPropertiesCollapsed((prev) => !prev)}
+                    accentClass="pb-inspector-accent-properties"
+                  >
+                    <PropertiesPanel
+                      selectedEntity={selectedEntity}
+                      onEntityUpdate={handleEntityUpdate}
+                      onEntityDelete={handleEntityDelete}
+                    />
+                  </InspectorSection>
+                  <InspectorSection
+                    title="Layers"
+                    badge={`${mapData.layers.length} layers`}
+                    collapsed={inspectorLayersCollapsed}
+                    onToggleCollapsed={() => setInspectorLayersCollapsed((prev) => !prev)}
+                    accentClass="pb-inspector-accent-layers"
+                  >
                     <LayerPanel
                       layers={mapData.layers}
                       activeLayerIndex={activeLayerIndex}
@@ -1516,16 +1520,33 @@ function App() {
                       onSetCollisionSourceLayerEnabled={setCollisionSourceLayerEnabled}
                       onSetCollisionDerivedOverlayVisible={setCollisionDerivedOverlayVisible}
                     />
-                  </div>
-                  <TileActionsPanel
-                    actionGroups={tileActionGroups}
-                    onAdd={addTileActionGroup}
-                    onUpdate={updateTileActionGroup}
-                    onDelete={deleteTileActionGroup}
-                  />
-                  <div className="flex-1 min-h-[140px]">
-                    <EntityPalette />
-                  </div>
+                  </InspectorSection>
+                  {showTileActions && (
+                    <InspectorSection
+                      title="Tile Actions"
+                      badge={`${tileActionGroups.length} groups`}
+                      collapsed={inspectorActionsCollapsed}
+                      onToggleCollapsed={() => setInspectorActionsCollapsed((prev) => !prev)}
+                      accentClass="pb-inspector-accent-actions"
+                    >
+                      <TileActionsPanel
+                        actionGroups={tileActionGroups}
+                        onAdd={addTileActionGroup}
+                        onUpdate={updateTileActionGroup}
+                        onDelete={deleteTileActionGroup}
+                      />
+                    </InspectorSection>
+                  )}
+                  {showEntities && (
+                    <InspectorSection
+                      title="Entities"
+                      collapsed={inspectorEntitiesCollapsed}
+                      onToggleCollapsed={() => setInspectorEntitiesCollapsed((prev) => !prev)}
+                      accentClass="pb-inspector-accent-entities"
+                    >
+                      <EntityPalette />
+                    </InspectorSection>
+                  )}
                 </div>
               </Panel>
             ) : (

@@ -1223,3 +1223,118 @@
     opacity: 0.5;
     cursor: not-allowed;
 }
+
+/* ===== Inspector Section Scaffold ===== */
+.pb-inspector-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 4px;
+}
+
+.pb-inspector-scroll::-webkit-scrollbar {
+    width: 6px;
+}
+
+.pb-inspector-scroll::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.pb-inspector-scroll::-webkit-scrollbar-thumb {
+    background: var(--pb-border);
+    border-radius: 3px;
+}
+
+.pb-inspector-scroll::-webkit-scrollbar-thumb:hover {
+    background: var(--pb-text-muted);
+}
+
+.pb-inspector-section {
+    flex-shrink: 0;
+    border-radius: 4px;
+    border: 1px solid var(--pb-border-subtle);
+    background: var(--pb-bg-input);
+    overflow: hidden;
+}
+
+.pb-inspector-section-header {
+    width: 100%;
+    height: 30px;
+    padding: 0 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    border: none;
+    border-bottom: 1px solid var(--pb-border-subtle);
+    background: var(--pb-bg-header);
+    color: var(--pb-text-primary);
+    cursor: pointer;
+    transition: background 0.1s ease;
+    flex-shrink: 0;
+}
+
+.pb-inspector-section-header:hover {
+    background: var(--pb-bg-hover);
+}
+
+.pb-inspector-section-icon {
+    display: flex;
+    align-items: center;
+    color: var(--pb-text-secondary);
+}
+
+.pb-inspector-section-title {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.pb-inspector-section-badge {
+    margin-left: auto;
+    font-size: 10px;
+    font-weight: 400;
+    color: var(--pb-text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 160px;
+}
+
+.pb-inspector-section-body {
+    max-height: 50vh;
+    overflow-y: auto;
+}
+
+.pb-inspector-section-body::-webkit-scrollbar {
+    width: 5px;
+}
+
+.pb-inspector-section-body::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.pb-inspector-section-body::-webkit-scrollbar-thumb {
+    background: var(--pb-border);
+    border-radius: 3px;
+}
+
+/* Accent variants for inspector section headers */
+.pb-inspector-accent-properties {
+    border-left: 2px solid var(--pb-compact-properties-border);
+}
+
+.pb-inspector-accent-layers {
+    border-left: 2px solid var(--pb-compact-layers-border);
+}
+
+.pb-inspector-accent-actions {
+    border-left: 2px solid var(--pb-compact-tools-border);
+}
+
+.pb-inspector-accent-entities {
+    border-left: 2px solid var(--pb-compact-entities-border);
+}
