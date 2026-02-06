@@ -37,6 +37,6 @@ export abstract class Tool {
 
     abstract onMouseDown(e: MouseEvent): void
     abstract onMouseMove(e: MouseEvent): void
-    abstract onMouseUp(e: MouseEvent): void
+    abstract onMouseUp(e?: MouseEvent): void
     abstract getCursor(): string
 }

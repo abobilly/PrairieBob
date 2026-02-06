@@ -37,7 +37,7 @@
 
 | Task | Source (Lines) | Target | Est. Lines | Status |
 |------|----------------|--------|------------|--------|
-| 2B.1 LevelRender | `display/LevelRender.hx` (650) | `src/components/LevelCanvas.tsx` | ~400 | ⬜ |
+| 2B.1 LevelRender | `display/LevelRender.hx` (650) | `src/components/LevelCanvas.tsx` | ~400 | ✅ |
 | 2B.2 LayerRender | `display/LayerRender.hx` (420) | `src/components/LayerRenderer.tsx` | ~250 | ✅ |
 | 2B.3 EntityRender | `display/EntityRender.hx` (380) | `src/components/EntityRenderer.tsx` | ~200 | ✅ |
 | 2B.4 FieldInstanceRender | `display/FieldInstanceRender.hx` (554) | `src/components/FieldRenderer.tsx` | ~300 | ✅ |
