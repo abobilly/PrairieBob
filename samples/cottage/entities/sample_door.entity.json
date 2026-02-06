@@ -1,0 +1,30 @@
+{
+  "id": "sample_door",
+  "type": "door",
+  "displayName": "Sample Door",
+  "tileset": "sample_door",
+  "tileSize": 32,
+  "size": {
+    "width": 1,
+    "height": 1
+  },
+  "defaultState": "closed",
+  "states": {
+    "closed": {
+      "tileId": 0,
+      "collision": true
+    },
+    "open": {
+      "tileId": 1,
+      "collision": false
+    }
+  },
+  "triggers": {
+    "onLoad": "closed",
+    "onInteract": "toggle"
+  },
+  "preview": {
+    "showInEditor": true,
+    "animateInPreview": false
+  }
+}

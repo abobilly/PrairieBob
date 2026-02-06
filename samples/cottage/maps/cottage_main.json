@@ -411,14 +411,34 @@
         {
           "id": "door_front",
           "type": "door",
-          "x": 160,
+          "x": 176,
           "y": 288,
-          "width": 64,
+          "width": 32,
           "height": 32,
           "properties": {
-            "interactionId": "door_wooden",
+            "interactionId": "sample_door_toggle",
             "targetRoom": "outside",
-            "targetSpawn": "spawn_cottage_entrance"
+            "targetSpawn": "spawn_cottage_entrance",
+            "entityDefId": "sample_door",
+            "previewState": "closed",
+            "onInteractState": "toggle"
+          }
+        },
+        {
+          "id": "npc_pig_01",
+          "type": "npc",
+          "x": 256,
+          "y": 160,
+          "width": 32,
+          "height": 32,
+          "properties": {
+            "entityDefId": "sample_npc_pig",
+            "spriteTileset": "sample_npc_pig",
+            "defaultAnimation": "idle",
+            "onLoadAnimation": "walk",
+            "onInteractAnimation": "sniff",
+            "autoWander": true,
+            "speedTilesPerSecond": 1.8
           }
         }
       ]

@@ -18,6 +18,20 @@
       "tileSize": 32,
       "columns": 16,
       "tileCount": 1053
+    },
+    {
+      "id": "sample_door",
+      "file": "tilesets/sample_door_32x32_open-close.png",
+      "tileSize": 32,
+      "columns": 2,
+      "tileCount": 2
+    },
+    {
+      "id": "sample_npc_pig",
+      "file": "tilesets/sample_npcs_9-total_32x32-each_facing-right-all.png",
+      "tileSize": 32,
+      "columns": 3,
+      "tileCount": 9
     }
   ],
   "layerTemplates": {

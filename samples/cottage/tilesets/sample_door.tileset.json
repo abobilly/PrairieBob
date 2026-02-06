@@ -1,0 +1,22 @@
+{
+  "id": "sample_door",
+  "name": "Sample Door",
+  "image": "sample_door_32x32_open-close.png",
+  "tileSize": 32,
+  "columns": 2,
+  "tileCount": 2,
+  "imageWidth": 64,
+  "imageHeight": 32,
+  "license": "CC0",
+  "source": "SpudTile sample door sheet",
+  "tiles": {
+    "0": {
+      "name": "door_closed",
+      "collision": true
+    },
+    "1": {
+      "name": "door_open",
+      "collision": false
+    }
+  }
+}

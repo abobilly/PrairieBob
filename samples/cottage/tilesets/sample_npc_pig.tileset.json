@@ -1,0 +1,41 @@
+{
+  "id": "sample_npc_pig",
+  "name": "Sample NPC Pig",
+  "image": "sample_npcs_9-total_32x32-each_facing-right-all.png",
+  "tileSize": 32,
+  "columns": 3,
+  "tileCount": 9,
+  "imageWidth": 96,
+  "imageHeight": 96,
+  "license": "CC0",
+  "source": "SpudTile sample NPC sheet",
+  "tiles": {
+    "0": {
+      "name": "pig_idle_0"
+    },
+    "1": {
+      "name": "pig_idle_1"
+    },
+    "2": {
+      "name": "pig_idle_2"
+    },
+    "3": {
+      "name": "pig_walk_0"
+    },
+    "4": {
+      "name": "pig_walk_1"
+    },
+    "5": {
+      "name": "pig_walk_2"
+    },
+    "6": {
+      "name": "pig_sniff_0"
+    },
+    "7": {
+      "name": "pig_sniff_1"
+    },
+    "8": {
+      "name": "pig_sniff_2"
+    }
+  }
+}

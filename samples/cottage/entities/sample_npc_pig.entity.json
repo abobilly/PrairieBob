@@ -1,0 +1,55 @@
+{
+  "id": "sample_npc_pig",
+  "type": "npc",
+  "displayName": "Pig NPC",
+  "tileset": "sample_npc_pig",
+  "tileSize": 32,
+  "size": {
+    "width": 1,
+    "height": 1
+  },
+  "defaultAnimation": "idle",
+  "animations": {
+    "idle": {
+      "frames": [
+        0,
+        1,
+        2
+      ],
+      "fps": 3,
+      "loop": true
+    },
+    "walk": {
+      "frames": [
+        3,
+        4,
+        5
+      ],
+      "fps": 6,
+      "loop": true
+    },
+    "sniff": {
+      "frames": [
+        6,
+        7,
+        8
+      ],
+      "fps": 4,
+      "loop": true
+    }
+  },
+  "behavior": {
+    "onLoad": "wander",
+    "onInteract": "sniff",
+    "wander": {
+      "enabled": true,
+      "speedTilesPerSecond": 1.8,
+      "changeDirectionMs": 900
+    }
+  },
+  "preview": {
+    "showInEditor": true,
+    "previewAnimation": "walk",
+    "loop": true
+  }
+}
