@@ -1,4 +1,4 @@
-# PrairieBob
+# SpudTile
 
 LDtk-compatible tile map editor built with React + TypeScript + Vite + Electron.
 
@@ -26,7 +26,7 @@ npm run electron:compile              # Compile Electron main process to CJS
 npx electron-builder --win --dir      # Package into release/win-unpacked/
 ```
 
-The packaged app is at `release/win-unpacked/PrairieBob.exe`.
+The packaged app is at `release/win-unpacked/SpudTile.exe`.
 
 To build a distributable installer:
 
@@ -83,7 +83,7 @@ public/          # Static assets and tilesets
 
 ## Copilot SDK Integration
 
-PrairieBob embeds GitHub Copilot as an AI assistant that can directly manipulate maps.
+SpudTile embeds GitHub Copilot as an AI assistant that can directly manipulate maps.
 
 ### Agent Tools
 

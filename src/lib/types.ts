@@ -97,7 +97,7 @@ export interface EditorState {
 
 // ============== Tileset System ==============
 
-/** Persistable tileset configuration (saved to prairiebob.config.json) */
+/** Persistable tileset configuration (saved to spudtile.config.json) */
 export interface TilesetConfig {
   id: string
   name: string

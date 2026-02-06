@@ -49,7 +49,7 @@ export function Toolbar({
   return (
     <div className="pb-toolbar">
       {/* Brand */}
-      <span className="pb-toolbar-brand">PrairieBob</span>
+      <span className="pb-toolbar-brand">SpudTile</span>
 
       {/* Undo/Redo */}
       <TooltipProvider delayDuration={300}>

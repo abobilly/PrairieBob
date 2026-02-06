@@ -81,7 +81,7 @@ interface UIActions {
   closeNewProjectWizard: () => void
 }
 
-const PERSIST_KEY = 'prairiebob-ui-v2'
+const PERSIST_KEY = 'spudtile-ui-v2'
 
 const DEFAULT_PANELS: UIState['panels'] = {
   left: {

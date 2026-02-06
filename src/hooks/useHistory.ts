@@ -1,5 +1,5 @@
 /**
- * useHistory - Undo/Redo hook for PrairieBob
+ * useHistory - Undo/Redo hook for SpudTile
  * 
  * Provides a history stack for any state, enabling Ctrl+Z/Ctrl+Y functionality.
  * Inspired by Tiled's undo system.

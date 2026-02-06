@@ -145,7 +145,7 @@ export function AgentPanel() {
       } else if (result.authRequired) {
         setMessages(prev => [...prev, {
           role: 'system',
-          content: 'Copilot auth required. Run `copilot login` once in a terminal, then reconnect in PrairieBob.',
+          content: 'Copilot auth required. Run `copilot login` once in a terminal, then reconnect in SpudTile.',
           timestamp: new Date(),
         }]);
       } else {
@@ -189,10 +189,10 @@ export function AgentPanel() {
       fitAddon.current.fit();
 
       term.writeln('\x1b[38;5;208m╔══════════════════════════════════════╗\x1b[0m');
-      term.writeln('\x1b[38;5;208m║\x1b[0m  \x1b[1;33mPrairieBob Terminal\x1b[0m                 \x1b[38;5;208m║\x1b[0m');
+      term.writeln('\x1b[38;5;208m║\x1b[0m  \x1b[1;33mSpudTile Terminal\x1b[0m                 \x1b[38;5;208m║\x1b[0m');
       term.writeln('\x1b[38;5;208m╚══════════════════════════════════════╝\x1b[0m');
       term.writeln('');
-      term.writeln('Type \x1b[1;36mprairiebob --help\x1b[0m for available commands.');
+      term.writeln('Type \x1b[1;36mspudtile --help\x1b[0m for available commands.');
       term.writeln('');
       term.write('\x1b[1;32m❯\x1b[0m ');
 
@@ -262,13 +262,13 @@ export function AgentPanel() {
       }
     };
 
-    if (cmd === 'prairiebob' || cmd === 'pb') {
+    if (cmd === 'spudtile' || cmd === 'pb') {
       const subCmd = parts[1];
 
       switch (subCmd) {
         case '--help':
         case 'help':
-          term.writeln('\x1b[1;33mPrairieBob CLI Commands:\x1b[0m');
+          term.writeln('\x1b[1;33mSpudTile CLI Commands:\x1b[0m');
           term.writeln('');
           term.writeln('  \x1b[1;36mlist\x1b[0m layers|tilesets|entities  List resources');
           term.writeln('  \x1b[1;36mpaint\x1b[0m --layer --tile --at      Paint tiles');

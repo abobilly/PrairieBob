@@ -1,7 +1,7 @@
 /**
  * Copilot Agent Service
  * 
- * Manages the Copilot SDK client and sessions for the PrairieBob editor.
+ * Manages the Copilot SDK client and sessions for the SpudTile editor.
  * Runs in the Electron main process and communicates with renderer via IPC.
  */
 
@@ -62,7 +62,7 @@ export interface LDtkAgentHandlers {
   suggestAutoLayerRule?: (suggestion: LDtkAutoLayerRuleSuggestion) => void | Promise<void>;
 }
 
-export interface PrairieBobToolHandlers {
+export interface SpudTileToolHandlers {
   paintTiles: (layer: string, tiles: Array<{ x: number; y: number; tileId: number }>) => void;
   fillLayer: (layer: string, tileId: number, region?: { x: number; y: number; width: number; height: number }) => void;
   placeEntity: (type: string, x: number, y: number, properties?: Record<string, unknown>) => void;
@@ -213,9 +213,9 @@ LDtk tools:
 `;
 }
 
-// PrairieBob-specific tools the agent can use
+// SpudTile-specific tools the agent can use
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const createPrairieBobTools = (handlers: PrairieBobToolHandlers): ReturnType<typeof defineTool<any>>[] => {
+const createSpudTileTools = (handlers: SpudTileToolHandlers): ReturnType<typeof defineTool<any>>[] => {
   const tools: ReturnType<typeof defineTool<any>>[] = [
     defineTool('paint_tiles', {
       description: 'Paint tiles on a specific layer of the map. Use this to place individual tiles or patterns.',
@@ -548,7 +548,7 @@ export class AgentService {
     };
   }
 
-  async start(toolHandlers?: PrairieBobToolHandlers): Promise<void> {
+  async start(toolHandlers?: SpudTileToolHandlers): Promise<void> {
     if (this.client) {
       console.warn('AgentService already started');
       return;
@@ -561,7 +561,7 @@ export class AgentService {
 
     await this.client.start();
 
-    const tools = toolHandlers ? createPrairieBobTools(toolHandlers) : [];
+    const tools = toolHandlers ? createSpudTileTools(toolHandlers) : [];
     const ldtkContext = buildLDtkContext(toolHandlers?.ldtk);
 
     this.session = await this.client.createSession({
@@ -570,8 +570,8 @@ export class AgentService {
       tools,
       systemMessage: {
         content: `
-<prairiebob_context>
-You are the PrairieBob AI assistant, embedded in a tile map editor for 2D game development.
+<spudtile_context>
+You are the SpudTile AI assistant, embedded in a tile map editor for 2D game development.
 You help users edit maps, place tiles, manage entities, and export their work.
 
 Available layers (legacy defaults): Floor, Walls, Trim, Overlays, Collision, Entities
@@ -580,7 +580,7 @@ Entity types (legacy defaults): spawn_point, door, npc, trigger, prop
 When users ask to paint or fill tiles, use the appropriate tools.
 When users describe what they want visually, translate that into tile operations.
 Be concise and action-oriented. Execute commands rather than just explaining how.
-</prairiebob_context>
+</spudtile_context>
 ${ldtkContext}
 `,
       },
@@ -590,7 +590,7 @@ ${ldtkContext}
 
     this.config.onMessage?.({
       role: 'system',
-      content: 'PrairieBob Agent connected. I can help you edit maps, paint tiles, place entities, and more.',
+      content: 'SpudTile Agent connected. I can help you edit maps, paint tiles, place entities, and more.',
       timestamp: new Date(),
     });
   }

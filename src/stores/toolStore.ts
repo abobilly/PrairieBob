@@ -11,7 +11,7 @@ import { MAX_ZOOM, MIN_ZOOM } from '@/lib/ldtk/camera'
 const DEFAULT_BRUSH_SIZE = 1
 const MIN_BRUSH_SIZE = 1
 const MAX_BRUSH_SIZE = 64
-const PERSIST_KEY = 'prairiebob-tool-store-v1'
+const PERSIST_KEY = 'spudtile-tool-store-v1'
 
 interface ToolState {
   activeTool: string

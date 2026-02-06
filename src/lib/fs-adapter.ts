@@ -82,7 +82,7 @@ export class ElectronFSAdapter implements FileSystemAdapter {
     }
 
     async readProjectConfig(projectPath: string): Promise<unknown | null> {
-        const configPath = `${projectPath}/prairiebob.config.json`;
+        const configPath = `${projectPath}/spudtile.config.json`;
         if (await this.exists(configPath)) {
             const content = await this.readFile(configPath);
             return JSON.parse(content);
@@ -117,7 +117,7 @@ export class ElectronFSAdapter implements FileSystemAdapter {
  * Browser fallback - uses localStorage + File System Access API
  */
 export class BrowserFSAdapter implements FileSystemAdapter {
-    private readonly STORAGE_KEY = 'prairiebob-current-room';
+    private readonly STORAGE_KEY = 'spudtile-current-room';
 
     async openRoom(): Promise<{ path: string; data: LevelData } | null> {
         // Try File System Access API first

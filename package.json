@@ -1,8 +1,8 @@
 {
-    "name": "prairiebob",
+    "name": "spudtile",
     "private": true,
     "version": "0.1.0",
-    "description": "PrairieBob - Windows desktop tile editor for pixel art games",
+    "description": "SpudTile - Windows desktop tile editor for pixel art games",
     "type": "module",
     "main": "dist-electron/main.cjs",
     "scripts": {
@@ -95,8 +95,8 @@
         "vite": "7.3.1"
     },
     "build": {
-        "appId": "com.prairiebob.editor",
-        "productName": "PrairieBob",
+        "appId": "com.spudtile.editor",
+        "productName": "SpudTile",
         "directories": {
             "output": "release"
         },
@@ -112,12 +112,16 @@
             {
                 "from": "samples",
                 "to": "samples"
+            },
+            {
+                "from": "bobtile/publish",
+                "to": "bobtile"
             }
         ],
         "publish": {
             "provider": "github",
             "owner": "abobilly",
-            "repo": "PrairieBob"
+            "repo": "SpudTile"
         },
         "win": {
             "target": [
@@ -132,7 +136,7 @@
             "allowToChangeInstallationDirectory": false,
             "createDesktopShortcut": true,
             "createStartMenuShortcut": true,
-            "shortcutName": "PrairieBob"
+            "shortcutName": "SpudTile"
         },
         "portable": {
             "artifactName": "${productName}-Portable-${version}.exe"

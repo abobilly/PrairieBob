@@ -1,8 +1,8 @@
 @echo off
-title PrairieBob - Build and Install
+title SpudTile - Build and Install
 echo.
 echo  ====================================
-echo    PrairieBob - Build and Install
+echo    SpudTile - Build and Install
 echo  ====================================
 echo.
 
@@ -67,7 +67,7 @@ for %%f in (release\*.exe) do (
 )
 
 echo.
-echo  After installing, pin PrairieBob to your taskbar!
+echo  After installing, pin SpudTile to your taskbar!
 echo  Right-click the Start Menu shortcut ^> Pin to taskbar
 echo.
 pause

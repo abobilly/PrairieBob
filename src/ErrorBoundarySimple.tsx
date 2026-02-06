@@ -20,7 +20,7 @@ export class ErrorBoundary extends Component<Props, State> {
     }
 
     componentDidCatch(error: Error, info: React.ErrorInfo) {
-        console.error('[PrairieBob] Render crash:', error, info.componentStack)
+        console.error('[SpudTile] Render crash:', error, info.componentStack)
     }
 
     render() {
@@ -38,7 +38,7 @@ export class ErrorBoundary extends Component<Props, State> {
                     padding: '2rem',
                 }}>
                     <h1 style={{ color: '#f97316', fontSize: '1.5rem', marginBottom: '1rem' }}>
-                        PrairieBob crashed
+                        SpudTile crashed
                     </h1>
                     <pre style={{
                         background: '#12121f',

@@ -1,5 +1,5 @@
 /**
- * PrairieBob - Electron Main Process
+ * SpudTile - Electron Main Process
  * 
  * This is the Node.js backend that creates windows, handles native dialogs,
  * and bridges filesystem access to the React renderer.
@@ -24,8 +24,8 @@ if (app.isPackaged) {
 }
 
 // Set unique app name to avoid conflicts with other Electron apps
-app.name = 'PrairieBob';
-app.setAppUserModelId('com.prairiebob.tileeditor');
+app.name = 'SpudTile';
+app.setAppUserModelId('com.spudtile.tileeditor');
 
 // Development vs production paths
 // Use dev server only if VITE_DEV_SERVER_URL is explicitly set
@@ -48,7 +48,7 @@ function createWindow() {
         height: 1000,
         minWidth: 1024,
         minHeight: 768,
-        title: 'PrairieBob',
+        title: 'SpudTile',
         icon: iconPath,
         backgroundColor: '#1a1a2e',
         webPreferences: {
@@ -89,10 +89,10 @@ function createWindow() {
 function updateWindowTitle() {
     if (!mainWindow) return;
 
-    let title = 'PrairieBob';
+    let title = 'SpudTile';
     if (currentRoomPath) {
         const roomName = path.basename(currentRoomPath, path.extname(currentRoomPath));
-        title = `${roomName} - PrairieBob`;
+        title = `${roomName} - SpudTile`;
     }
     if (hasUnsavedChanges) {
         title = `● ${title}`;
@@ -229,7 +229,7 @@ function buildMenu(): Menu {
                 },
                 { type: 'separator' },
                 {
-                    label: 'About PrairieBob',
+                    label: 'About SpudTile',
                     click: () => showAboutDialog(),
                 },
             ],
@@ -291,7 +291,14 @@ async function handleSaveAs() {
 }
 
 function handleLaunchBobTile() {
-    const bobTilePath = path.resolve(__dirname, '../../bobtile/publish/BobTile.exe');
+    // In packaged mode, BobTile is in resources/bobtile/
+    // In dev mode, it's in bobtile/publish/
+    let bobTilePath: string;
+    if (app.isPackaged) {
+        bobTilePath = path.join(process.resourcesPath, 'bobtile', 'BobTile.exe');
+    } else {
+        bobTilePath = path.resolve(__dirname, '../../bobtile/publish/BobTile.exe');
+    }
 
     if (fs.existsSync(bobTilePath)) {
         const { spawn } = require('child_process');
@@ -305,8 +312,8 @@ function handleLaunchBobTile() {
 function showAboutDialog() {
     dialog.showMessageBox(mainWindow!, {
         type: 'info',
-        title: 'About PrairieBob',
-        message: 'PrairieBob',
+        title: 'About SpudTile',
+        message: 'SpudTile',
         detail: 'AI-assisted tile editor for pixel art games.\n\nVersion 0.1.0\n\nIntegrates with BobTile for atlas packing.',
     });
 }
@@ -395,7 +402,7 @@ function setupAutoUpdater() {
         dialog.showMessageBox(mainWindow!, {
             type: 'info',
             title: 'Update Available',
-            message: `PrairieBob v${info.version} is available!`,
+            message: `SpudTile v${info.version} is available!`,
             detail: 'It will be installed automatically when you close the app.',
             buttons: ['OK'],
         });

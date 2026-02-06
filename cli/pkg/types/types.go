@@ -1,8 +1,8 @@
-// Package types defines the core data structures for PrairieBob projects.
+// Package types defines the core data structures for SpudTile projects.
 // These structs match the TypeScript interfaces in src/lib/types.ts.
 package types
 
-// Project represents a prairiebob project.json manifest
+// Project represents a spudtile project.json manifest
 type Project struct {
 	Schema          string            `json:"$schema,omitempty"`
 	Name            string            `json:"name"`

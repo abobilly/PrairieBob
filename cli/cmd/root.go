@@ -8,9 +8,9 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/lawchuck/prairiebob/cli/pkg/maps"
-	"github.com/lawchuck/prairiebob/cli/pkg/project"
-	"github.com/lawchuck/prairiebob/cli/pkg/types"
+	"github.com/lawchuck/spudtile/cli/pkg/maps"
+	"github.com/lawchuck/spudtile/cli/pkg/project"
+	"github.com/lawchuck/spudtile/cli/pkg/types"
 	"github.com/spf13/cobra"
 )
 
@@ -18,8 +18,8 @@ var projectDir string // Set by --project flag or auto-detected
 
 var rootCmd = &cobra.Command{
 	Use:   "pb",
-	Short: "PrairieBob CLI - AI-assisted tile map editing",
-	Long: `PrairieBob CLI provides command-line access to tile map operations.
+	Short: "SpudTile CLI - AI-assisted tile map editing",
+	Long: `SpudTile CLI provides command-line access to tile map operations.
 Designed for use with GitHub Copilot and automation scripts.
 
 Examples:
@@ -218,7 +218,7 @@ Examples:
 			level.Metadata = &types.Metadata{}
 		}
 		level.Metadata.EditedAt = time.Now().UTC().Format(time.RFC3339)
-		level.Metadata.ExportedFrom = "prairiebob-cli"
+		level.Metadata.ExportedFrom = "spudtile-cli"
 
 		if err := maps.Save(mapPath, level); err != nil {
 			return err

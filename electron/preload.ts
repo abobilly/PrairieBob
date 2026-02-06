@@ -1,5 +1,5 @@
 /**
- * PrairieBob - Electron Preload Script
+ * SpudTile - Electron Preload Script
  * 
  * This script runs in a sandboxed context and exposes a safe API
  * to the renderer (React) via contextBridge.

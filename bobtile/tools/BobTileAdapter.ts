@@ -1,5 +1,5 @@
 /**
- * BobTile CLI Adapter for PrairieBob (Electron)
+ * BobTile CLI Adapter for SpudTile (Electron)
  * 
  * Spawns bobtile-cli.exe and communicates via JSON stdin/stdout.
  * Place bobtile-cli.exe in your project or reference it by path.

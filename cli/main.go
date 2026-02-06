@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/lawchuck/prairiebob/cli/cmd"
+	"github.com/lawchuck/spudtile/cli/cmd"
 )
 
 func main() {

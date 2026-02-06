@@ -1,6 +1,6 @@
 /**
- * PrairieBob <-> LDtk project bridge
- * Loads PrairieBob config and maps it into LDtk project format.
+ * SpudTile <-> LDtk project bridge
+ * Loads SpudTile config and maps it into LDtk project format.
  */
 
 import type { Project } from './project'
@@ -12,7 +12,7 @@ import {
 import { createWorld } from './world'
 import { loadProjectFromJson, saveProjectToJson } from './json-io'
 
-export interface PrairieBobLinkedProject {
+export interface SpudTileLinkedProject {
     name: string
     rootPath: string
     contentPath: string
@@ -26,8 +26,8 @@ export interface PrairieBobLinkedProject {
     [key: string]: unknown
 }
 
-export interface PrairieBobConfig {
-    linkedProjects: PrairieBobLinkedProject[]
+export interface SpudTileConfig {
+    linkedProjects: SpudTileLinkedProject[]
     defaultProject: string
     ldtkPath?: string
     agentEnabled?: boolean
@@ -40,7 +40,7 @@ export interface PrairieBobConfig {
     [key: string]: unknown
 }
 
-export type LDtkProject = Project & { prairieBobConfig: PrairieBobConfig }
+export type LDtkProject = Project & { prairieBobConfig: SpudTileConfig }
 
 const DEFAULT_TILES_PER_LEVEL =
     PROJECT_DEFAULTS.LEVEL_WIDTH / PROJECT_DEFAULTS.GRID_SIZE
@@ -75,17 +75,17 @@ function normalizeConfigPath(path: string): string {
         return path
     }
     const trimmed = path.replace(/[\\/]+$/, '')
-    return `${trimmed}/prairiebob.config.json`
+    return `${trimmed}/spudtile.config.json`
 }
 
-function validatePrairieBobConfig(value: unknown): PrairieBobConfig {
+function validateSpudTileConfig(value: unknown): SpudTileConfig {
     if (!isRecord(value)) {
-        throw new Error('Invalid PrairieBob config; expected an object')
+        throw new Error('Invalid SpudTile config; expected an object')
     }
 
     const linkedProjects = value.linkedProjects
     if (!Array.isArray(linkedProjects) || linkedProjects.length === 0) {
-        throw new Error('Invalid PrairieBob config; linkedProjects is required')
+        throw new Error('Invalid SpudTile config; linkedProjects is required')
     }
 
     const defaultProject = assertString(value.defaultProject, 'defaultProject')
@@ -105,14 +105,14 @@ function validatePrairieBobConfig(value: unknown): PrairieBobConfig {
     )
     if (!hasDefault) {
         throw new Error(
-            `Invalid PrairieBob config; defaultProject "${defaultProject}" not found`
+            `Invalid SpudTile config; defaultProject "${defaultProject}" not found`
         )
     }
 
-    return value as PrairieBobConfig
+    return value as SpudTileConfig
 }
 
-function getDefaultLinkedProject(config: PrairieBobConfig): PrairieBobLinkedProject {
+function getDefaultLinkedProject(config: SpudTileConfig): SpudTileLinkedProject {
     const match = config.linkedProjects.find(
         (project) => project.name === config.defaultProject
     )
@@ -132,7 +132,7 @@ function updateProjectDefaults(project: Project, tileSize: number): void {
 
 function updateWorldDefaults(
     project: Project,
-    linkedProject: PrairieBobLinkedProject,
+    linkedProject: SpudTileLinkedProject,
     tileSize: number
 ): void {
     const world = project.worlds.find(
@@ -161,9 +161,9 @@ function updateWorldDefaults(
 
 function updateConfigFromProject(
     project: Project,
-    config: PrairieBobConfig
-): PrairieBobConfig {
-    const updated: PrairieBobConfig = { ...config }
+    config: SpudTileConfig
+): SpudTileConfig {
+    const updated: SpudTileConfig = { ...config }
     const tileSize = project.defaultGridSize || PROJECT_DEFAULTS.GRID_SIZE
 
     const defaultProject = getDefaultLinkedProject(updated)
@@ -176,11 +176,11 @@ function updateConfigFromProject(
     return updated
 }
 
-export function syncPrairieBobConfig(
+export function syncSpudTileConfig(
     project: LDtkProject,
-    config: PrairieBobConfig
+    config: SpudTileConfig
 ): LDtkProject {
-    const validated = validatePrairieBobConfig(config)
+    const validated = validateSpudTileConfig(config)
     const defaultProject = getDefaultLinkedProject(validated)
     const tileSize = defaultProject.tileSize || PROJECT_DEFAULTS.GRID_SIZE
 
@@ -194,12 +194,12 @@ export function syncPrairieBobConfig(
     return project
 }
 
-export async function loadPrairieBobProject(path: string): Promise<LDtkProject> {
+export async function loadSpudTileProject(path: string): Promise<LDtkProject> {
     const fs = assertElectronFs()
     const configPath = normalizeConfigPath(path)
 
     const configContent = await fs.readFile(configPath)
-    const config = validatePrairieBobConfig(JSON.parse(configContent))
+    const config = validateSpudTileConfig(JSON.parse(configContent))
 
     let project: Project
     if (config.ldtkPath) {
@@ -215,10 +215,10 @@ export async function loadPrairieBobProject(path: string): Promise<LDtkProject> 
         prairieBobConfig: config,
     }) as LDtkProject
 
-    return syncPrairieBobConfig(bridgedProject, config)
+    return syncSpudTileConfig(bridgedProject, config)
 }
 
-export async function savePrairieBobProject(
+export async function saveSpudTileProject(
     project: LDtkProject,
     path: string
 ): Promise<void> {
@@ -227,12 +227,12 @@ export async function savePrairieBobProject(
 
     const configSource = project.prairieBobConfig ?? null
     if (!configSource) {
-        throw new Error('Missing PrairieBob config on project')
+        throw new Error('Missing SpudTile config on project')
     }
 
     const updatedConfig = updateConfigFromProject(
         project,
-        validatePrairieBobConfig(configSource)
+        validateSpudTileConfig(configSource)
     )
 
     await fs.writeFile(configPath, JSON.stringify(updatedConfig, null, 4))

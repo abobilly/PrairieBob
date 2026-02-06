@@ -26,10 +26,10 @@ import {
 import { toast } from 'sonner'
 
 // Config file path
-const CONFIG_PATH = 'c:/Users/andre/lawchuck/artbob/PrairieBob/prairiebob.config.json'
+const CONFIG_PATH = 'c:/Users/andre/lawchuck/artbob/SpudTile/spudtile.config.json'
 
 // Sample project path fallback (dev)
-const SAMPLE_PROJECT_PATH = 'c:/Users/andre/lawchuck/artbob/PrairieBob/samples/cottage'
+const SAMPLE_PROJECT_PATH = 'c:/Users/andre/lawchuck/artbob/SpudTile/samples/cottage'
 
 async function resolveSampleProjectPath(): Promise<string> {
   if (window.electron?.app?.getPaths) {
@@ -81,7 +81,7 @@ const DEFAULT_MAP: LevelData = {
   ],
   metadata: {
     editedAt: new Date().toISOString(),
-    exportedFrom: 'prairiebob',
+    exportedFrom: 'spudtile',
     version: '1.0.0',
   },
 }
@@ -395,7 +395,7 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
             layers: defaultLayers,
             metadata: {
               editedAt: new Date().toISOString(),
-              exportedFrom: 'prairiebob',
+              exportedFrom: 'spudtile',
               version: '1.0.0',
             },
           }
@@ -448,7 +448,7 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
           metadata: {
             ...mapData.metadata,
             editedAt: new Date().toISOString(),
-            exportedFrom: 'prairiebob',
+            exportedFrom: 'spudtile',
           },
         }
 

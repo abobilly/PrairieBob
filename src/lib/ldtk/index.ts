@@ -1,7 +1,7 @@
 /**
  * LDtk Module - Main export
  * 
- * This is the ported LDtk data model for PrairieBob.
+ * This is the ported LDtk data model for SpudTile.
  * It provides LDtk-compatible types and can read/write LDtk project files.
  */
 
@@ -23,11 +23,11 @@ export * from './json-io'
 export * from './project-loader'
 export * from './project-saver'
 export { 
-    type PrairieBobConfig, 
-    type PrairieBobLinkedProject,
-    loadPrairieBobProject,
-    savePrairieBobProject,
-    syncPrairieBobConfig 
+    type SpudTileConfig, 
+    type SpudTileLinkedProject,
+    loadSpudTileProject,
+    saveSpudTileProject,
+    syncSpudTileConfig 
 } from './project-bridge'
 
 // Tools

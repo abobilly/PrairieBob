@@ -45,7 +45,7 @@ npm run electron:compile              # Compile Electron main process to CJS
 npx electron-builder --win --dir      # Package into release/win-unpacked/
 ```
 
-Packaged app: `release/win-unpacked/PrairieBob.exe`
+Packaged app: `release/win-unpacked/SpudTile.exe`
 
 ## Progress Monitoring
 

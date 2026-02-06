@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/lawchuck/prairiebob/cli/pkg/types"
+	"github.com/lawchuck/spudtile/cli/pkg/types"
 )
 
 // Load reads a map JSON file

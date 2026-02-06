@@ -81,7 +81,7 @@ export function ProjectSelector() {
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2 text-xl">
                         <MapIcon className="h-6 w-6 text-[#f97316]" />
-                        PrairieBob
+                        SpudTile
                     </DialogTitle>
                     <DialogDescription className="text-gray-400">
                         AI-assisted tile editor for pixel art games

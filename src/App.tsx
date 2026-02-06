@@ -1,5 +1,5 @@
 /**
- * PrairieBob Main App
+ * SpudTile Main App
  *
  * UX patterns stolen from:
  * - Tiled: Resizable panels, stamp brushes, undo/redo
@@ -509,7 +509,7 @@ function App() {
       />
 
       <div className="pb-toolbar">
-        <span className="pb-toolbar-brand">PrairieBob</span>
+        <span className="pb-toolbar-brand">SpudTile</span>
         <div className="pb-toolbar-group">
           <button
             className="pb-tool-btn pb-tool-btn-labeled"

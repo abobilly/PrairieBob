@@ -1,8 +1,8 @@
-# PrairieBob — Copilot Instructions
+# SpudTile — Copilot Instructions
 
 ## Project Context
 
-PrairieBob is an LDtk-compatible tile map editor built with React + TypeScript + Vite + Electron.
+SpudTile is an LDtk-compatible tile map editor built with React + TypeScript + Vite + Electron.
 
 ### Stack
 
@@ -16,8 +16,8 @@ PrairieBob is an LDtk-compatible tile map editor built with React + TypeScript +
 ### Critical Notes
 
 - **DO NOT use Radix UI Slider** — `@radix-ui/react-slider` is incompatible with React 19 (infinite re-render loop via `useControllableState` reference comparison). Use native `<input type="range">` instead.
-- **DO NOT open localhost** — PrairieBob is an Electron app. Never launch `vite preview` or open browser URLs in production builds. Use `npm run build && npx electron .` for testing, or package with electron-builder for release.
-- **Build path**: `npm run build` -> `npm run electron:compile` -> `npx electron-builder --win --dir` -> `release/win-unpacked/PrairieBob.exe`
+- **DO NOT open localhost** — SpudTile is an Electron app. Never launch `vite preview` or open browser URLs in production builds. Use `npm run build && npx electron .` for testing, or package with electron-builder for release.
+- **Build path**: `npm run build` -> `npm run electron:compile` -> `npx electron-builder --win --dir` -> `release/win-unpacked/SpudTile.exe`
 
 ### Key Conventions
 

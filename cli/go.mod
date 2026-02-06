@@ -1,4 +1,4 @@
-module github.com/lawchuck/prairiebob/cli
+module github.com/lawchuck/spudtile/cli
 
 go 1.25
 

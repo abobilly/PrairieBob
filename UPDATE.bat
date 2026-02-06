@@ -1,8 +1,8 @@
 @echo off
-title PrairieBob - Update
+title SpudTile - Update
 echo.
 echo  ====================================
-echo    PrairieBob - Pull Updates + Rebuild
+echo    SpudTile - Pull Updates + Rebuild
 echo  ====================================
 echo.
 
@@ -50,7 +50,7 @@ echo  ====================================
 echo.
 
 :: Find and run the latest installer
-for %%f in (release\PrairieBob*.exe) do (
+for %%f in (release\SpudTile*.exe) do (
     echo  Installing update: %%f
     start "" "%%f"
     goto :done

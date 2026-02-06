@@ -1,4 +1,4 @@
-// Package project handles loading and saving PrairieBob project files.
+// Package project handles loading and saving SpudTile project files.
 package project
 
 import (
@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/lawchuck/prairiebob/cli/pkg/types"
+	"github.com/lawchuck/spudtile/cli/pkg/types"
 )
 
 const ProjectFileName = "project.json"
