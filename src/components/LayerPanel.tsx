@@ -1,6 +1,6 @@
-import { useState, useCallback, useMemo } from 'react'
-import { Eye, EyeSlash, Lock, LockOpen, DotsSixVertical, Trash, Plus } from '@phosphor-icons/react'
-import { Layer, LayerType } from '@/lib/types'
+import { useState, useCallback, useMemo, useRef } from 'react'
+import { Eye, EyeSlash, Lock, LockOpen, DotsSixVertical, Trash, Plus, CaretDown, CaretRight, FolderSimple } from '@phosphor-icons/react'
+import { Layer, LayerType, LayerGroup } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -30,6 +30,13 @@ interface LayerPanelProps {
   onLayerDelete?: (index: number) => void
   onLayerRename?: (index: number, name: string) => void
   onLayerOpacityChange?: (index: number, opacity: number) => void
+  layerGroups?: LayerGroup[]
+  onCreateGroup?: (name: string) => void
+  onDeleteGroup?: (id: string) => void
+  onToggleGroupVisibility?: (id: string) => void
+  onToggleGroupLock?: (id: string) => void
+  onToggleGroupCollapsed?: (id: string) => void
+  onMoveLayerToGroup?: (layerName: string, groupId: string | null) => void
 }
 
 type LayerEntry = { layer: Layer; index: number }
@@ -55,6 +62,13 @@ export function LayerPanel({
   onLayerDelete,
   onLayerRename,
   onLayerOpacityChange,
+  layerGroups = [],
+  onCreateGroup,
+  onDeleteGroup,
+  onToggleGroupVisibility,
+  onToggleGroupLock,
+  onToggleGroupCollapsed,
+  onMoveLayerToGroup,
 }: LayerPanelProps) {
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [newLayerName, setNewLayerName] = useState('')
@@ -63,6 +77,9 @@ export function LayerPanel({
   const [editingName, setEditingName] = useState('')
   const [dragIndex, setDragIndex] = useState<number | null>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
+  const [addGroupDialogOpen, setAddGroupDialogOpen] = useState(false)
+  const [newGroupName, setNewGroupName] = useState('')
+  const suppressNextRowSelectionRef = useRef(false)
   const layerEntries = useMemo<LayerEntry[]>(
     () => [...layers].reverse().map((layer, reverseIndex) => ({
       layer,
@@ -130,11 +147,27 @@ export function LayerPanel({
     setDragOverIndex(null)
   }, [])
 
+  const isInteractiveLayerEvent = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement | null
+    if (target?.closest?.('[data-layer-interactive="true"]')) return true
+    const nativeEvent = event.nativeEvent as MouseEvent & { composedPath?: () => EventTarget[] }
+    if (typeof nativeEvent.composedPath === 'function') {
+      const path = nativeEvent.composedPath()
+      return path.some((entry) => {
+        return entry instanceof HTMLElement && entry.dataset?.layerInteractive === 'true'
+      })
+    }
+    return false
+  }, [])
+
   const handleRowClick = useCallback((index: number, event: React.MouseEvent<HTMLDivElement>) => {
-    const target = event.target as HTMLElement
-    if (target.closest('[data-layer-interactive="true"]')) return
+    if (suppressNextRowSelectionRef.current) {
+      suppressNextRowSelectionRef.current = false
+      return
+    }
+    if (isInteractiveLayerEvent(event)) return
     onLayerSelect(index)
-  }, [onLayerSelect])
+  }, [isInteractiveLayerEvent, onLayerSelect])
 
   const renderLayerRow = useCallback((entry: LayerEntry) => {
     const { layer, index } = entry
@@ -196,8 +229,19 @@ export function LayerPanel({
             className="pb-opacity-slider"
             title={`${Math.round((layer.opacity ?? 1) * 100)}%`}
             onClick={(e) => e.stopPropagation()}
-            onMouseDown={(e) => e.stopPropagation()}
-            onPointerDown={(e) => e.stopPropagation()}
+            onMouseDown={(e) => {
+              suppressNextRowSelectionRef.current = true
+              e.stopPropagation()
+            }}
+            onMouseUp={(e) => e.stopPropagation()}
+            onPointerDown={(e) => {
+              suppressNextRowSelectionRef.current = true
+              e.stopPropagation()
+            }}
+            onPointerUp={(e) => e.stopPropagation()}
+            onPointerCancel={() => {
+              suppressNextRowSelectionRef.current = false
+            }}
           >
             <input
               data-layer-interactive="true"
@@ -206,8 +250,19 @@ export function LayerPanel({
               value={Math.round((layer.opacity ?? 1) * 100)}
               onChange={(e) => onLayerOpacityChange(index, Number(e.target.value) / 100)}
               onClick={(e) => e.stopPropagation()}
-              onMouseDown={(e) => e.stopPropagation()}
-              onPointerDown={(e) => e.stopPropagation()}
+              onMouseDown={(e) => {
+                suppressNextRowSelectionRef.current = true
+                e.stopPropagation()
+              }}
+              onMouseUp={(e) => e.stopPropagation()}
+              onPointerDown={(e) => {
+                suppressNextRowSelectionRef.current = true
+                e.stopPropagation()
+              }}
+              onPointerUp={(e) => e.stopPropagation()}
+              onPointerCancel={() => {
+                suppressNextRowSelectionRef.current = false
+              }}
               min={0}
               max={100}
               step={10}
@@ -291,15 +346,26 @@ export function LayerPanel({
         {/* Compact header */}
         <div className="pb-compact-header">
           <span className="pb-compact-title">Layers</span>
-          {onLayerAdd && (
-            <button
-              className="pb-icon-btn-xs"
-              onClick={() => setAddDialogOpen(true)}
-              title="Add layer"
-            >
-              <Plus size={12} />
-            </button>
-          )}
+          <div className="flex gap-0.5">
+            {onCreateGroup && (
+              <button
+                className="pb-icon-btn-xs"
+                onClick={() => setAddGroupDialogOpen(true)}
+                title="New group"
+              >
+                <FolderSimple size={12} />
+              </button>
+            )}
+            {onLayerAdd && (
+              <button
+                className="pb-icon-btn-xs"
+                onClick={() => setAddDialogOpen(true)}
+                title="Add layer"
+              >
+                <Plus size={12} />
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Layer list */}
@@ -308,22 +374,87 @@ export function LayerPanel({
             <div className="text-[10px] text-muted-foreground p-2">No layers</div>
           ) : (
             <div className="flex flex-col gap-1">
-              {gameplayEntries.length > 0 ? (
-                <div className="flex flex-col gap-0.5">
-                  <div className="px-2 pt-1 pb-0.5 text-[9px] uppercase tracking-wide text-[var(--pb-text-muted)]">
-                    Gameplay
+              {/* Static layer groups */}
+              {layerGroups.filter(g => g.type === 'static').map((group) => {
+                const groupLayerEntries = layerEntries.filter(({ layer }) =>
+                  group.layerIds.includes(layer.name)
+                )
+                return (
+                  <div key={group.id} className="flex flex-col gap-0.5">
+                    <div className="flex items-center gap-1 px-1 py-0.5 rounded" style={{ borderLeft: `2px solid ${group.color || '#666'}` }}>
+                      <button
+                        className="pb-icon-btn-xs"
+                        onClick={() => onToggleGroupCollapsed?.(group.id)}
+                        title={group.collapsed ? 'Expand' : 'Collapse'}
+                      >
+                        {group.collapsed ? <CaretRight size={10} /> : <CaretDown size={10} />}
+                      </button>
+                      <button
+                        className="pb-icon-btn-xs"
+                        onClick={() => onToggleGroupVisibility?.(group.id)}
+                        title={group.visible ? 'Hide group' : 'Show group'}
+                      >
+                        {group.visible ? <Eye size={10} /> : <EyeSlash size={10} className="opacity-40" />}
+                      </button>
+                      <button
+                        className="pb-icon-btn-xs"
+                        onClick={() => onToggleGroupLock?.(group.id)}
+                        title={group.locked ? 'Unlock group' : 'Lock group'}
+                      >
+                        {group.locked ? <Lock size={10} className="text-amber-500" /> : <LockOpen size={10} className="opacity-40" />}
+                      </button>
+                      <span className="flex-1 text-[10px] font-medium truncate">{group.name}</span>
+                      {onDeleteGroup && (
+                        <button
+                          className="pb-icon-btn-xs text-red-400/50 hover:text-red-400"
+                          onClick={() => onDeleteGroup(group.id)}
+                          title="Delete group"
+                        >
+                          <Trash size={10} />
+                        </button>
+                      )}
+                    </div>
+                    {!group.collapsed && (
+                      <div className="ml-3 flex flex-col gap-0.5">
+                        {groupLayerEntries.length > 0 ? (
+                          groupLayerEntries.map(renderLayerRow)
+                        ) : (
+                          <div className="text-[9px] text-muted-foreground px-2 py-1 italic">Empty group</div>
+                        )}
+                      </div>
+                    )}
                   </div>
-                  {gameplayEntries.map(renderLayerRow)}
-                </div>
-              ) : null}
-              {artEntries.length > 0 ? (
-                <div className="flex flex-col gap-0.5">
-                  <div className="px-2 pt-1 pb-0.5 text-[9px] uppercase tracking-wide text-[var(--pb-text-muted)]">
-                    Art Layers
-                  </div>
-                  {artEntries.map(renderLayerRow)}
-                </div>
-              ) : null}
+                )
+              })}
+
+              {/* Ungrouped layers */}
+              {(() => {
+                const groupedLayerNames = new Set(
+                  layerGroups.flatMap(g => g.layerIds)
+                )
+                const ungroupedGameplay = gameplayEntries.filter(({ layer }) => !groupedLayerNames.has(layer.name))
+                const ungroupedArt = artEntries.filter(({ layer }) => !groupedLayerNames.has(layer.name))
+                return (
+                  <>
+                    {ungroupedGameplay.length > 0 && (
+                      <div className="flex flex-col gap-0.5">
+                        <div className="px-2 pt-1 pb-0.5 text-[9px] uppercase tracking-wide text-[var(--pb-text-muted)]">
+                          Gameplay
+                        </div>
+                        {ungroupedGameplay.map(renderLayerRow)}
+                      </div>
+                    )}
+                    {ungroupedArt.length > 0 && (
+                      <div className="flex flex-col gap-0.5">
+                        <div className="px-2 pt-1 pb-0.5 text-[9px] uppercase tracking-wide text-[var(--pb-text-muted)]">
+                          Art Layers
+                        </div>
+                        {ungroupedArt.map(renderLayerRow)}
+                      </div>
+                    )}
+                  </>
+                )
+              })()}
             </div>
           )}
         </div>
@@ -370,6 +501,53 @@ export function LayerPanel({
             </Button>
             <Button onClick={handleAddLayer} disabled={!newLayerName.trim()}>
               Add Layer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Group Dialog */}
+      <Dialog open={addGroupDialogOpen} onOpenChange={setAddGroupDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>New Layer Group</DialogTitle>
+            <DialogDescription>
+              Create a group to organize layers.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="group-name">Group Name</Label>
+              <Input
+                id="group-name"
+                value={newGroupName}
+                onChange={(e) => setNewGroupName(e.target.value)}
+                placeholder="e.g., Background"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && newGroupName.trim() && onCreateGroup) {
+                    onCreateGroup(newGroupName.trim())
+                    setNewGroupName('')
+                    setAddGroupDialogOpen(false)
+                  }
+                }}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddGroupDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (newGroupName.trim() && onCreateGroup) {
+                  onCreateGroup(newGroupName.trim())
+                  setNewGroupName('')
+                  setAddGroupDialogOpen(false)
+                }
+              }}
+              disabled={!newGroupName.trim()}
+            >
+              Create Group
             </Button>
           </DialogFooter>
         </DialogContent>

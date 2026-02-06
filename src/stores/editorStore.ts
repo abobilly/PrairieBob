@@ -7,7 +7,7 @@
 
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
-import { Tool, TileStamp, TileSelection } from '@/lib/types'
+import { Tool, TileStamp, TileSelection, PreviewViewport } from '@/lib/types'
 
 // Zoom constraints (borrowed from Tiled's defaults)
 export const MIN_ZOOM = 0.25
@@ -50,6 +50,10 @@ interface EditorState {
   // Clipboard (stolen from Tiled/Photoshop)
   clipboard: TileSelection | null
   selection: TileSelection | null
+
+  // Game preview
+  previewMode: boolean
+  previewViewport: PreviewViewport
 }
 
 interface EditorActions {
@@ -90,6 +94,13 @@ interface EditorActions {
   setSelection: (selection: TileSelection | null) => void
   copySelection: () => void
   clearSelection: () => void
+
+  // Game preview
+  enterPreview: () => void
+  exitPreview: () => void
+  setPreviewCamera: (x: number, y: number) => void
+  setPreviewZoom: (zoom: number) => void
+  setPreviewViewportSize: (width: number, height: number) => void
 }
 
 const DEFAULT_STAMP: TileStamp = {
@@ -121,6 +132,8 @@ export const useEditorStore = create<EditorState & EditorActions>()(
       cursorTileY: null,
       clipboard: null,
       selection: null,
+      previewMode: false,
+      previewViewport: { width: 640, height: 480, zoom: 1, x: 0, y: 0 },
 
       // Actions
       setTool: (tool) => set({ currentTool: tool }),
@@ -198,6 +211,19 @@ export const useEditorStore = create<EditorState & EditorActions>()(
         }
       },
       clearSelection: () => set({ selection: null }),
+
+      // Game preview
+      enterPreview: () => set({ previewMode: true }),
+      exitPreview: () => set({ previewMode: false }),
+      setPreviewCamera: (x, y) => set((state) => ({
+        previewViewport: { ...state.previewViewport, x, y },
+      })),
+      setPreviewZoom: (zoom) => set((state) => ({
+        previewViewport: { ...state.previewViewport, zoom: Math.max(1, Math.min(4, zoom)) },
+      })),
+      setPreviewViewportSize: (width, height) => set((state) => ({
+        previewViewport: { ...state.previewViewport, width, height },
+      })),
     }),
     { name: 'editor-store' }
   )
@@ -224,3 +250,5 @@ export const useCursorTile = () => useEditorStore((s) => ({
 }))
 export const useClipboard = () => useEditorStore((s) => s.clipboard)
 export const useSelection = () => useEditorStore((s) => s.selection)
+export const usePreviewMode = () => useEditorStore((s) => s.previewMode)
+export const usePreviewViewport = () => useEditorStore((s) => s.previewViewport)

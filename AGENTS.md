@@ -47,6 +47,12 @@ npx electron-builder --win --dir      # Package into release/win-unpacked/
 
 Packaged app: `release/win-unpacked/SpudTile.exe`
 
+## Packaged Asset Guardrail
+
+- Never trust an old `release/win-unpacked` folder after changing `samples/`, `tilesets/`, `entities/`, or `interactions/`.
+- Rebuild packaging (`npm run build`, `npm run electron:compile`, `npx electron-builder --win --dir`) before validating runtime features in the `.exe`.
+- Verify required packaged sample files exist before launch (for example `release/win-unpacked/resources/samples/cottage/entities/sample_main_character.entity.json`).
+
 ## Progress Monitoring
 
 - Monitor progress via real-time SDK stream events

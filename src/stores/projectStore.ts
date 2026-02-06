@@ -17,6 +17,8 @@ import {
   DEBUG_TILESET_ID,
   EntityDefinitionFile,
   InteractionDefinitionFile,
+  LayerGroup,
+  TileActionGroup,
 } from '@/lib/types'
 import type { LDtkProject } from '@/lib/ldtk/project'
 import {
@@ -272,6 +274,12 @@ interface ProjectState {
   entityDefinitions: Record<string, EntityDefinitionFile>
   interactionDefinitions: Record<string, InteractionDefinitionFile>
 
+  // Layer groups
+  layerGroups: LayerGroup[]
+
+  // Tile actions
+  tileActionGroups: TileActionGroup[]
+
   // Computed
   canUndo: boolean
   canRedo: boolean
@@ -341,6 +349,20 @@ interface ProjectActions {
   ) => Promise<LoadedTileset[]>
   removeTileset: (id: string) => Promise<void>
   saveTilesetsToConfig: () => Promise<void>
+
+  // Layer grouping
+  createLayerGroup: (name: string) => void
+  deleteLayerGroup: (id: string) => void
+  moveLayerToGroup: (layerName: string, groupId: string | null) => void
+  toggleGroupVisibility: (id: string) => void
+  toggleGroupLock: (id: string) => void
+  renameLayerGroup: (id: string, name: string) => void
+  toggleGroupCollapsed: (id: string) => void
+
+  // Tile actions
+  addTileActionGroup: (group: TileActionGroup) => void
+  updateTileActionGroup: (id: string, group: Partial<TileActionGroup>) => void
+  deleteTileActionGroup: (id: string) => void
 }
 
 interface ProjectAssetPaths {
@@ -430,6 +452,8 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
       isLoadingTileset: false,
       entityDefinitions: {},
       interactionDefinitions: {},
+      layerGroups: [],
+      tileActionGroups: [],
       canUndo: false,
       canRedo: false,
 
@@ -1195,6 +1219,109 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
           console.error('Failed to save tilesets to config:', err)
         }
       },
+
+      // Layer grouping actions
+      createLayerGroup: (name: string) => {
+        set((state) => {
+          const id = `group-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+          state.layerGroups.push({
+            id,
+            name,
+            type: 'static',
+            layerIds: [],
+            collapsed: false,
+            visible: true,
+            locked: false,
+          })
+        })
+      },
+
+      deleteLayerGroup: (id: string) => {
+        set((state) => {
+          state.layerGroups = state.layerGroups.filter((g) => g.id !== id)
+        })
+      },
+
+      moveLayerToGroup: (layerName: string, groupId: string | null) => {
+        set((state) => {
+          // Remove from all groups first
+          for (const group of state.layerGroups) {
+            group.layerIds = group.layerIds.filter((lid) => lid !== layerName)
+          }
+          // Add to target group if specified
+          if (groupId) {
+            const target = state.layerGroups.find((g) => g.id === groupId)
+            if (target) {
+              target.layerIds.push(layerName)
+            }
+          }
+        })
+      },
+
+      toggleGroupVisibility: (id: string) => {
+        set((state) => {
+          const group = state.layerGroups.find((g) => g.id === id)
+          if (group) {
+            group.visible = !group.visible
+            // Also toggle all child layers
+            for (const layer of state.mapData.layers) {
+              if (group.layerIds.includes(layer.name)) {
+                layer.visible = group.visible
+              }
+            }
+          }
+        })
+      },
+
+      toggleGroupLock: (id: string) => {
+        set((state) => {
+          const group = state.layerGroups.find((g) => g.id === id)
+          if (group) {
+            group.locked = !group.locked
+            for (const layer of state.mapData.layers) {
+              if (group.layerIds.includes(layer.name)) {
+                layer.locked = group.locked
+              }
+            }
+          }
+        })
+      },
+
+      renameLayerGroup: (id: string, name: string) => {
+        set((state) => {
+          const group = state.layerGroups.find((g) => g.id === id)
+          if (group) group.name = name
+        })
+      },
+
+      toggleGroupCollapsed: (id: string) => {
+        set((state) => {
+          const group = state.layerGroups.find((g) => g.id === id)
+          if (group) group.collapsed = !group.collapsed
+        })
+      },
+
+      // Tile action group actions
+      addTileActionGroup: (group: TileActionGroup) => {
+        set((state) => {
+          state.tileActionGroups.push(group)
+        })
+      },
+
+      updateTileActionGroup: (id: string, updates: Partial<TileActionGroup>) => {
+        set((state) => {
+          const idx = state.tileActionGroups.findIndex((g) => g.id === id)
+          if (idx !== -1) {
+            Object.assign(state.tileActionGroups[idx], updates)
+          }
+        })
+      },
+
+      deleteTileActionGroup: (id: string) => {
+        set((state) => {
+          state.tileActionGroups = state.tileActionGroups.filter((g) => g.id !== id)
+        })
+      },
     })),
     { name: 'project-store' }
   )
@@ -1207,3 +1334,5 @@ export const useTilesets = () => useProjectStore((s) => s.tilesets)
 export const useCanUndo = () => useProjectStore((s) => s.canUndo)
 export const useCanRedo = () => useProjectStore((s) => s.canRedo)
 export const useHasUnsavedChanges = () => useProjectStore((s) => s.hasUnsavedChanges)
+export const useLayerGroups = () => useProjectStore((s) => s.layerGroups)
+export const useTileActionGroups = () => useProjectStore((s) => s.tileActionGroups)

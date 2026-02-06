@@ -1,5 +1,5 @@
 import { useMemo, type ReactNode } from 'react'
-import { CursorClick, GridFour, Hand, PaintBucket, User } from '@phosphor-icons/react'
+import { CursorClick, GridFour, Hand, PaintBucket, User, LineSegment, Rectangle, Circle } from '@phosphor-icons/react'
 import { toolRegistry, type ToolDefinition } from '@/lib/ldtk'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -12,6 +12,9 @@ const TOOL_ICONS: Record<string, ReactNode> = {
   intgrid: <PaintBucket size={16} weight="bold" />,
   pan: <Hand size={16} weight="bold" />,
   select: <CursorClick size={16} weight="bold" />,
+  line: <LineSegment size={16} weight="bold" />,
+  rect: <Rectangle size={16} weight="bold" />,
+  ellipse: <Circle size={16} weight="bold" />,
 }
 
 const CATEGORY_ORDER: ToolDefinition['category'][] = ['layer', 'navigation', 'selection']

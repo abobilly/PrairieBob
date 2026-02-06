@@ -3,6 +3,7 @@ import { Tool, ToolContext } from './tool'
 
 type Point = { x: number; y: number }
 type Rect = { x: number; y: number; width: number; height: number }
+const CLICK_PICK_THRESHOLD_PX = 4
 
 export class SelectionTool extends Tool {
     readonly id = 'select'
@@ -34,6 +35,16 @@ export class SelectionTool extends Tool {
             this.endPos = null
             return
         }
+        const width = Math.abs(this.endPos.x - this.startPos.x)
+        const height = Math.abs(this.endPos.y - this.startPos.y)
+        if (width <= CLICK_PICK_THRESHOLD_PX && height <= CLICK_PICK_THRESHOLD_PX) {
+            this.pickAt(this.endPos)
+            this.selection = null
+            this.startPos = null
+            this.endPos = null
+            return
+        }
+
         this.selection = normalizeRect(this.startPos, this.endPos)
         this.startPos = null
         this.endPos = null
@@ -75,6 +86,42 @@ export class SelectionTool extends Tool {
     private getWorldPos(e: MouseEvent): Point {
         const world = this.context.screenToWorld?.(e.clientX, e.clientY)
         return world ?? { x: e.clientX, y: e.clientY }
+    }
+
+    private pickAt(world: Point): void {
+        const layer = this.context.getActiveLayer?.()
+        if (!layer) return
+
+        const tile = this.context.worldToTile?.(world.x, world.y)
+        if (!tile) return
+        if (tile.x < 0 || tile.y < 0 || tile.x >= layer.width || tile.y >= layer.height) {
+            return
+        }
+
+        const index = tile.y * layer.width + tile.x
+        if (layer.type === 'tilelayer' && layer.data) {
+            const tileId = layer.data[index] ?? 0
+            if (tileId > 0) {
+                this.context.onPickTile?.(tileId)
+            }
+            return
+        }
+        if (layer.type === 'intgrid' && layer.intGrid) {
+            const value = layer.intGrid[index] ?? 0
+            this.context.onPickIntGrid?.(value)
+            return
+        }
+        if (layer.type === 'objectgroup' && layer.objects) {
+            const hit = layer.objects.find((obj) =>
+                world.x >= obj.x &&
+                world.x <= obj.x + obj.width &&
+                world.y >= obj.y &&
+                world.y <= obj.y + obj.height
+            )
+            if (hit) {
+                this.context.onPickEntity?.(hit.id)
+            }
+        }
     }
 }
 

@@ -66,6 +66,30 @@ toolRegistry.register({
 })
 
 toolRegistry.register({
+    id: 'line',
+    name: 'Line',
+    icon: 'line',
+    shortcut: 'L',
+    category: 'layer',
+})
+
+toolRegistry.register({
+    id: 'rect',
+    name: 'Rectangle',
+    icon: 'rect',
+    shortcut: 'R',
+    category: 'layer',
+})
+
+toolRegistry.register({
+    id: 'ellipse',
+    name: 'Ellipse',
+    icon: 'ellipse',
+    shortcut: 'O',
+    category: 'layer',
+})
+
+toolRegistry.register({
     id: 'select',
     name: 'Select',
     icon: 'select',

@@ -200,3 +200,119 @@ export interface TileSelection {
   tiles: number[][]   // 2D array of tile IDs [row][col]
   layerIndex: number  // Source layer
 }
+
+// ============== Layer Grouping ==============
+
+export interface LayerGroup {
+  id: string
+  name: string
+  type: 'static' | 'dynamic' | 'meta'
+  layerIds: string[]
+  collapsed: boolean
+  visible: boolean
+  locked: boolean
+  color?: string
+}
+
+export const META_GROUP_PATTERNS = {
+  visual: { pattern: /^(floor|wall|trim|overlay|decor)/i, color: '#4CAF50', name: 'Visual' },
+  collision: { pattern: /^(collision|solid|block)/i, color: '#F44336', name: 'Collision' },
+  entities: { pattern: /^(entities|objects|triggers|spawns)/i, color: '#2196F3', name: 'Entities' },
+} as const
+
+// ============== Tile Actions / State Machine ==============
+
+export interface TileState {
+  name: string
+  tileId: number
+  duration?: number
+  nextState?: string
+}
+
+export type TriggerType =
+  | 'on_interact'
+  | 'on_step'
+  | 'on_adjacent'
+  | 'on_timer'
+  | 'on_signal'
+  | 'on_state_enter'
+  | 'on_state_exit'
+
+export interface TileTrigger {
+  type: TriggerType
+  targetAction?: string
+  targetTilePos?: { x: number; y: number }
+  parameters?: Record<string, unknown>
+}
+
+export type EffectType =
+  | 'change_state'
+  | 'emit_signal'
+  | 'play_sound'
+  | 'spawn_entity'
+  | 'teleport'
+  | 'damage'
+  | 'dialog'
+  | 'custom'
+
+export interface TileEffect {
+  type: EffectType
+  parameters: Record<string, unknown>
+}
+
+export interface TileActionGroup {
+  id: string
+  name: string
+  states: TileState[]
+  defaultState: string
+  triggers: TileTrigger[]
+  effects: TileEffect[]
+}
+
+// ============== Baked Tileset ==============
+
+export interface CollisionShape {
+  type: 'rect' | 'polygon'
+  points?: { x: number; y: number }[]
+  x?: number
+  y?: number
+  width?: number
+  height?: number
+}
+
+export interface BakedTileset {
+  format: 'spudtile-tileset'
+  version: 1
+  name: string
+  tileWidth: number
+  tileHeight: number
+  columns: number
+  tileCount: number
+  spacing: number
+  margin: number
+  imageDataUrl: string
+  tiles: {
+    [tileId: number]: {
+      properties?: Record<string, unknown>
+      animation?: { frames: { tileId: number; duration: number }[] }
+      collision?: { shapes: CollisionShape[] }
+      actionGroup?: TileActionGroup
+    }
+  }
+  tags: string[]
+  author?: string
+  license?: string
+  description?: string
+  createdAt: string
+  sourceProject?: string
+}
+
+// ============== Game Preview ==============
+
+export interface PreviewViewport {
+  width: number
+  height: number
+  zoom: number
+  x: number
+  y: number
+}

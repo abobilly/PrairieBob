@@ -578,27 +578,49 @@ export function resolveNpcVisualDefinition(
     animationKeys,
   )
 
-  const idleAnimation = pickFirstValidKey(
+  const facingMode = normalizeFacingMode(
+    parseEntityPropertyString(entity, 'facingMode') ?? 'fixed_right',
+  )
+
+  const resolvesToDirectionalClip = (animationBase: string): boolean => {
+    if (!animationBase) return false
+    return (['up', 'down', 'left', 'right'] as FacingDirection[]).some((direction) => {
+      const candidates = directionalAnimationCandidates(animationBase, direction)
+      return candidates.some((candidate) => animationKeys.includes(candidate))
+    })
+  }
+
+  const resolveAnimationBase = (
+    candidates: Array<string | null | undefined>,
+    fallback: string,
+  ): string => {
+    for (const candidate of candidates) {
+      if (!candidate) continue
+      if (animationKeys.includes(candidate)) return candidate
+      if (facingMode === 'auto_4dir' && resolvesToDirectionalClip(candidate)) {
+        return candidate
+      }
+    }
+    return fallback
+  }
+
+  const idleAnimation = resolveAnimationBase(
     [
       parseEntityPropertyString(entity, 'idleAnimation'),
       defaultAnimation,
       onLoadAnimation,
     ],
-    animationKeys,
-  ) ?? defaultAnimation
+    defaultAnimation,
+  )
 
-  const walkAnimation = pickFirstValidKey(
+  const walkAnimation = resolveAnimationBase(
     [
       parseEntityPropertyString(entity, 'walkAnimation'),
       onLoadAnimation,
       defaultAnimation,
       idleAnimation,
     ],
-    animationKeys,
-  ) ?? onLoadAnimation
-
-  const facingMode = normalizeFacingMode(
-    parseEntityPropertyString(entity, 'facingMode') ?? 'fixed_right',
+    onLoadAnimation,
   )
 
   const speedTilesPerSecond =

@@ -13,9 +13,11 @@ import {
   Bot,
   Crosshair,
   ExternalLink,
+  Eye,
   FlipHorizontal2,
   FlipVertical2,
   FolderOpen,
+  Package,
   PanelBottomClose,
   PanelBottomOpen,
   PanelLeftClose,
@@ -54,6 +56,9 @@ import { AgentPanel } from '@/components/AgentPanel'
 import { RunTestOverlay } from '@/components/RunTestOverlay'
 import { ProjectSelector } from '@/components/ProjectSelector'
 import { NewProjectWizard } from '@/components/NewProjectWizard'
+import { GamePreview } from '@/components/GamePreview'
+import { TileActionsPanel } from '@/components/TileActionsPanel'
+import { BakeTilesetDialog } from '@/components/BakeTilesetDialog'
 import { getFileSystemAdapter } from '@/lib/fs-adapter'
 import { Toaster, toast } from 'sonner'
 import { NotificationContainer } from '@/components/Notification'
@@ -267,6 +272,11 @@ function applyFlipToStamp(stamp: TileStamp, flipX: boolean, flipY: boolean): Til
 function App() {
   const [tileStamp, setTileStamp] = useState<TileStamp>(DEFAULT_STAMP)
   const [isRunTestOpen, setIsRunTestOpen] = useState(false)
+  const [isBakeDialogOpen, setIsBakeDialogOpen] = useState(false)
+
+  const previewMode = useEditorStore((s) => s.previewMode)
+  const enterPreview = useEditorStore((s) => s.enterPreview)
+  const exitPreview = useEditorStore((s) => s.exitPreview)
 
   const {
     activeTilesetId,
@@ -310,6 +320,17 @@ function App() {
     removeTileset,
     saveMap,
     loadProject,
+    layerGroups,
+    createLayerGroup,
+    deleteLayerGroup,
+    moveLayerToGroup,
+    toggleGroupVisibility,
+    toggleGroupLock,
+    toggleGroupCollapsed,
+    tileActionGroups,
+    addTileActionGroup,
+    updateTileActionGroup,
+    deleteTileActionGroup,
   } = useProjectStore()
 
   const {
@@ -335,6 +356,7 @@ function App() {
   const setTileFlipX = useToolStore((s) => s.setTileFlipX)
   const setTileFlipY = useToolStore((s) => s.setTileFlipY)
   const setActiveLayer = useToolStore((s) => s.setActiveLayer)
+  const setSelectedIntGridValue = useToolStore((s) => s.setSelectedIntGridValue)
 
   const activeToolId = useLdtkToolStore((state) => state.activeToolId)
   const undoCount = useProjectStore((state) => state.past.length)
@@ -353,21 +375,6 @@ function App() {
   const tilesetsInitRef = useRef(false)
   const autoSelectedNonDebugTilesetRef = useRef(false)
   const externalChangeNoticeShownRef = useRef(false)
-  const autoLoadAttemptedRef = useRef(false)
-
-  // Effect: Auto-load most recent project at startup (skip ProjectSelector)
-  useEffect(() => {
-    if (autoLoadAttemptedRef.current) return
-    autoLoadAttemptedRef.current = true
-
-    const recentProjects = useUIStore.getState().recentProjects
-    if (recentProjects.length > 0 && window.electron) {
-      const mostRecent = recentProjects[0]
-      console.log('[App] Auto-loading recent project:', mostRecent.name, mostRecent.path)
-      useUIStore.getState().closeProjectSelector()
-      void loadProject(mostRecent.path)
-    }
-  }, [loadProject])
 
   // Effect: Initialize tilesets if empty
   useEffect(() => {
@@ -715,6 +722,14 @@ function App() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // F5 toggle preview mode
+      if (e.key === 'F5') {
+        e.preventDefault()
+        if (previewMode) exitPreview()
+        else enterPreview()
+        return
+      }
+
       if (!e.ctrlKey && !e.metaKey) return
 
       switch (e.key.toLowerCase()) {
@@ -742,7 +757,7 @@ function App() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [handleSave, undo, redo])
+  }, [handleSave, undo, redo, previewMode, enterPreview, exitPreview])
 
   const fileWatchRoot = useMemo(
     () => projectPath ?? getDirectoryFromPath(currentRoomPath),
@@ -925,25 +940,27 @@ function App() {
             <span>Redo</span>
           </button>
         </div>
-        <div className="pb-toolbar-divider" />
-        <div className="pb-toolbar-group">
-          <button
-            className={`pb-tool-btn pb-tool-btn-labeled ${tileFlipX ? 'active' : ''}`}
-            onClick={handleToggleFlipX}
-            title={`Flip Horizontal${tileFlipX ? ' (enabled)' : ''}`}
-          >
-            <FlipHorizontal2 size={16} />
-            <span>Flip X</span>
-          </button>
-          <button
-            className={`pb-tool-btn pb-tool-btn-labeled ${tileFlipY ? 'active' : ''}`}
-            onClick={handleToggleFlipY}
-            title={`Flip Vertical${tileFlipY ? ' (enabled)' : ''}`}
-          >
-            <FlipVertical2 size={16} />
-            <span>Flip Y</span>
-          </button>
-        </div>
+        {selectedTileId !== null ? (
+          <>
+            <div className="pb-toolbar-divider" />
+            <div className="pb-toolbar-group">
+              <button
+                className={`pb-tool-btn ${tileFlipX ? 'active' : ''}`}
+                onClick={handleToggleFlipX}
+                title={`Flip Horizontal${tileFlipX ? ' (enabled)' : ''}`}
+              >
+                <FlipHorizontal2 size={16} />
+              </button>
+              <button
+                className={`pb-tool-btn ${tileFlipY ? 'active' : ''}`}
+                onClick={handleToggleFlipY}
+                title={`Flip Vertical${tileFlipY ? ' (enabled)' : ''}`}
+              >
+                <FlipVertical2 size={16} />
+              </button>
+            </div>
+          </>
+        ) : null}
         <div className="pb-toolbar-divider" />
         <div className="pb-toolbar-group">
           <button
@@ -989,6 +1006,22 @@ function App() {
             <ExternalLink size={16} />
             <span>BobTile</span>
           </button>
+          <button
+            className="pb-tool-btn pb-tool-btn-labeled"
+            onClick={() => enterPreview()}
+            title="Game Preview (F5)"
+          >
+            <Eye size={16} />
+            <span>Preview</span>
+          </button>
+          <button
+            className="pb-tool-btn pb-tool-btn-labeled"
+            onClick={() => setIsBakeDialogOpen(true)}
+            title="Export baked tileset"
+          >
+            <Package size={16} />
+            <span>Bake</span>
+          </button>
         </div>
         {projectName && (
           <span className="pb-toolbar-chip">
@@ -1002,13 +1035,17 @@ function App() {
 
       <PanelGroup orientation="vertical" className="flex-1 min-h-0">
         <Panel id="main-area">
-          <PanelGroup orientation="horizontal" className="h-full">
+          <PanelGroup
+            key={`layout-${leftPanelOpen ? 'L1' : 'L0'}-${rightPanelOpen ? 'R1' : 'R0'}`}
+            orientation="horizontal"
+            className="h-full"
+          >
             {leftPanelOpen ? (
               <Panel
                 id="left-sidebar"
-                defaultSize={22}
-                minSize={14}
-                maxSize={32}
+                defaultSize={24}
+                minSize={12}
+                maxSize={42}
                 className="pb-panel pb-panel-palette border-r border-[var(--pb-border)]"
               >
                 <div className="pb-panel-header pb-panel-header-palette">
@@ -1065,7 +1102,14 @@ function App() {
 
             <Panel id="canvas" className="min-w-0 h-full">
               <div className="h-full pb-canvas-area min-w-0 overflow-hidden relative">
-                <LevelCanvas level={level} tileStamp={tileStamp} mapData={mapData} />
+                <LevelCanvas
+                  level={level}
+                  tileStamp={tileStamp}
+                  mapData={mapData}
+                  onTilePicked={handleTileSelect}
+                  onEntityPicked={setSelectedEntityId}
+                  onIntGridPicked={setSelectedIntGridValue}
+                />
               </div>
             </Panel>
 
@@ -1074,9 +1118,9 @@ function App() {
             {rightPanelOpen ? (
               <Panel
                 id="right-sidebar"
-                defaultSize={22}
-                minSize={14}
-                maxSize={32}
+                defaultSize={24}
+                minSize={12}
+                maxSize={42}
                 className="pb-panel pb-panel-inspector border-l border-[var(--pb-border)]"
               >
                 <div className="pb-panel-header pb-panel-header-inspector">
@@ -1116,8 +1160,21 @@ function App() {
                       onLayerDelete={deleteLayer}
                       onLayerRename={renameLayer}
                       onLayerOpacityChange={setLayerOpacity}
+                      layerGroups={layerGroups}
+                      onCreateGroup={createLayerGroup}
+                      onDeleteGroup={deleteLayerGroup}
+                      onToggleGroupVisibility={toggleGroupVisibility}
+                      onToggleGroupLock={toggleGroupLock}
+                      onToggleGroupCollapsed={toggleGroupCollapsed}
+                      onMoveLayerToGroup={moveLayerToGroup}
                     />
                   </div>
+                  <TileActionsPanel
+                    actionGroups={tileActionGroups}
+                    onAdd={addTileActionGroup}
+                    onUpdate={updateTileActionGroup}
+                    onDelete={deleteTileActionGroup}
+                  />
                   <div className="flex-1 min-h-[140px]">
                     <EntityPalette />
                   </div>
@@ -1219,6 +1276,12 @@ function App() {
         mapData={mapData}
         tilesets={tilesets}
         onClose={() => setIsRunTestOpen(false)}
+      />
+      {previewMode && <GamePreview />}
+      <BakeTilesetDialog
+        open={isBakeDialogOpen}
+        onOpenChange={setIsBakeDialogOpen}
+        tilesets={tilesets}
       />
     </div>
   )

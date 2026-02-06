@@ -7,6 +7,9 @@ import { Camera, MAX_ZOOM, MIN_ZOOM } from '@/lib/ldtk/camera'
 import {
   PanTool,
   TileTool,
+  LineTool,
+  RectTool,
+  EllipseTool,
   IntGridTool,
   EntityTool,
   SelectionTool,
@@ -173,10 +176,16 @@ export function LevelCanvas({
   level,
   tileStamp,
   mapData,
+  onTilePicked,
+  onEntityPicked,
+  onIntGridPicked,
 }: {
   level: Level
   tileStamp: TileStamp
   mapData: LevelData
+  onTilePicked?: (tileId: number) => void
+  onEntityPicked?: (entityId: string) => void
+  onIntGridPicked?: (value: number) => void
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -457,6 +466,9 @@ export function LevelCanvas({
   const toolsRef = useRef<{
     pan: PanTool
     tile: TileTool
+    line: LineTool
+    rect: RectTool
+    ellipse: EllipseTool
     intgrid: IntGridTool
     entity: EntityTool
     select: SelectionTool
@@ -467,6 +479,9 @@ export function LevelCanvas({
     toolsRef.current = {
       pan: new PanTool(context),
       tile: new TileTool(context),
+      line: new LineTool(context),
+      rect: new RectTool(context),
+      ellipse: new EllipseTool(context),
       intgrid: new IntGridTool(context),
       entity: new EntityTool(context),
       select: new SelectionTool(context),
@@ -497,7 +512,7 @@ export function LevelCanvas({
     let minPanY = viewportHeight - (contentTop + contentPixelHeight) - margin
     let maxPanY = -contentTop + margin
 
-    // When content is smaller than viewport, keep it centered rather than allowing drift.
+    // Keep smaller maps centered so accidental pan/zoom interactions do not "lose" the level.
     if (contentPixelWidth + margin * 2 <= viewportWidth) {
       const centeredX = viewportWidth * 0.5 - (contentLeft + contentPixelWidth * 0.5)
       minPanX = centeredX
@@ -541,6 +556,13 @@ export function LevelCanvas({
     context.worldToTile = worldToTile
     context.tileSize = gridSize
     context.getActiveLayer = () => activeToolLayerRef.current
+    context.onPickTile = (tileId) => {
+      if (tileId > 0) {
+        onTilePicked?.(tileId)
+      }
+    }
+    context.onPickEntity = onEntityPicked
+    context.onPickIntGrid = onIntGridPicked
     context.resolveTileSource = (tileId) => {
       const resolved = resolveTileId(tileId, tilesets)
       if (!resolved) return null
@@ -551,7 +573,21 @@ export function LevelCanvas({
         y: row * resolved.tileset.tileSize,
       }
     }
-  }, [zoom, panX, panY, applyPan, setZoom, applyZoomToPoint, screenToWorld, worldToTile, gridSize, tilesets])
+  }, [
+    zoom,
+    panX,
+    panY,
+    applyPan,
+    setZoom,
+    applyZoomToPoint,
+    screenToWorld,
+    worldToTile,
+    gridSize,
+    onTilePicked,
+    onEntityPicked,
+    onIntGridPicked,
+    tilesets,
+  ])
 
   useEffect(() => {
     activeToolLayerRef.current = activeToolLayer
@@ -605,9 +641,15 @@ export function LevelCanvas({
   useEffect(() => {
     if (!toolsRef.current) return
     toolsRef.current.tile.setLayer(toolLayers.tile)
+    toolsRef.current.line.setLayer(toolLayers.tile)
+    toolsRef.current.rect.setLayer(toolLayers.tile)
+    toolsRef.current.ellipse.setLayer(toolLayers.tile)
     toolsRef.current.intgrid.setLayer(toolLayers.intgrid)
     toolsRef.current.entity.setLayer(toolLayers.entity)
     toolsRef.current.tile.setSelectedTiles(selectedTileIds)
+    toolsRef.current.line.setSelectedTiles(selectedTileIds)
+    toolsRef.current.rect.setSelectedTiles(selectedTileIds)
+    toolsRef.current.ellipse.setSelectedTiles(selectedTileIds)
     toolsRef.current.tile.setTileStamp(tileStamp.tiles)
     toolsRef.current.intgrid.selectedValue = selectedIntGridValue
     toolsRef.current.entity.setSelectedEntityDef(selectedEntityDefUid)
@@ -625,6 +667,12 @@ export function LevelCanvas({
         return tools.entity
       case 'select':
         return tools.select
+      case 'line':
+        return tools.line
+      case 'rect':
+        return tools.rect
+      case 'ellipse':
+        return tools.ellipse
       case 'tile':
       default:
         return tools.tile
@@ -937,7 +985,7 @@ export function LevelCanvas({
 
     renderActiveTool(ctx, camera)
     renderMinimap(camera)
-  }, [level.__bgColor, layers, gridSize, panX, zoom, renderLayer, renderEntities, renderActiveTool, renderMinimap])
+  }, [level.__bgColor, layers, gridSize, panX, panY, zoom, renderLayer, renderEntities, renderActiveTool, renderMinimap])
 
   useEffect(() => {
     let frameId = 0

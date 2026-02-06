@@ -33,6 +33,8 @@ export {
   useCanUndo,
   useCanRedo,
   useHasUnsavedChanges,
+  useLayerGroups,
+  useTileActionGroups,
 } from './projectStore'
 
 export {
