@@ -40,6 +40,18 @@ Stabilize layout and ship a scalable, tool-context editor UI so new features do 
    - Door/NPC link diagnostics
    - Room graph health checks
 
+## Phase 5
+1. Entity behavior editor depth:
+   - Movement timelines and state transitions
+   - On-load and on-interact behavior scripting controls
+   - Per-state timing, direction sets, and previewable state graphs
+
+## Phase 6
+1. Regression test matrix:
+   - Panel sizing and resize persistence
+   - Startup modal layout and overflow behavior
+   - TMX/Kimbar load path and fallback behavior
+
 ## Layout Rules (Do Not Break)
 1. Side panels must never render below usable width.
 2. Global controls stay in top toolbar only.
