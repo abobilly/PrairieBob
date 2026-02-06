@@ -326,7 +326,7 @@ interface ProjectActions {
   // Map operations
   setMapData: (data: LevelData, recordHistory?: boolean, description?: string) => void
   loadMap: (mapId: string) => Promise<void>
-  saveMap: () => Promise<void>
+  saveMap: (mapDataOverride?: LevelData) => Promise<void>
   refreshCurrentRoomFromDisk: () => Promise<boolean>
   setCurrentRoomPath: (path: string | null) => void
   setHasUnsavedChanges: (value: boolean) => void
@@ -1375,7 +1375,7 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
       },
 
       // Save the current map
-      saveMap: async () => {
+      saveMap: async (mapDataOverride) => {
         const {
           mapData,
           currentRoomPath,
@@ -1393,15 +1393,16 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
           layerGroupsDirty,
           tileActionAssignments,
         } = get()
-        if (!window.electron || !mapData) return
+        const sourceMapData = mapDataOverride ?? mapData
+        if (!window.electron || !sourceMapData) return
 
         // Update metadata — include tile action assignments in map data
         const hasAssignments = Object.keys(tileActionAssignments).length > 0
         const updatedMap = {
-          ...mapData,
+          ...sourceMapData,
           ...(hasAssignments ? { tileActionAssignments } : {}),
           metadata: {
-            ...mapData.metadata,
+            ...sourceMapData.metadata,
             editedAt: new Date().toISOString(),
             exportedFrom: 'spudtile',
           },
@@ -1409,7 +1410,7 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
 
         let savePath = currentRoomPath
         if (!savePath && projectPath && projectConfig) {
-          savePath = `${projectPath}/${projectConfig.paths.maps}/${mapData.id}.json`
+          savePath = `${projectPath}/${projectConfig.paths.maps}/${sourceMapData.id}.json`
         }
 
         if (savePath) {

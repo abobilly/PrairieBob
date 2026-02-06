@@ -15,8 +15,6 @@ import {
   Moon,
   ExternalLink,
   Eye,
-  FlipHorizontal2,
-  FlipVertical2,
   FolderOpen,
   Globe,
   Package,
@@ -66,6 +64,7 @@ import { TileActionsPanel } from '@/components/TileActionsPanel'
 import { BakeTilesetDialog } from '@/components/BakeTilesetDialog'
 import { WorldViewCanvas as SpudWorldViewCanvas } from '@/components/WorldViewCanvas'
 import { WorldMinimap } from '@/components/WorldMinimap'
+import { ToolContextBar } from '@/components/ToolContextBar'
 import { getFileSystemAdapter } from '@/lib/fs-adapter'
 import { deserializeBakedTileset } from '@/lib/tileset-baker'
 import { Toaster, toast } from 'sonner'
@@ -287,16 +286,48 @@ function applyFlipToStamp(stamp: TileStamp, flipX: boolean, flipY: boolean): Til
 }
 
 function getPanelSizePercent(panelSize: unknown, fallback: number): number {
+  let next: number | null = null
   if (typeof panelSize === 'number' && Number.isFinite(panelSize)) {
-    return panelSize
+    next = panelSize
   }
-  if (typeof panelSize === 'object' && panelSize !== null) {
-    const maybe = panelSize as { inPercentage?: number }
-    if (typeof maybe.inPercentage === 'number' && Number.isFinite(maybe.inPercentage)) {
-      return maybe.inPercentage
+  if (next === null && typeof panelSize === 'object' && panelSize !== null) {
+    const maybe = panelSize as {
+      asPercentage?: number
+      inPercentage?: number
+      percentage?: number
+      size?: number
+      value?: number
     }
+    const candidates = [maybe.asPercentage, maybe.inPercentage, maybe.percentage, maybe.size, maybe.value]
+    next = candidates.find((value) => typeof value === 'number' && Number.isFinite(value)) ?? null
   }
-  return fallback
+  if (next === null) {
+    next = fallback
+  }
+  if (next > 0 && next <= 1) {
+    next *= 100
+  }
+  if (next > 100) {
+    // Guard against stale pixel-like values accidentally fed into percent-based APIs.
+    next = fallback
+  }
+  if (!Number.isFinite(next)) {
+    return fallback
+  }
+  return Math.min(Math.max(next, 5), 95)
+}
+
+function clampPercent(value: number, min: number, max: number): number {
+  if (!Number.isFinite(value)) return min
+  return Math.min(Math.max(value, min), max)
+}
+
+function normalizePanelPercent(value: unknown, fallback: number, min: number, max: number): number {
+  return clampPercent(getPanelSizePercent(value, fallback), min, max)
+}
+
+function asPercent(value: number): string {
+  return `${value}%`
 }
 
 function App() {
@@ -413,18 +444,25 @@ function App() {
     [mapData]
   )
 
+  const LEFT_MIN = 24
+  const LEFT_MAX = 60
+  const RIGHT_MIN = 22
+  const RIGHT_MAX = 60
+  const BOTTOM_MIN = 8
+  const BOTTOM_MAX = 60
+
   const leftPanelOpen = !panels.left.collapsed
   const rightPanelOpen = !panels.right.collapsed
   const bottomPanelOpen = !panels.bottom.collapsed
-  const leftPanelDefaultSize = Math.min(Math.max(panels.left.size || 24, 22), 40)
-  const leftPanelMinSize = Math.min(Math.max(panels.left.minSize || 16, 18), 48)
-  const leftPanelMaxSize = Math.min(Math.max(panels.left.maxSize || 38, leftPanelMinSize), 60)
-  const rightPanelDefaultSize = Math.min(Math.max(panels.right.size || 24, 20), 40)
-  const rightPanelMinSize = Math.min(Math.max(panels.right.minSize || 16, 16), 48)
-  const rightPanelMaxSize = Math.min(Math.max(panels.right.maxSize || 38, rightPanelMinSize), 60)
-  const bottomPanelDefaultSize = Math.min(Math.max(panels.bottom.size || 24, 12), 45)
-  const bottomPanelMinSize = Math.min(Math.max(panels.bottom.minSize || 14, 8), 40)
-  const bottomPanelMaxSize = Math.min(Math.max(panels.bottom.maxSize || 45, bottomPanelMinSize), 60)
+  const leftPanelDefaultSize = normalizePanelPercent(panels.left.size, 26, LEFT_MIN, 45)
+  const leftPanelMinSize = LEFT_MIN
+  const leftPanelMaxSize = normalizePanelPercent(panels.left.maxSize, 45, leftPanelMinSize, LEFT_MAX)
+  const rightPanelDefaultSize = normalizePanelPercent(panels.right.size, 25, RIGHT_MIN, 45)
+  const rightPanelMinSize = RIGHT_MIN
+  const rightPanelMaxSize = normalizePanelPercent(panels.right.maxSize, 45, rightPanelMinSize, RIGHT_MAX)
+  const bottomPanelDefaultSize = normalizePanelPercent(panels.bottom.size, 24, 12, 45)
+  const bottomPanelMinSize = BOTTOM_MIN
+  const bottomPanelMaxSize = normalizePanelPercent(panels.bottom.maxSize, 45, bottomPanelMinSize, BOTTOM_MAX)
   const resolvedTheme = useMemo<'dark' | 'light'>(() => {
     if (theme === 'light' || theme === 'dark') return theme
     if (typeof window !== 'undefined' && window.matchMedia) {
@@ -436,17 +474,44 @@ function App() {
     setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')
   }, [resolvedTheme, setTheme])
   const handleLeftPanelResize = useCallback((panelSize: unknown) => {
-    const size = getPanelSizePercent(panelSize, leftPanelDefaultSize)
-    setPanelSize('left', Math.round(size * 100) / 100)
-  }, [setPanelSize, leftPanelDefaultSize])
+    const size = normalizePanelPercent(panelSize, leftPanelDefaultSize, leftPanelMinSize, leftPanelMaxSize)
+    setPanelSize('left', Number(size.toFixed(2)))
+  }, [setPanelSize, leftPanelDefaultSize, leftPanelMinSize, leftPanelMaxSize])
   const handleRightPanelResize = useCallback((panelSize: unknown) => {
-    const size = getPanelSizePercent(panelSize, rightPanelDefaultSize)
-    setPanelSize('right', Math.round(size * 100) / 100)
-  }, [setPanelSize, rightPanelDefaultSize])
+    const size = normalizePanelPercent(panelSize, rightPanelDefaultSize, rightPanelMinSize, rightPanelMaxSize)
+    setPanelSize('right', Number(size.toFixed(2)))
+  }, [setPanelSize, rightPanelDefaultSize, rightPanelMinSize, rightPanelMaxSize])
   const handleBottomPanelResize = useCallback((panelSize: unknown) => {
-    const size = getPanelSizePercent(panelSize, bottomPanelDefaultSize)
-    setPanelSize('bottom', Math.round(size * 100) / 100)
-  }, [setPanelSize, bottomPanelDefaultSize])
+    const size = normalizePanelPercent(panelSize, bottomPanelDefaultSize, bottomPanelMinSize, bottomPanelMaxSize)
+    setPanelSize('bottom', Number(size.toFixed(2)))
+  }, [setPanelSize, bottomPanelDefaultSize, bottomPanelMinSize, bottomPanelMaxSize])
+
+  useEffect(() => {
+    const leftSize = getPanelSizePercent(panels.left.size, leftPanelDefaultSize)
+    const rightSize = getPanelSizePercent(panels.right.size, rightPanelDefaultSize)
+
+    let repaired = false
+    if (leftSize < leftPanelMinSize - 0.5) {
+      setPanelSize('left', leftPanelDefaultSize)
+      repaired = true
+    }
+    if (rightSize < rightPanelMinSize - 0.5) {
+      setPanelSize('right', rightPanelDefaultSize)
+      repaired = true
+    }
+
+    if (repaired) {
+      toast.info('Layout was auto-repaired after invalid panel sizing.')
+    }
+  }, [
+    panels.left.size,
+    panels.right.size,
+    leftPanelDefaultSize,
+    rightPanelDefaultSize,
+    leftPanelMinSize,
+    rightPanelMinSize,
+    setPanelSize,
+  ])
 
   // Guard against multiple initTilesets calls
   const tilesetsInitRef = useRef(false)
@@ -711,7 +776,7 @@ function App() {
     const latestMapData = useProjectStore.getState().mapData
     const syncedMapData = syncMapDataWithLevelEdits(latestMapData, level)
     setMapData(syncedMapData, false, 'Sync canvas edits')
-    await saveMap()
+    await saveMap(syncedMapData)
   }, [level, saveMap, setMapData])
 
   const handleRefreshFromDisk = useCallback(async (source: 'manual' | 'watch' = 'manual') => {
@@ -1123,27 +1188,6 @@ function App() {
             <span>Redo</span>
           </button>
         </div>
-        {selectedTileId !== null ? (
-          <>
-            <div className="pb-toolbar-divider" />
-            <div className="pb-toolbar-group">
-              <button
-                className={`pb-tool-btn ${tileFlipX ? 'active' : ''}`}
-                onClick={handleToggleFlipX}
-                title={`Flip Horizontal${tileFlipX ? ' (enabled)' : ''}`}
-              >
-                <FlipHorizontal2 size={16} />
-              </button>
-              <button
-                className={`pb-tool-btn ${tileFlipY ? 'active' : ''}`}
-                onClick={handleToggleFlipY}
-                title={`Flip Vertical${tileFlipY ? ' (enabled)' : ''}`}
-              >
-                <FlipVertical2 size={16} />
-              </button>
-            </div>
-          </>
-        ) : null}
         <div className="pb-toolbar-divider" />
         <div className="pb-toolbar-group">
           <button
@@ -1244,6 +1288,15 @@ function App() {
           Tool: {activeToolId}
         </span>
       </div>
+      <ToolContextBar
+        activeToolId={activeToolId}
+        activeLayerName={activeLayerName ?? null}
+        hasSelectedTile={selectedTileId !== null}
+        tileFlipX={tileFlipX}
+        tileFlipY={tileFlipY}
+        onToggleFlipX={handleToggleFlipX}
+        onToggleFlipY={handleToggleFlipY}
+      />
 
       <PanelGroup orientation="vertical" className="flex-1 min-h-0">
         <Panel id="main-area">
@@ -1255,9 +1308,9 @@ function App() {
             {leftPanelOpen ? (
               <Panel
                 id="left-sidebar"
-                defaultSize={leftPanelDefaultSize}
-                minSize={leftPanelMinSize}
-                maxSize={leftPanelMaxSize}
+                defaultSize={asPercent(leftPanelDefaultSize)}
+                minSize={asPercent(leftPanelMinSize)}
+                maxSize={asPercent(leftPanelMaxSize)}
                 onResize={handleLeftPanelResize}
                 className="pb-panel pb-panel-palette border-r border-[var(--pb-border)] min-w-[260px]"
               >
@@ -1299,7 +1352,12 @@ function App() {
                 </div>
               </Panel>
             ) : (
-              <Panel id="left-collapsed" defaultSize={3.2} minSize={2.4} maxSize={6}>
+              <Panel
+                id="left-collapsed"
+                defaultSize={asPercent(3.2)}
+                minSize={asPercent(2.4)}
+                maxSize={asPercent(6)}
+              >
                 <button
                   onClick={() => togglePanelCollapsed('left')}
                   className="pb-panel-toggle pb-panel-toggle-side h-full border-r border-[var(--pb-border)]"
@@ -1338,9 +1396,9 @@ function App() {
             {rightPanelOpen ? (
               <Panel
                 id="right-sidebar"
-                defaultSize={rightPanelDefaultSize}
-                minSize={rightPanelMinSize}
-                maxSize={rightPanelMaxSize}
+                defaultSize={asPercent(rightPanelDefaultSize)}
+                minSize={asPercent(rightPanelMinSize)}
+                maxSize={asPercent(rightPanelMaxSize)}
                 onResize={handleRightPanelResize}
                 className="pb-panel pb-panel-inspector border-l border-[var(--pb-border)] min-w-[260px]"
               >
@@ -1406,7 +1464,12 @@ function App() {
                 </div>
               </Panel>
             ) : (
-              <Panel id="right-collapsed" defaultSize={3.2} minSize={2.4} maxSize={6}>
+              <Panel
+                id="right-collapsed"
+                defaultSize={asPercent(3.2)}
+                minSize={asPercent(2.4)}
+                maxSize={asPercent(6)}
+              >
                 <button
                   onClick={() => togglePanelCollapsed('right')}
                   className="pb-panel-toggle pb-panel-toggle-side h-full border-l border-[var(--pb-border)]"
@@ -1425,9 +1488,9 @@ function App() {
             <PanelResizeHandle className="panel-resize-handle" />
             <Panel
               id="bottom-panel"
-              defaultSize={bottomPanelDefaultSize}
-              minSize={bottomPanelMinSize}
-              maxSize={bottomPanelMaxSize}
+              defaultSize={asPercent(bottomPanelDefaultSize)}
+              minSize={asPercent(bottomPanelMinSize)}
+              maxSize={asPercent(bottomPanelMaxSize)}
               onResize={handleBottomPanelResize}
               className="pb-panel pb-panel-agent border-t border-[var(--pb-border)]"
             >
