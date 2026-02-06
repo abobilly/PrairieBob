@@ -6,7 +6,9 @@ interface CursorProps {
   containerRef: RefObject<HTMLElement>
 }
 
-const TOOL_COLORS: Record<Tool, string> = {
+type ToolId = Tool | 'tile' | 'entity' | 'intgrid'
+
+const TOOL_COLORS: Record<ToolId, string> = {
   brush: '#00d9ff',
   fill: '#00d9ff',
   rectangle: '#00d9ff',
@@ -15,11 +17,14 @@ const TOOL_COLORS: Record<Tool, string> = {
   select: '#f59e0b',
   eyedropper: '#a855f7',
   pan: '#e8e8f0',
+  tile: '#00d9ff',
+  entity: '#4caf50',
+  intgrid: '#6366f1',
 }
 
-const BRUSH_TOOLS = new Set<Tool>(['brush', 'eraser'])
+const BRUSH_TOOLS = new Set<ToolId>(['brush', 'eraser', 'tile', 'intgrid'])
 
-const getCursorSize = (tool: Tool, brushSize: number) => {
+const getCursorSize = (tool: ToolId, brushSize: number) => {
   const baseSize = 24
   if (!BRUSH_TOOLS.has(tool)) return baseSize
   const radius = Math.max(2, Math.round(brushSize / 2))
@@ -153,7 +158,7 @@ const drawBrushPreview = (ctx: CanvasRenderingContext2D, size: number, brushSize
 
 export function Cursor({ containerRef }: CursorProps) {
   const { activeTool, brushSize } = useToolStore((state) => ({
-    activeTool: state.activeTool,
+    activeTool: state.activeTool as ToolId,
     brushSize: state.brushSize,
   }))
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -216,7 +221,7 @@ export function Cursor({ containerRef }: CursorProps) {
     ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0)
     ctx.clearRect(0, 0, cursorSize, cursorSize)
 
-    const color = TOOL_COLORS[activeTool]
+    const color = TOOL_COLORS[activeTool] ?? '#e8e8f0'
     const isBrushTool = BRUSH_TOOLS.has(activeTool)
     if (activeTool === 'pan') {
       drawPanArrows(ctx, cursorSize, color)

@@ -65,18 +65,18 @@
 
 | Task | Source (Lines) | Target | Est. Lines | Status |
 |------|----------------|--------|------------|--------|
-| 3B.1 LayerTool base | `tool/LayerTool.hx` (290) | `src/lib/ldtk/tools/layer-tool.ts` | ~150 | ⬜ |
-| 3B.2 IntGridTool | `tool/lt/IntGridTool.hx` (320) | `src/lib/ldtk/tools/intgrid-tool.ts` | ~180 | ⬜ |
+| 3B.1 LayerTool base | `tool/LayerTool.hx` (290) | `src/lib/ldtk/tools/layer-tool.ts` | ~150 | ✅ |
+| 3B.2 IntGridTool | `tool/lt/IntGridTool.hx` (320) | `src/lib/ldtk/tools/intgrid-tool.ts` | ~180 | ✅ |
 | 3B.3 TileTool | `tool/lt/TileTool.hx` (380) | `src/lib/ldtk/tools/tile-tool.ts` | ~200 | ⬜ |
-| 3B.4 EntityTool | `tool/lt/EntityTool.hx` (350) | `src/lib/ldtk/tools/entity-tool.ts` | ~180 | ⬜ |
+| 3B.4 EntityTool | `tool/lt/EntityTool.hx` (350) | `src/lib/ldtk/tools/entity-tool.ts` | ~180 | ✅ |
 
 ### 3C. Navigation Tools
 
 | Task | Source (Lines) | Target | Est. Lines | Status |
 |------|----------------|--------|------------|--------|
 | 3C.1 PanView | `tool/PanView.hx` (120) | `src/lib/ldtk/tools/pan-tool.ts` | ~60 | ✅ |
-| 3C.2 SelectionTool | `tool/SelectionTool.hx` (280) | `src/lib/ldtk/tools/selection-tool.ts` | ~150 | ⬜ |
-| 3C.3 ResizeTool | `tool/ResizeTool.hx` (200) | `src/lib/ldtk/tools/resize-tool.ts` | ~100 | ⬜ |
+| 3C.2 SelectionTool | `tool/SelectionTool.hx` (280) | `src/lib/ldtk/tools/selection-tool.ts` | ~150 | ✅ |
+| 3C.3 ResizeTool | `tool/ResizeTool.hx` (200) | `src/lib/ldtk/tools/resize-tool.ts` | ~100 | ✅ |
 | 3C.4 PickPoint | `tool/PickPoint.hx` (150) | `src/lib/ldtk/tools/pick-tool.ts` | ~80 | ✅ |
 
 ---
@@ -111,10 +111,10 @@
 
 | Task | Source (Lines) | Target | Est. Lines | Status |
 |------|----------------|--------|------------|--------|
-| 4D.1 CommandPalette | `ui/CommandPalette.hx` (320) | `src/components/CommandPalette.tsx` | ~200 | ⬜ |
-| 4D.2 QuickSearch | `ui/QuickSearch.hx` (180) | `src/components/QuickSearch.tsx` | ~120 | ⬜ |
+| 4D.1 CommandPalette | `ui/CommandPalette.hx` (320) | `src/components/CommandPalette.tsx` | ~200 | ✅ |
+| 4D.2 QuickSearch | `ui/QuickSearch.hx` (180) | `src/components/QuickSearch.tsx` | ~120 | ✅ |
 | 4D.3 Notification | `ui/Notification.hx` (150) | `src/components/Notification.tsx` | ~100 | ✅ |
-| 4D.4 Cursor | `ui/Cursor.hx` (200) | `src/components/Cursor.tsx` | ~120 | ⬜ |
+| 4D.4 Cursor | `ui/Cursor.hx` (200) | `src/components/Cursor.tsx` | ~120 | ✅ |
 
 ### 4E. Modals & Dialogs
 
@@ -122,7 +122,7 @@
 |------|----------------|--------|------------|--------|
 | 4E.1 Modal base | `ui/Modal.hx` (280) | `src/components/Modal.tsx` | ~150 | ✅ |
 | 4E.2 Dialog base | `ui/modal/Dialog.hx` (180) | `src/components/Dialog.tsx` | ~100 | ✅ |
-| 4E.3 ContextMenu | `ui/modal/ContextMenu.hx` (220) | `src/components/ContextMenu.tsx` | ~140 | ⬜ |
+| 4E.3 ContextMenu | `ui/modal/ContextMenu.hx` (220) | `src/components/ContextMenu.tsx` | ~140 | ✅ |
 
 ### 4F. Definition Editors (Lower Priority)
 
@@ -149,7 +149,7 @@
 
 | Task | Source (Lines) | Target | Est. Lines | Status |
 |------|----------------|--------|------------|--------|
-| 5B.1 ProjectLoader | `ui/ProjectLoader.hx` (420) | `src/lib/ldtk/project-loader.ts` | ~250 | ⬜ |
+| 5B.1 ProjectLoader | `ui/ProjectLoader.hx` (420) | `src/lib/ldtk/project-loader.ts` | ~250 | ✅ |
 | 5B.2 ProjectSaver | `ui/ProjectSaver.hx` (660) | `src/lib/ldtk/project-saver.ts` | ~400 | ⬜ |
 
 ### 5C. PrairieBob Feature Re-integration
@@ -157,7 +157,7 @@
 | Task | Source | Target | Est. Lines | Status |
 |------|--------|--------|------------|--------|
 | 5C.1 Agent integration | `src/lib/agent-service.ts` | Update for LDtk model | ~100 | ⬜ |
-| 5C.2 Project linking | `prairiebob.config.json` | Bridge to LDtk Project | ~80 | ⬜ |
+| 5C.2 Project linking | `prairiebob.config.json` | Bridge to LDtk Project | ~80 | ✅ |
 | 5C.3 Live previews | `src/components/PropertiesPanel.tsx` | Port door state system | ~150 | ⬜ |
 | 5C.4 BobTile adapter | `bobtile/tools/BobTileAdapter.ts` | Update for LDtk tilesets | ~100 | ⬜ |
 
@@ -177,7 +177,7 @@
 - ✅ 4D.3 Notification
 - ✅ 4E.1 Modal base
 - ✅ 4E.2 Dialog base
-- ⬜ 5C.2 Project linking
+- ✅ 5C.2 Project linking
 
 **Tier 2 - Medium (150-300 lines, some deps)**
 
@@ -186,19 +186,19 @@
 - ⬜ 2C.2 Rulers
 - ✅ 3A.1 Base Tool
 - ⬜ 3A.3 Tool Store
-- ⬜ 3B.1 LayerTool base
-- ⬜ 3B.2 IntGridTool
-- ⬜ 3B.4 EntityTool
-- ⬜ 3C.2 SelectionTool
-- ⬜ 3C.3 ResizeTool
+- ✅ 3B.1 LayerTool base
+- ✅ 3B.2 IntGridTool
+- ✅ 3B.4 EntityTool
+- ✅ 3C.2 SelectionTool
+- ✅ 3C.3 ResizeTool
 - ✅ 4A.3 EntityPalette (exists, needs update)
 - ⬜ 4A.4 IntGridPalette
 - ⬜ 4B.4 RulePatternEditor
-- ⬜ 4D.1 CommandPalette
-- ⬜ 4D.2 QuickSearch
-- ⬜ 4D.4 Cursor
-- ⬜ 4E.3 ContextMenu
-- ⬜ 5B.1 ProjectLoader
+- ✅ 4D.1 CommandPalette
+- ✅ 4D.2 QuickSearch
+- ✅ 4D.4 Cursor
+- ✅ 4E.3 ContextMenu
+- ✅ 5B.1 ProjectLoader
 - ⬜ 5C.1 Agent integration
 - ⬜ 5C.3 Live previews
 - ⬜ 5C.4 BobTile adapter
