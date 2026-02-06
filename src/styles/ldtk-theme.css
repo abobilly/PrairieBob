@@ -483,6 +483,11 @@
     background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
 }
 
+.pb-canvas-area.pb-cursor-hidden,
+.pb-canvas-area.pb-cursor-hidden * {
+    cursor: none !important;
+}
+
 /* ===== Slider (zoom controls) ===== */
 .pb-slider {
     height: 4px;

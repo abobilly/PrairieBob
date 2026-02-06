@@ -8,12 +8,13 @@
  * - YATE: Tileset organization
  */
 
-import { useEffect, useCallback, useState } from 'react'
+import { useEffect, useCallback, useState, useRef } from 'react'
 import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, PanelBottomClose, PanelBottomOpen } from 'lucide-react'
 import { EntityType, EntityData } from '@/lib/types'
 import { resolveTileId } from '@/lib/tileset'
 import { Toolbar } from '@/components/Toolbar'
 import { MapCanvas } from '@/components/MapCanvas'
+import { Cursor } from '@/components/Cursor'
 import { LayerPanel } from '@/components/LayerPanel'
 import { TilesetPanel } from '@/components/TilesetPanel'
 import { EntityPalette } from '@/components/EntityPalette'
@@ -38,6 +39,7 @@ import {
 import './styles/panels.css'
 
 function App() {
+  const canvasAreaRef = useRef<HTMLDivElement>(null)
   // ============== Zustand Store Access ==============
   const {
     currentTool,
@@ -636,7 +638,7 @@ function App() {
           )}
 
           {/* Center Panel - Canvas */}
-          <div className="flex-1 pb-canvas-area min-w-0 overflow-hidden">
+          <div className="flex-1 pb-canvas-area min-w-0 overflow-hidden relative" ref={canvasAreaRef}>
             <MapCanvas
               mapData={mapData}
               tilesets={tilesets}
@@ -663,6 +665,7 @@ function App() {
               selection={selection}
               onSelectionChange={setSelection}
             />
+            <Cursor containerRef={canvasAreaRef} />
           </div>
 
           {/* Right panel toggle when collapsed */}
