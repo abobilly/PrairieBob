@@ -96,7 +96,7 @@
 
 | Task | Source (Lines) | Target | Est. Lines | Status |
 |------|----------------|--------|------------|--------|
-| 4B.1 EntityInstanceEditor | `ui/EntityInstanceEditor.hx` (420) | `src/components/EntityEditor.tsx` | ~280 | ⬜ |
+| 4B.1 EntityInstanceEditor | `ui/EntityInstanceEditor.hx` (420) | `src/components/EntityEditor.tsx` | ~280 | ✅ |
 | 4B.2 FieldInstancesForm | `ui/FieldInstancesForm.hx` (827) | `src/components/FieldsForm.tsx` | ~500 | ⬜ |
 | 4B.3 LevelInstanceForm | `ui/LevelInstanceForm.hx` (380) | `src/components/LevelEditor.tsx` | ~250 | ⬜ |
 | 4B.4 RulePatternEditor | `ui/RulePatternEditor.hx` (253) | `src/components/RulePatternEditor.tsx` | ~200 | ✅ |
@@ -192,8 +192,8 @@
 - ✅ 3C.2 SelectionTool
 - ✅ 3C.3 ResizeTool
 - ✅ 4A.3 EntityPalette (exists, needs update)
-- ⬜ 4A.4 IntGridPalette
-- ⬜ 4B.4 RulePatternEditor
+- ✅ 4A.4 IntGridPalette
+- ✅ 4B.4 RulePatternEditor
 - ✅ 4D.1 CommandPalette
 - ✅ 4D.2 QuickSearch
 - ✅ 4D.4 Cursor
@@ -210,7 +210,7 @@
 - ⬜ 2B.4 FieldInstanceRender
 - ✅ 3B.3 TileTool
 - ⬜ 4A.2 TilePalette
-- ⬜ 4B.1 EntityInstanceEditor
+- ✅ 4B.1 EntityInstanceEditor
 - ⬜ 4B.3 LevelEditor
 - ⬜ 4C.1 Tileset Panel
 - ⬜ 4F.2 EditEntityDefs
