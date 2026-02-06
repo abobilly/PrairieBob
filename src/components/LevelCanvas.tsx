@@ -207,7 +207,6 @@ export function LevelCanvas({
   const panY = useToolStore((s) => s.panY)
   const setPan = useToolStore((s) => s.setPan)
   const setZoom = useToolStore((s) => s.setZoom)
-  const zoomToPoint = useToolStore((s) => s.zoomToPoint)
   const selectedTileIds = useToolStore((s) => s.selectedTileIds)
   const selectedEntityDefUid = useToolStore((s) => s.selectedEntityDefUid)
   const selectedIntGridValue = useToolStore((s) => s.selectedIntGridValue)
@@ -478,12 +477,66 @@ export function LevelCanvas({
     setActiveTool(activeToolId)
   }, [activeToolId, setActiveTool])
 
+  const clampPanToContent = useCallback((nextPanX: number, nextPanY: number, atZoom = zoom) => {
+    const canvas = canvasRef.current
+    if (!canvas) return { x: nextPanX, y: nextPanY }
+
+    const rect = canvas.getBoundingClientRect()
+    const viewportWidth = Math.max(1, rect.width)
+    const viewportHeight = Math.max(1, rect.height)
+    const safeZoom = clamp(atZoom, MIN_ZOOM, MAX_ZOOM)
+
+    const contentPixelWidth = Math.max(1, contentBounds.width * safeZoom)
+    const contentPixelHeight = Math.max(1, contentBounds.height * safeZoom)
+    const contentLeft = contentBounds.x * safeZoom
+    const contentTop = contentBounds.y * safeZoom
+    const margin = Math.max(64, 2 * gridSize * safeZoom)
+
+    let minPanX = viewportWidth - (contentLeft + contentPixelWidth) - margin
+    let maxPanX = -contentLeft + margin
+    let minPanY = viewportHeight - (contentTop + contentPixelHeight) - margin
+    let maxPanY = -contentTop + margin
+
+    // When content is smaller than viewport, keep it centered rather than allowing drift.
+    if (contentPixelWidth + margin * 2 <= viewportWidth) {
+      const centeredX = viewportWidth * 0.5 - (contentLeft + contentPixelWidth * 0.5)
+      minPanX = centeredX
+      maxPanX = centeredX
+    }
+    if (contentPixelHeight + margin * 2 <= viewportHeight) {
+      const centeredY = viewportHeight * 0.5 - (contentTop + contentPixelHeight * 0.5)
+      minPanY = centeredY
+      maxPanY = centeredY
+    }
+
+    return {
+      x: clamp(nextPanX, minPanX, maxPanX),
+      y: clamp(nextPanY, minPanY, maxPanY),
+    }
+  }, [contentBounds, gridSize, zoom])
+
+  const applyPan = useCallback((nextPanX: number, nextPanY: number, atZoom = zoom) => {
+    const clampedPan = clampPanToContent(nextPanX, nextPanY, atZoom)
+    setPan(clampedPan.x, clampedPan.y)
+  }, [clampPanToContent, setPan, zoom])
+
+  const applyZoomToPoint = useCallback((nextZoom: number, screenX: number, screenY: number) => {
+    const clampedZoom = clamp(nextZoom, MIN_ZOOM, MAX_ZOOM)
+    const worldX = (screenX - panX) / zoom
+    const worldY = (screenY - panY) / zoom
+    const rawPanX = screenX - worldX * clampedZoom
+    const rawPanY = screenY - worldY * clampedZoom
+    const clampedPan = clampPanToContent(rawPanX, rawPanY, clampedZoom)
+    setZoom(clampedZoom)
+    setPan(clampedPan.x, clampedPan.y)
+  }, [panX, panY, zoom, clampPanToContent, setPan, setZoom])
+
   useEffect(() => {
     const context = toolContextRef.current
     context.viewport = { zoom, panX, panY }
-    context.setPan = setPan
+    context.setPan = (x, y) => applyPan(x, y, zoom)
     context.setZoom = setZoom
-    context.zoomToPoint = zoomToPoint
+    context.zoomToPoint = applyZoomToPoint
     context.screenToWorld = screenToWorld
     context.worldToTile = worldToTile
     context.tileSize = gridSize
@@ -498,7 +551,7 @@ export function LevelCanvas({
         y: row * resolved.tileset.tileSize,
       }
     }
-  }, [zoom, panX, panY, setPan, setZoom, zoomToPoint, screenToWorld, worldToTile, gridSize, tilesets])
+  }, [zoom, panX, panY, applyPan, setZoom, applyZoomToPoint, screenToWorld, worldToTile, gridSize, tilesets])
 
   useEffect(() => {
     activeToolLayerRef.current = activeToolLayer
@@ -512,11 +565,21 @@ export function LevelCanvas({
 
     const clampedZoom = clamp(nextZoom, MIN_ZOOM, MAX_ZOOM)
     setZoom(clampedZoom)
-    setPan(
+    applyPan(
       rect.width * 0.5 - worldX * clampedZoom,
-      rect.height * 0.5 - worldY * clampedZoom
+      rect.height * 0.5 - worldY * clampedZoom,
+      clampedZoom,
     )
-  }, [setPan, setZoom, zoom])
+  }, [applyPan, setZoom, zoom])
+
+  useEffect(() => {
+    const clamped = clampPanToContent(panX, panY, zoom)
+    const driftX = Math.abs(clamped.x - panX)
+    const driftY = Math.abs(clamped.y - panY)
+    if (driftX > 0.5 || driftY > 0.5) {
+      setPan(clamped.x, clamped.y)
+    }
+  }, [clampPanToContent, panX, panY, zoom, setPan])
 
   const fitViewportToContent = useCallback(() => {
     const canvas = canvasRef.current
@@ -923,25 +986,25 @@ export function LevelCanvas({
       const screenX = event.clientX - rect.left
       const screenY = event.clientY - rect.top
       const delta = event.deltaY > 0 ? 0.9 : 1.1
-      zoomToPoint(zoom * delta, screenX, screenY)
+      applyZoomToPoint(zoom * delta, screenX, screenY)
       return
     }
 
     event.preventDefault()
-    setPan(panX - event.deltaX, panY - event.deltaY)
-  }, [panX, panY, setPan, zoom, zoomToPoint])
+    applyPan(panX - event.deltaX, panY - event.deltaY, zoom)
+  }, [applyPan, applyZoomToPoint, panX, panY, zoom])
 
   const handleZoomInClick = useCallback(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-    zoomToPoint(zoom * 1.2, canvas.clientWidth * 0.5, canvas.clientHeight * 0.5)
-  }, [zoom, zoomToPoint])
+    applyZoomToPoint(zoom * 1.2, canvas.clientWidth * 0.5, canvas.clientHeight * 0.5)
+  }, [zoom, applyZoomToPoint])
 
   const handleZoomOutClick = useCallback(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-    zoomToPoint(zoom / 1.2, canvas.clientWidth * 0.5, canvas.clientHeight * 0.5)
-  }, [zoom, zoomToPoint])
+    applyZoomToPoint(zoom / 1.2, canvas.clientWidth * 0.5, canvas.clientHeight * 0.5)
+  }, [zoom, applyZoomToPoint])
 
   const handleMinimapPointer = useCallback((event: React.MouseEvent<HTMLCanvasElement>) => {
     if (event.type === 'mousemove' && event.buttons !== 1) return

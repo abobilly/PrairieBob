@@ -353,6 +353,21 @@ function App() {
   const tilesetsInitRef = useRef(false)
   const autoSelectedNonDebugTilesetRef = useRef(false)
   const externalChangeNoticeShownRef = useRef(false)
+  const autoLoadAttemptedRef = useRef(false)
+
+  // Effect: Auto-load most recent project at startup (skip ProjectSelector)
+  useEffect(() => {
+    if (autoLoadAttemptedRef.current) return
+    autoLoadAttemptedRef.current = true
+
+    const recentProjects = useUIStore.getState().recentProjects
+    if (recentProjects.length > 0 && window.electron) {
+      const mostRecent = recentProjects[0]
+      console.log('[App] Auto-loading recent project:', mostRecent.name, mostRecent.path)
+      useUIStore.getState().closeProjectSelector()
+      void loadProject(mostRecent.path)
+    }
+  }, [loadProject])
 
   // Effect: Initialize tilesets if empty
   useEffect(() => {
@@ -991,9 +1006,9 @@ function App() {
             {leftPanelOpen ? (
               <Panel
                 id="left-sidebar"
-                defaultSize="20%"
-                minSize="15%"
-                maxSize="30%"
+                defaultSize={22}
+                minSize={14}
+                maxSize={32}
                 className="pb-panel pb-panel-palette border-r border-[var(--pb-border)]"
               >
                 <div className="pb-panel-header pb-panel-header-palette">
@@ -1034,7 +1049,7 @@ function App() {
                 </div>
               </Panel>
             ) : (
-              <Panel id="left-collapsed" defaultSize="44px" minSize="44px" maxSize="44px">
+              <Panel id="left-collapsed" defaultSize={4} minSize={3} maxSize={6}>
                 <button
                   onClick={() => togglePanelCollapsed('left')}
                   className="pb-panel-toggle pb-panel-toggle-side h-full border-r border-[var(--pb-border)]"
@@ -1048,8 +1063,8 @@ function App() {
 
             <PanelResizeHandle className="panel-resize-handle" />
 
-            <Panel id="canvas" className="min-w-0">
-              <div className="flex-1 pb-canvas-area min-w-0 overflow-hidden relative">
+            <Panel id="canvas" className="min-w-0 h-full">
+              <div className="h-full pb-canvas-area min-w-0 overflow-hidden relative">
                 <LevelCanvas level={level} tileStamp={tileStamp} mapData={mapData} />
               </div>
             </Panel>
@@ -1059,9 +1074,9 @@ function App() {
             {rightPanelOpen ? (
               <Panel
                 id="right-sidebar"
-                defaultSize="20%"
-                minSize="15%"
-                maxSize="30%"
+                defaultSize={22}
+                minSize={14}
+                maxSize={32}
                 className="pb-panel pb-panel-inspector border-l border-[var(--pb-border)]"
               >
                 <div className="pb-panel-header pb-panel-header-inspector">
@@ -1109,7 +1124,7 @@ function App() {
                 </div>
               </Panel>
             ) : (
-              <Panel id="right-collapsed" defaultSize="44px" minSize="44px" maxSize="44px">
+              <Panel id="right-collapsed" defaultSize={4} minSize={3} maxSize={6}>
                 <button
                   onClick={() => togglePanelCollapsed('right')}
                   className="pb-panel-toggle pb-panel-toggle-side h-full border-l border-[var(--pb-border)]"
@@ -1128,9 +1143,9 @@ function App() {
             <PanelResizeHandle className="panel-resize-handle" />
             <Panel
               id="bottom-panel"
-              defaultSize="18%"
-              minSize="10%"
-              maxSize="40%"
+              defaultSize={18}
+              minSize={10}
+              maxSize={40}
               className="pb-panel pb-panel-agent border-t border-[var(--pb-border)]"
             >
               <div className="pb-panel-header pb-panel-header-agent">
