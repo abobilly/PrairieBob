@@ -15,6 +15,8 @@ import {
   LoadedTileset,
   TilesetConfig,
   DEBUG_TILESET_ID,
+  EntityDefinitionFile,
+  InteractionDefinitionFile,
 } from '@/lib/types'
 import type { LDtkProject } from '@/lib/ldtk/project'
 import {
@@ -24,6 +26,10 @@ import {
   tilesetToConfig,
 } from '@/lib/tileset'
 import { loadRoomDataFromFile, type RoomTilesetReference } from '@/lib/room-loader'
+import {
+  parseEntityDefinitionFile,
+  parseInteractionDefinitionFile,
+} from '@/lib/entity-definitions'
 import { toast } from 'sonner'
 
 const CONFIG_FILENAME = 'spudtile.config.json'
@@ -119,6 +125,8 @@ interface ProjectConfig {
     maps: string
     tilesets: string
     interactions: string
+    entities?: string
+    exports?: string
   }
   tilesets: Array<{
     id: string
@@ -173,6 +181,10 @@ interface ProjectState {
   // Tilesets
   tilesets: LoadedTileset[]
   isLoadingTileset: boolean
+
+  // Project-driven definitions
+  entityDefinitions: Record<string, EntityDefinitionFile>
+  interactionDefinitions: Record<string, InteractionDefinitionFile>
 
   // Computed
   canUndo: boolean
@@ -245,6 +257,76 @@ interface ProjectActions {
   saveTilesetsToConfig: () => Promise<void>
 }
 
+interface ProjectAssetPaths {
+  maps: string
+  tilesets: string
+  interactions: string
+  entities: string
+  exports: string
+}
+
+interface LoadedProjectDefinitions {
+  entityDefinitions: Record<string, EntityDefinitionFile>
+  interactionDefinitions: Record<string, InteractionDefinitionFile>
+}
+
+function normalizeProjectAssetPaths(paths: ProjectConfig['paths']): ProjectAssetPaths {
+  return {
+    maps: paths.maps || 'maps',
+    tilesets: paths.tilesets || 'tilesets',
+    interactions: paths.interactions || 'interactions',
+    entities: paths.entities || 'entities',
+    exports: paths.exports || 'exports',
+  }
+}
+
+async function loadJsonDefinitionFiles<T extends { id: string }>(
+  dirPath: string,
+  parser: (value: unknown) => T | null,
+): Promise<Record<string, T>> {
+  const result: Record<string, T> = {}
+  if (!window.electron) return result
+
+  const exists = await window.electron.fs.exists(dirPath)
+  if (!exists) return result
+
+  let entries: Array<{ name: string; isDirectory: boolean }> = []
+  try {
+    entries = await window.electron.fs.readDir(dirPath)
+  } catch (err) {
+    console.warn('[projectStore] Failed to read definition directory:', dirPath, err)
+    return result
+  }
+
+  const jsonFiles = entries.filter((entry) => !entry.isDirectory && entry.name.toLowerCase().endsWith('.json'))
+  for (const file of jsonFiles) {
+    const filePath = `${dirPath}/${file.name}`
+    try {
+      const content = await window.electron.fs.readFile(filePath)
+      const parsedJson = JSON.parse(content)
+      const parsedDef = parser(parsedJson)
+      if (!parsedDef) continue
+      result[parsedDef.id] = parsedDef
+    } catch (err) {
+      console.warn('[projectStore] Failed to parse definition file:', filePath, err)
+    }
+  }
+  return result
+}
+
+async function loadProjectDefinitions(
+  projectPath: string,
+  paths: ProjectAssetPaths,
+): Promise<LoadedProjectDefinitions> {
+  const entitiesDir = `${projectPath}/${paths.entities}`
+  const interactionsDir = `${projectPath}/${paths.interactions}`
+  const [entityDefinitions, interactionDefinitions] = await Promise.all([
+    loadJsonDefinitionFiles(entitiesDir, parseEntityDefinitionFile),
+    loadJsonDefinitionFiles(interactionsDir, parseInteractionDefinitionFile),
+  ])
+  return { entityDefinitions, interactionDefinitions }
+}
+
 export const useProjectStore = create<ProjectState & ProjectActions>()(
   devtools(
     immer((set, get) => ({
@@ -260,6 +342,8 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
       future: [],
       tilesets: [],
       isLoadingTileset: false,
+      entityDefinitions: {},
+      interactionDefinitions: {},
       canUndo: false,
       canRedo: false,
 
@@ -279,7 +363,12 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
           }
 
           const content = await window.electron.fs.readFile(projectJsonPath)
-          const config: ProjectConfig = JSON.parse(content)
+          const rawConfig: ProjectConfig = JSON.parse(content)
+          const normalizedPaths = normalizeProjectAssetPaths(rawConfig.paths)
+          const config: ProjectConfig = {
+            ...rawConfig,
+            paths: normalizedPaths,
+          }
 
           // Load tilesets from project
           const debugTileset = createDebugTileset()
@@ -306,7 +395,7 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
           }
 
           // Load first map in the maps folder
-          const mapsPath = `${projectPath}/${config.paths.maps}`
+          const mapsPath = `${projectPath}/${normalizedPaths.maps}`
           const mapEntries = await window.electron.fs.readDir(mapsPath)
           const jsonFiles = mapEntries
             .filter(entry => !entry.isDirectory && entry.name.endsWith('.json'))
@@ -321,11 +410,18 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
             mapData = ensureCollisionLayer(JSON.parse(mapContent))
           }
 
+          const { entityDefinitions, interactionDefinitions } = await loadProjectDefinitions(
+            projectPath,
+            normalizedPaths,
+          )
+
           set({
             projectPath,
             projectName: config.name,
             projectConfig: config,
             tilesets: loadedTilesets,
+            entityDefinitions,
+            interactionDefinitions,
             mapData,
             currentRoomPath: mapPath,
             hasUnsavedChanges: false,
@@ -337,6 +433,8 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
 
           console.log('[projectStore] Project loaded:', config.name)
           console.log('[projectStore] Tilesets loaded:', loadedTilesets.length)
+          console.log('[projectStore] Entity definitions loaded:', Object.keys(entityDefinitions).length)
+          console.log('[projectStore] Interaction definitions loaded:', Object.keys(interactionDefinitions).length)
           console.log('[projectStore] MapData:', mapData?.id)
 
           // Track in recent projects
@@ -401,6 +499,8 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
               maps: 'maps',
               tilesets: 'tilesets',
               interactions: 'interactions',
+              entities: 'entities',
+              exports: 'exports',
             },
             tilesets: [
               {
@@ -538,7 +638,7 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
       },
 
       refreshCurrentRoomFromDisk: async () => {
-        const { currentRoomPath } = get()
+        const { currentRoomPath, projectPath, projectConfig } = get()
         if (!window.electron || !currentRoomPath) {
           return false
         }
@@ -552,8 +652,19 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
             })
           }
 
+          let entityDefinitions = get().entityDefinitions
+          let interactionDefinitions = get().interactionDefinitions
+          if (projectPath && projectConfig?.paths) {
+            const normalizedPaths = normalizeProjectAssetPaths(projectConfig.paths)
+            const loadedDefinitions = await loadProjectDefinitions(projectPath, normalizedPaths)
+            entityDefinitions = loadedDefinitions.entityDefinitions
+            interactionDefinitions = loadedDefinitions.interactionDefinitions
+          }
+
           set({
             mapData: ensureCollisionLayer(loaded.data),
+            entityDefinitions,
+            interactionDefinitions,
             hasUnsavedChanges: false,
             past: [],
             future: [],

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Crosshair, LocateFixed, Plus, Search, Minus } from 'lucide-react'
 import type { Level } from '@/lib/ldtk/level'
-import type { LayerInstance, TileInstance } from '@/lib/ldtk/layer-instance'
+import type { EntityInstance, LayerInstance, TileInstance } from '@/lib/ldtk/layer-instance'
 import type { IntGridValueDef } from '@/lib/ldtk/types'
 import { Camera, MAX_ZOOM, MIN_ZOOM } from '@/lib/ldtk/camera'
 import {
@@ -20,8 +20,15 @@ import { Rulers } from '@/components/Rulers'
 import { useProjectStore } from '@/stores'
 import { useToolStore } from '@/stores/toolStore'
 import { useLdtkToolStore } from '@/stores/ldtkToolStore'
-import type { TileStamp } from '@/lib/types'
+import type { EntityData, LevelData, LoadedTileset, TileStamp } from '@/lib/types'
 import { resolveTileId, setTileFlipFlags } from '@/lib/tileset'
+import {
+  resolveEditorEntityFrameSequence,
+  resolveFrameIndex,
+  type EntityDefinitionMap,
+  type InteractionDefinitionMap,
+  type SpriteFrameSource,
+} from '@/lib/entity-definitions'
 
 const DEFAULT_BG_COLOR = '#1f2430'
 const DEFAULT_INTGRID_ALPHA = 0.35
@@ -118,7 +125,59 @@ async function loadImageCanvas(path: string): Promise<HTMLCanvasElement> {
   return canvas
 }
 
-export function LevelCanvas({ level, tileStamp }: { level: Level; tileStamp: TileStamp }) {
+function buildEntityLookup(mapData: LevelData): Map<string, EntityData> {
+  const lookup = new Map<string, EntityData>()
+  for (const layer of mapData.layers) {
+    if (layer.type !== 'objectgroup' || !layer.objects) continue
+    for (const entity of layer.objects) {
+      lookup.set(entity.id, entity)
+    }
+  }
+  return lookup
+}
+
+function resolveFrameToTileset(
+  source: SpriteFrameSource,
+  frameTileId: number,
+  tilesets: LoadedTileset[],
+): { tileset: LoadedTileset; localTileId: number } | null {
+  if (source.kind === 'local') {
+    const tileset = tilesets.find((entry) => entry.id === source.tilesetId)
+    if (!tileset) return null
+    return { tileset, localTileId: frameTileId }
+  }
+  const resolved = resolveTileId(frameTileId, tilesets)
+  if (!resolved) return null
+  return {
+    tileset: resolved.tileset,
+    localTileId: resolved.localTileId,
+  }
+}
+
+interface ResolvedEntitySpriteTile {
+  canvas: HTMLCanvasElement
+  sourceX: number
+  sourceY: number
+  sourceSize: number
+  tileX: number
+  tileY: number
+}
+
+interface ResolvedEntitySprite {
+  tiles: ResolvedEntitySpriteTile[]
+  widthTiles: number
+  heightTiles: number
+}
+
+export function LevelCanvas({
+  level,
+  tileStamp,
+  mapData,
+}: {
+  level: Level
+  tileStamp: TileStamp
+  mapData: LevelData
+}) {
   const containerRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const minimapRef = useRef<HTMLCanvasElement>(null)
@@ -139,6 +198,8 @@ export function LevelCanvas({ level, tileStamp }: { level: Level; tileStamp: Til
 
   const project = useProjectStore((s) => s.project)
   const tilesets = useProjectStore((s) => s.tilesets)
+  const entityDefinitions = useProjectStore((s) => s.entityDefinitions)
+  const interactionDefinitions = useProjectStore((s) => s.interactionDefinitions)
   const projectDir = project?.filePath ? getDirectoryPath(project.filePath) : null
 
   const zoom = useToolStore((s) => s.zoom)
@@ -162,6 +223,66 @@ export function LevelCanvas({ level, tileStamp }: { level: Level; tileStamp: Til
   }
 
   const layers = level.layerInstances ?? []
+  const sourceEntitiesById = useMemo(() => buildEntityLookup(mapData), [mapData])
+
+  const resolveEntitySprite = useCallback((entity: EntityInstance, elapsedMs: number): ResolvedEntitySprite | null => {
+    const sourceEntity = sourceEntitiesById.get(entity.iid)
+    if (!sourceEntity) return null
+
+    const sequence = resolveEditorEntityFrameSequence(
+      sourceEntity,
+      entityDefinitions as EntityDefinitionMap,
+      interactionDefinitions as InteractionDefinitionMap,
+    )
+    if (!sequence || sequence.source.frameTileIds.length === 0) return null
+
+    const spriteTiles: ResolvedEntitySpriteTile[] = []
+    if (sequence.frameInterpretation === 'timeline') {
+      const frameIndex = sequence.animate
+        ? resolveFrameIndex(
+          sequence.source.frameTileIds.length,
+          elapsedMs,
+          sequence.fps,
+          sequence.loop,
+        )
+        : 0
+      const frameTileId = sequence.source.frameTileIds[frameIndex] ?? sequence.source.frameTileIds[0]
+      if (frameTileId === undefined) return null
+
+      const resolvedFrame = resolveFrameToTileset(sequence.source, frameTileId, tilesets)
+      if (!resolvedFrame) return null
+      spriteTiles.push({
+        canvas: resolvedFrame.tileset.canvas,
+        sourceX: (resolvedFrame.localTileId % resolvedFrame.tileset.tilesPerRow) * resolvedFrame.tileset.tileSize,
+        sourceY: Math.floor(resolvedFrame.localTileId / resolvedFrame.tileset.tilesPerRow) * resolvedFrame.tileset.tileSize,
+        sourceSize: resolvedFrame.tileset.tileSize,
+        tileX: 0,
+        tileY: 0,
+      })
+    } else {
+      for (let index = 0; index < sequence.source.frameTileIds.length; index += 1) {
+        const frameTileId = sequence.source.frameTileIds[index]
+        const resolvedFrame = resolveFrameToTileset(sequence.source, frameTileId, tilesets)
+        if (!resolvedFrame) continue
+        spriteTiles.push({
+          canvas: resolvedFrame.tileset.canvas,
+          sourceX: (resolvedFrame.localTileId % resolvedFrame.tileset.tilesPerRow) * resolvedFrame.tileset.tileSize,
+          sourceY: Math.floor(resolvedFrame.localTileId / resolvedFrame.tileset.tilesPerRow) * resolvedFrame.tileset.tileSize,
+          sourceSize: resolvedFrame.tileset.tileSize,
+          tileX: index % sequence.widthTiles,
+          tileY: Math.floor(index / sequence.widthTiles),
+        })
+      }
+    }
+
+    if (spriteTiles.length === 0) return null
+
+    return {
+      tiles: spriteTiles,
+      widthTiles: sequence.widthTiles,
+      heightTiles: sequence.heightTiles,
+    }
+  }, [sourceEntitiesById, entityDefinitions, interactionDefinitions, tilesets])
 
   const contentBounds = useMemo<Bounds>(() => {
     let aggregate: Bounds | null = null
@@ -572,16 +693,21 @@ export function LevelCanvas({ level, tileStamp }: { level: Level; tileStamp: Til
   )
 
   const renderEntities = useCallback(
-    (ctx: CanvasRenderingContext2D, camera: Camera) => {
+    (ctx: CanvasRenderingContext2D, camera: Camera, elapsedMs: number) => {
       for (const layer of layers) {
         if (!layer.visible || layer.__type !== 'Entities') continue
         ctx.save()
         ctx.globalAlpha = layer.__opacity
-        EntityRenderer({ entities: layer.entityInstances, camera, ctx })
+        EntityRenderer({
+          entities: layer.entityInstances,
+          camera,
+          ctx,
+          getEntitySpriteFrame: (entity) => resolveEntitySprite(entity, elapsedMs),
+        })
         ctx.restore()
       }
     },
-    [layers]
+    [layers, resolveEntitySprite]
   )
 
   const renderActiveTool = useCallback(
@@ -736,7 +862,7 @@ export function LevelCanvas({ level, tileStamp }: { level: Level; tileStamp: Til
 
     ctx.restore()
 
-    renderEntities(ctx, camera)
+    renderEntities(ctx, camera, performance.now())
 
     Rulers({
       camera,

@@ -1050,7 +1050,7 @@ function App() {
 
             <Panel id="canvas" className="min-w-0">
               <div className="flex-1 pb-canvas-area min-w-0 overflow-hidden relative">
-                <LevelCanvas level={level} tileStamp={tileStamp} />
+                <LevelCanvas level={level} tileStamp={tileStamp} mapData={mapData} />
               </div>
             </Panel>
 

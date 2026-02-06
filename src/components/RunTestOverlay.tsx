@@ -2,6 +2,15 @@ import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { X } from 'lucide-react'
 import type { EntityData, Layer, LevelData, LoadedTileset } from '@/lib/types'
 import { hasTileFlipXFlag, hasTileFlipYFlag, resolveTileId, stripTileFlipFlags } from '@/lib/tileset'
+import { useProjectStore } from '@/stores'
+import {
+  resolveDoorVisualDefinition,
+  resolveFrameIndex,
+  resolveNpcVisualDefinition,
+  type DoorVisualDefinition,
+  type NpcVisualDefinition,
+  type SpriteFrameSource,
+} from '@/lib/entity-definitions'
 
 interface RunTestOverlayProps {
   open: boolean
@@ -19,6 +28,10 @@ type NpcRuntime = {
   dirX: number
   dirY: number
   changeTimer: number
+  animationId: string
+  animationElapsedMs: number
+  interactAnimationMsRemaining: number
+  speedTilesPerSecond: number
 }
 
 type RuntimeState = {
@@ -26,7 +39,7 @@ type RuntimeState = {
   playerY: number
   playerWidth: number
   playerHeight: number
-  doorsOpen: Set<string>
+  doorStates: Map<string, string>
   npcs: NpcRuntime[]
   previousTime: number
 }
@@ -107,43 +120,90 @@ function rectOverlaps(
   )
 }
 
+function resolveFrameToTileset(
+  source: SpriteFrameSource,
+  frameTileId: number,
+  tilesets: LoadedTileset[],
+): { tileset: LoadedTileset; localTileId: number } | null {
+  if (source.kind === 'local') {
+    const tileset = tilesets.find((entry) => entry.id === source.tilesetId)
+    if (!tileset) return null
+    return { tileset, localTileId: frameTileId }
+  }
+  const resolved = resolveTileId(frameTileId, tilesets)
+  if (!resolved) return null
+  return { tileset: resolved.tileset, localTileId: resolved.localTileId }
+}
+
 export function RunTestOverlay({ open, mapData, tilesets, onClose }: RunTestOverlayProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const runtimeRef = useRef<RuntimeState | null>(null)
   const keysRef = useRef(new Set<string>())
   const frameRef = useRef<number | null>(null)
+  const entityDefinitions = useProjectStore((state) => state.entityDefinitions)
+  const interactionDefinitions = useProjectStore((state) => state.interactionDefinitions)
   const tileSize = Math.max(1, mapData.tileSize || 16)
   const collisionData = useMemo(() => getCollisionData(mapData), [mapData])
   const doors = useMemo(() => getEntities(mapData, 'door'), [mapData])
+  const npcEntities = useMemo(() => getEntities(mapData, 'npc'), [mapData])
+  const doorVisuals = useMemo(() => {
+    const map = new Map<string, DoorVisualDefinition>()
+    for (const door of doors) {
+      const visual = resolveDoorVisualDefinition(door, entityDefinitions, interactionDefinitions)
+      if (visual) map.set(door.id, visual)
+    }
+    return map
+  }, [doors, entityDefinitions, interactionDefinitions])
+  const npcVisuals = useMemo(() => {
+    const map = new Map<string, NpcVisualDefinition>()
+    for (const npc of npcEntities) {
+      const visual = resolveNpcVisualDefinition(npc, entityDefinitions)
+      if (visual) map.set(npc.id, visual)
+    }
+    return map
+  }, [npcEntities, entityDefinitions])
 
   const createRuntime = useCallback(() => {
     const spawn = findSpawnPoint(mapData, tileSize)
-    const npcEntities = getEntities(mapData, 'npc')
     const npcs: NpcRuntime[] = npcEntities.map((npc) => {
       const direction = chooseNpcDirection()
+      const visual = npcVisuals.get(npc.id)
+      const onLoadAnimation = visual?.onLoadAnimation ?? visual?.defaultAnimation ?? 'idle'
       return {
         id: npc.id,
         x: npc.x,
         y: npc.y,
-        width: Math.max(tileSize * 0.75, npc.width || tileSize),
-        height: Math.max(tileSize * 0.75, npc.height || tileSize),
+        width: Math.max(tileSize * 0.75, npc.width || tileSize * (visual?.widthTiles ?? 1)),
+        height: Math.max(tileSize * 0.75, npc.height || tileSize * (visual?.heightTiles ?? 1)),
         dirX: direction.x,
         dirY: direction.y,
         changeTimer: 0.5 + Math.random() * 1.5,
+        animationId: onLoadAnimation,
+        animationElapsedMs: Math.random() * 700,
+        interactAnimationMsRemaining: 0,
+        speedTilesPerSecond: visual?.speedTilesPerSecond ?? 2.2,
       }
     })
+
+    const doorStates = new Map<string, string>()
+    for (const door of doors) {
+      const visual = doorVisuals.get(door.id)
+      if (visual) {
+        doorStates.set(door.id, visual.defaultState)
+      }
+    }
 
     return {
       playerX: spawn.x,
       playerY: spawn.y,
       playerWidth: tileSize * 0.75,
       playerHeight: tileSize * 0.75,
-      doorsOpen: new Set<string>(),
+      doorStates,
       npcs,
       previousTime: 0,
     } satisfies RuntimeState
-  }, [mapData, tileSize])
+  }, [mapData, tileSize, npcEntities, npcVisuals, doors, doorVisuals])
 
   useEffect(() => {
     if (!open) return
@@ -165,29 +225,62 @@ export function RunTestOverlay({ open, mapData, tilesets, onClose }: RunTestOver
       if (key === 'e') {
         event.preventDefault()
         const runtime = runtimeRef.current
-        if (!runtime || doors.length === 0) return
+        if (!runtime) return
         const playerCenterX = runtime.playerX + runtime.playerWidth * 0.5
         const playerCenterY = runtime.playerY + runtime.playerHeight * 0.5
         let bestDoor: EntityData | null = null
-        let bestDistance = Number.POSITIVE_INFINITY
-
+        let bestDoorDistance = Number.POSITIVE_INFINITY
         for (const door of doors) {
-          const doorCenterX = door.x + door.width * 0.5
-          const doorCenterY = door.y + door.height * 0.5
-          const dx = doorCenterX - playerCenterX
-          const dy = doorCenterY - playerCenterY
+          const dx = door.x + door.width * 0.5 - playerCenterX
+          const dy = door.y + door.height * 0.5 - playerCenterY
           const distance = Math.hypot(dx, dy)
-          if (distance < bestDistance) {
-            bestDistance = distance
+          if (distance < bestDoorDistance) {
+            bestDoorDistance = distance
             bestDoor = door
           }
         }
 
-        if (bestDoor && bestDistance <= tileSize * 1.75) {
-          if (runtime.doorsOpen.has(bestDoor.id)) {
-            runtime.doorsOpen.delete(bestDoor.id)
-          } else {
-            runtime.doorsOpen.add(bestDoor.id)
+        if (bestDoor && bestDoorDistance <= tileSize * 1.75) {
+          const visual = doorVisuals.get(bestDoor.id)
+          if (visual) {
+            const currentState = runtime.doorStates.get(bestDoor.id) ?? visual.defaultState
+            let nextState = currentState
+            if (visual.onInteract === 'toggle') {
+              if (visual.states.closed && visual.states.open) {
+                nextState = currentState === 'open' ? 'closed' : 'open'
+              } else {
+                const keys = Object.keys(visual.states)
+                if (keys.length > 1) {
+                  const currentIndex = Math.max(0, keys.indexOf(currentState))
+                  nextState = keys[(currentIndex + 1) % keys.length]
+                }
+              }
+            } else if (visual.onInteract === 'open' && visual.states.open) {
+              nextState = 'open'
+            } else if (visual.onInteract === 'close' && visual.states.closed) {
+              nextState = 'closed'
+            }
+            runtime.doorStates.set(bestDoor.id, nextState)
+          }
+        }
+
+        let bestNpc: NpcRuntime | null = null
+        let bestNpcDistance = Number.POSITIVE_INFINITY
+        for (const npc of runtime.npcs) {
+          const dx = npc.x + npc.width * 0.5 - playerCenterX
+          const dy = npc.y + npc.height * 0.5 - playerCenterY
+          const distance = Math.hypot(dx, dy)
+          if (distance < bestNpcDistance) {
+            bestNpcDistance = distance
+            bestNpc = npc
+          }
+        }
+        if (bestNpc && bestNpcDistance <= tileSize * 1.75) {
+          const npcVisual = npcVisuals.get(bestNpc.id)
+          if (npcVisual?.onInteractAnimation) {
+            bestNpc.animationId = npcVisual.onInteractAnimation
+            bestNpc.animationElapsedMs = 0
+            bestNpc.interactAnimationMsRemaining = 900
           }
         }
         return
@@ -206,7 +299,7 @@ export function RunTestOverlay({ open, mapData, tilesets, onClose }: RunTestOver
       window.removeEventListener('keydown', handleKeyDown)
       window.removeEventListener('keyup', handleKeyUp)
     }
-  }, [open, onClose, doors, tileSize])
+  }, [open, onClose, doors, tileSize, doorVisuals, npcVisuals])
 
   useEffect(() => {
     if (!open) return
@@ -235,7 +328,14 @@ export function RunTestOverlay({ open, mapData, tilesets, onClose }: RunTestOver
       }
 
       for (const door of doors) {
-        if (runtime.doorsOpen.has(door.id)) continue
+        const visual = doorVisuals.get(door.id)
+        const stateName = visual
+          ? (runtime.doorStates.get(door.id) ?? visual.defaultState)
+          : 'closed'
+        const blocks = visual
+          ? (visual.states[stateName]?.collision ?? false)
+          : true
+        if (!blocks) continue
         if (rectOverlaps(x, y, width, height, door)) {
           return true
         }
@@ -284,6 +384,51 @@ export function RunTestOverlay({ open, mapData, tilesets, onClose }: RunTestOver
       }
     }
 
+    const drawSpriteTiles = (
+      ctx: CanvasRenderingContext2D,
+      source: SpriteFrameSource,
+      tileIds: number[],
+      widthTiles: number,
+      heightTiles: number,
+      x: number,
+      y: number,
+      width: number,
+      height: number,
+    ): boolean => {
+      if (tileIds.length === 0) return false
+      const drawWidthTiles = Math.max(1, widthTiles)
+      const drawHeightTiles = Math.max(1, heightTiles)
+      const tileDrawWidth = width / drawWidthTiles
+      const tileDrawHeight = height / drawHeightTiles
+      let drewAny = false
+
+      for (let index = 0; index < tileIds.length; index += 1) {
+        const tileId = tileIds[index]
+        if (tileId <= 0) continue
+        const resolved = resolveFrameToTileset(source, tileId, tilesets)
+        if (!resolved) continue
+
+        const sourceX = (resolved.localTileId % resolved.tileset.tilesPerRow) * resolved.tileset.tileSize
+        const sourceY = Math.floor(resolved.localTileId / resolved.tileset.tilesPerRow) * resolved.tileset.tileSize
+        const tileX = index % drawWidthTiles
+        const tileY = Math.floor(index / drawWidthTiles)
+        ctx.drawImage(
+          resolved.tileset.canvas,
+          sourceX,
+          sourceY,
+          resolved.tileset.tileSize,
+          resolved.tileset.tileSize,
+          x + tileX * tileDrawWidth,
+          y + tileY * tileDrawHeight,
+          tileDrawWidth,
+          tileDrawHeight,
+        )
+        drewAny = true
+      }
+
+      return drewAny
+    }
+
     const render = (currentTime: number) => {
       const runtime = runtimeRef.current
       if (!runtime) return
@@ -330,7 +475,18 @@ export function RunTestOverlay({ open, mapData, tilesets, onClose }: RunTestOver
           npc.dirY = nextDirection.y
           npc.changeTimer = 0.6 + Math.random() * 1.6
         }
-        const npcSpeed = tileSize * 2.2
+        npc.animationElapsedMs += elapsed * 1000
+        if (npc.interactAnimationMsRemaining > 0) {
+          npc.interactAnimationMsRemaining = Math.max(0, npc.interactAnimationMsRemaining - elapsed * 1000)
+          if (npc.interactAnimationMsRemaining === 0) {
+            const visual = npcVisuals.get(npc.id)
+            if (visual) {
+              npc.animationId = visual.onLoadAnimation
+              npc.animationElapsedMs = 0
+            }
+          }
+        }
+        const npcSpeed = tileSize * npc.speedTilesPerSecond
         const dx = npc.dirX * npcSpeed * elapsed
         const dy = npc.dirY * npcSpeed * elapsed
         const prevX = npc.x
@@ -415,17 +571,66 @@ export function RunTestOverlay({ open, mapData, tilesets, onClose }: RunTestOver
       }
 
       for (const door of doors) {
-        const isOpen = runtime.doorsOpen.has(door.id)
-        ctx.fillStyle = isOpen ? 'rgba(66, 245, 132, 0.5)' : 'rgba(245, 149, 66, 0.65)'
-        ctx.fillRect(door.x, door.y, door.width, door.height)
+        const visual = doorVisuals.get(door.id)
+        let drewDoorSprite = false
+        if (visual) {
+          const stateName = runtime.doorStates.get(door.id) ?? visual.defaultState
+          const stateVisual = visual.states[stateName] ?? visual.states[visual.defaultState]
+          if (stateVisual) {
+            drewDoorSprite = drawSpriteTiles(
+              ctx,
+              stateVisual.source,
+              stateVisual.source.frameTileIds,
+              visual.widthTiles,
+              visual.heightTiles,
+              door.x,
+              door.y,
+              door.width,
+              door.height,
+            )
+          }
+        }
+        if (!drewDoorSprite) {
+          ctx.fillStyle = 'rgba(245, 149, 66, 0.65)'
+          ctx.fillRect(door.x, door.y, door.width, door.height)
+        }
         ctx.strokeStyle = 'rgba(12, 16, 24, 0.8)'
         ctx.lineWidth = 2 / zoom
         ctx.strokeRect(door.x, door.y, door.width, door.height)
       }
 
       for (const npc of runtime.npcs) {
-        ctx.fillStyle = 'rgba(112, 189, 255, 0.95)'
-        ctx.fillRect(npc.x, npc.y, npc.width, npc.height)
+        const visual = npcVisuals.get(npc.id)
+        let drewNpcSprite = false
+        if (visual) {
+          const clip = visual.animations[npc.animationId] ?? visual.animations[visual.onLoadAnimation]
+          if (clip && clip.frameTileIds.length > 0) {
+            const frameIndex = resolveFrameIndex(
+              clip.frameTileIds.length,
+              npc.animationElapsedMs,
+              clip.fps,
+              clip.loop,
+            )
+            const frameTileId = clip.frameTileIds[frameIndex] ?? clip.frameTileIds[0]
+            if (frameTileId !== undefined) {
+              drewNpcSprite = drawSpriteTiles(
+                ctx,
+                { kind: 'local', tilesetId: visual.tilesetId, frameTileIds: [frameTileId] },
+                [frameTileId],
+                1,
+                1,
+                npc.x,
+                npc.y,
+                npc.width,
+                npc.height,
+              )
+            }
+          }
+        }
+        if (!drewNpcSprite) {
+          ctx.fillStyle = 'rgba(112, 189, 255, 0.95)'
+          ctx.fillRect(npc.x, npc.y, npc.width, npc.height)
+        }
       }
 
       ctx.fillStyle = '#facc15'
@@ -456,7 +661,7 @@ export function RunTestOverlay({ open, mapData, tilesets, onClose }: RunTestOver
       }
       frameRef.current = null
     }
-  }, [open, mapData, tilesets, collisionData, doors, tileSize])
+  }, [open, mapData, tilesets, collisionData, doors, tileSize, doorVisuals, npcVisuals])
 
   if (!open) return null
 

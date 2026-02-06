@@ -1,11 +1,27 @@
 import type { Camera } from '@/lib/ldtk/camera'
 import type { EntityInstance } from '@/lib/ldtk/layer-instance'
 
+export interface EntitySpriteTile {
+  canvas: HTMLCanvasElement
+  sourceX: number
+  sourceY: number
+  sourceSize: number
+  tileX: number
+  tileY: number
+}
+
+export interface EntitySpriteFrame {
+  tiles: EntitySpriteTile[]
+  widthTiles: number
+  heightTiles: number
+}
+
 interface EntityRendererProps {
   entities: EntityInstance[]
   camera: Camera
   ctx: CanvasRenderingContext2D
   showNames?: boolean
+  getEntitySpriteFrame?: (entity: EntityInstance) => EntitySpriteFrame | null
 }
 
 type ScreenRect = { x: number; y: number; width: number; height: number }
@@ -54,6 +70,41 @@ const drawEntityTile = (ctx: CanvasRenderingContext2D, rect: ScreenRect, color: 
   ctx.restore()
 }
 
+const drawEntitySprite = (ctx: CanvasRenderingContext2D, rect: ScreenRect, sprite: EntitySpriteFrame, color: string) => {
+  if (!sprite.tiles.length) {
+    drawEntityTile(ctx, rect, color)
+    return
+  }
+
+  const tileWidth = rect.width / Math.max(1, sprite.widthTiles)
+  const tileHeight = rect.height / Math.max(1, sprite.heightTiles)
+
+  ctx.save()
+  const previousSmoothing = ctx.imageSmoothingEnabled
+  ctx.imageSmoothingEnabled = false
+  for (const tile of sprite.tiles) {
+    const drawX = rect.x + tile.tileX * tileWidth
+    const drawY = rect.y + tile.tileY * tileHeight
+    ctx.drawImage(
+      tile.canvas,
+      tile.sourceX,
+      tile.sourceY,
+      tile.sourceSize,
+      tile.sourceSize,
+      drawX,
+      drawY,
+      tileWidth,
+      tileHeight,
+    )
+  }
+  ctx.imageSmoothingEnabled = previousSmoothing
+  ctx.globalAlpha = 0.85
+  ctx.strokeStyle = color
+  ctx.lineWidth = 1
+  ctx.strokeRect(rect.x, rect.y, rect.width, rect.height)
+  ctx.restore()
+}
+
 const drawEntityPlaceholder = (ctx: CanvasRenderingContext2D, rect: ScreenRect, color: string) => {
   ctx.save()
   ctx.fillStyle = color
@@ -81,12 +132,21 @@ const drawEntityLabel = (ctx: CanvasRenderingContext2D, rect: ScreenRect, label:
   ctx.restore()
 }
 
-export function EntityRenderer({ entities, camera, ctx, showNames = true }: EntityRendererProps) {
+export function EntityRenderer({
+  entities,
+  camera,
+  ctx,
+  showNames = true,
+  getEntitySpriteFrame,
+}: EntityRendererProps) {
   for (const entity of entities) {
     const rect = getEntityScreenRect(entity, camera)
     const color = getEntityColor(entity)
+    const spriteFrame = getEntitySpriteFrame?.(entity) ?? null
 
-    if (entity.__tile) {
+    if (spriteFrame) {
+      drawEntitySprite(ctx, rect, spriteFrame, color)
+    } else if (entity.__tile) {
       drawEntityTile(ctx, rect, color)
     } else {
       drawEntityPlaceholder(ctx, rect, color)

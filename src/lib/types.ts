@@ -84,6 +84,74 @@ export interface Interaction {
   defaultState: string
 }
 
+export interface EntityDefinitionState {
+  tileId: number
+  collision?: boolean
+}
+
+export interface EntityDefinitionAnimation {
+  frames: number[]
+  fps?: number
+  loop?: boolean
+}
+
+export interface EntityDefinitionPreview {
+  showInEditor?: boolean
+  animateInPreview?: boolean
+  previewAnimation?: string
+  loop?: boolean
+}
+
+export interface EntityDefinitionBehavior {
+  onLoad?: string
+  onInteract?: string
+  wander?: {
+    enabled?: boolean
+    speedTilesPerSecond?: number
+    changeDirectionMs?: number
+  }
+}
+
+export interface EntityDefinitionFile {
+  id: string
+  type?: EntityType | string
+  displayName?: string
+  tileset?: string
+  tileSize?: number
+  size?: {
+    width: number
+    height: number
+  }
+  defaultState?: string
+  states?: Record<string, EntityDefinitionState>
+  defaultAnimation?: string
+  animations?: Record<string, EntityDefinitionAnimation>
+  triggers?: {
+    onLoad?: string
+    onInteract?: string
+  }
+  behavior?: EntityDefinitionBehavior
+  preview?: EntityDefinitionPreview
+}
+
+export interface InteractionDefinitionState {
+  tiles: number[][]
+  collision: boolean
+}
+
+export interface InteractionDefinitionFile {
+  id: string
+  type: string
+  tileSize?: number
+  size?: {
+    width: number
+    height: number
+  }
+  states: Record<string, InteractionDefinitionState>
+  transitions?: Record<string, { duration: number }>
+  defaultState: string
+}
+
 export interface EditorState {
   currentTool: Tool
   selectedTileId: number
