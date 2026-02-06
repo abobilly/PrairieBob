@@ -327,6 +327,7 @@ function normalizePanelPercent(value: unknown, fallback: number, min: number, ma
 }
 
 function asPercent(value: number): string {
+  // react-resizable-panels v4 interprets numeric sizes as pixels; use explicit percent strings.
   return `${value}%`
 }
 
