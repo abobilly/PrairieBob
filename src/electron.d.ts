@@ -55,6 +55,8 @@ export interface ElectronAPI {
     };
     editor: {
         setUnsaved: (unsaved: boolean) => void;
+    };
+    tools: {
         launchBobTile: () => Promise<boolean>;
     };
     // Agent API for Copilot SDK communication

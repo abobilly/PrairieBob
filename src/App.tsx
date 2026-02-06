@@ -12,6 +12,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Bot,
   Crosshair,
+  ExternalLink,
+  FlipHorizontal2,
+  FlipVertical2,
   FolderOpen,
   PanelBottomClose,
   PanelBottomOpen,
@@ -19,6 +22,7 @@ import {
   PanelLeftOpen,
   PanelRightClose,
   PanelRightOpen,
+  Play,
   RefreshCw,
   Redo2,
   Save,
@@ -31,7 +35,13 @@ import {
 import { Group as PanelGroup, Panel, Separator as PanelResizeHandle } from 'react-resizable-panels'
 import type { EntityInstance, LayerInstance, Level, TileInstance } from '@/lib/ldtk'
 import { DEBUG_TILESET_ID, type Layer, type LevelData, type LoadedTileset, type TileStamp } from '@/lib/types'
-import { resolveTileId } from '@/lib/tileset'
+import {
+  hasTileFlipXFlag,
+  hasTileFlipYFlag,
+  resolveTileId,
+  setTileFlipFlags,
+  stripTileFlipFlags,
+} from '@/lib/tileset'
 import { loadRoomDataFromContent } from '@/lib/room-loader'
 import { ToolPalette } from '@/components/ToolPalette'
 import { TilesetPanel } from '@/components/TilesetPanel'
@@ -41,6 +51,7 @@ import { LayerPanel } from '@/components/LayerPanel'
 import { EntityPalette } from '@/components/EntityPalette'
 import { TilesetImportDialog, TilesetImportResult } from '@/components/TilesetImportDialog'
 import { AgentPanel } from '@/components/AgentPanel'
+import { RunTestOverlay } from '@/components/RunTestOverlay'
 import { ProjectSelector } from '@/components/ProjectSelector'
 import { NewProjectWizard } from '@/components/NewProjectWizard'
 import { getFileSystemAdapter } from '@/lib/fs-adapter'
@@ -88,10 +99,11 @@ function buildTileInstances(
   const tiles: TileInstance[] = []
 
   for (let index = 0; index < layer.data.length; index += 1) {
-    const tileId = layer.data[index]
-    if (tileId <= 0) continue
+    const rawTileId = layer.data[index]
+    const baseTileId = stripTileFlipFlags(rawTileId)
+    if (baseTileId <= 0) continue
 
-    const resolved = resolveTileId(tileId, tilesets)
+    const resolved = resolveTileId(baseTileId, tilesets)
     if (!resolved || resolved.tileset.id !== layerTileset.id) continue
 
     const localTileId = resolved.localTileId
@@ -101,10 +113,10 @@ function buildTileInstances(
     const y = Math.floor(index / mapData.width)
 
     tiles.push({
-      t: tileId,
+      t: baseTileId,
       px: [x * mapData.tileSize, y * mapData.tileSize],
       src: [col * layerTileset.tileSize, row * layerTileset.tileSize],
-      f: 0,
+      f: (hasTileFlipXFlag(rawTileId) ? 1 : 0) | (hasTileFlipYFlag(rawTileId) ? 2 : 0),
       a: 1,
     })
   }
@@ -240,8 +252,21 @@ function shouldRefreshForExternalChange(
   return false
 }
 
+function applyFlipToTileId(tileId: number, flipX: boolean, flipY: boolean): number {
+  if (tileId <= 0) return tileId
+  return setTileFlipFlags(tileId, flipX, flipY)
+}
+
+function applyFlipToStamp(stamp: TileStamp, flipX: boolean, flipY: boolean): TileStamp {
+  return {
+    ...stamp,
+    tiles: stamp.tiles.map((row) => row.map((tileId) => applyFlipToTileId(tileId, flipX, flipY))),
+  }
+}
+
 function App() {
   const [tileStamp, setTileStamp] = useState<TileStamp>(DEFAULT_STAMP)
+  const [isRunTestOpen, setIsRunTestOpen] = useState(false)
 
   const {
     activeTilesetId,
@@ -301,10 +326,14 @@ function App() {
 
   // Use individual selectors to avoid creating new objects every render
   const selectedTileId = useToolStore((s) => s.selectedTileId)
+  const tileFlipX = useToolStore((s) => s.tileFlipX)
+  const tileFlipY = useToolStore((s) => s.tileFlipY)
   const zoom = useToolStore((s) => s.zoom)
   const setZoom = useToolStore((s) => s.setZoom)
   const resetViewport = useToolStore((s) => s.resetViewport)
   const setSelectedTileId = useToolStore((s) => s.setSelectedTileId)
+  const setTileFlipX = useToolStore((s) => s.setTileFlipX)
+  const setTileFlipY = useToolStore((s) => s.setTileFlipY)
   const setActiveLayer = useToolStore((s) => s.setActiveLayer)
 
   const activeToolId = useLdtkToolStore((state) => state.activeToolId)
@@ -314,6 +343,7 @@ function App() {
   const fsAdapter = getFileSystemAdapter()
   const level = useMemo(() => buildLdtkLevel(mapData, tilesets), [mapData, tilesets])
   const effectiveTileId = selectedTileId ?? tilesets[0]?.firstGid ?? 1
+  const effectiveBaseTileId = stripTileFlipFlags(effectiveTileId)
 
   const leftPanelOpen = !panels.left.collapsed
   const rightPanelOpen = !panels.right.collapsed
@@ -357,15 +387,24 @@ function App() {
     setActiveTilesetId(nextTileset.id)
 
     if (selectedTileId === null || activeTilesetId === DEBUG_TILESET_ID) {
-      setSelectedTileId(nextTileset.firstGid)
+      const nextTileId = applyFlipToTileId(nextTileset.firstGid, tileFlipX, tileFlipY)
+      setSelectedTileId(nextTileId)
       setTileStamp({
         width: 1,
         height: 1,
-        tiles: [[nextTileset.firstGid]],
+        tiles: [[nextTileId]],
         tilesetId: nextTileset.id,
       })
     }
-  }, [tilesets, activeTilesetId, selectedTileId, setActiveTilesetId, setSelectedTileId])
+  }, [
+    tilesets,
+    activeTilesetId,
+    selectedTileId,
+    tileFlipX,
+    tileFlipY,
+    setActiveTilesetId,
+    setSelectedTileId,
+  ])
 
   // Sync active layer name to tool store — only when layer index changes
   const activeLayerName = level.layerInstances[activeLayerIndex]?.__identifier
@@ -414,16 +453,25 @@ function App() {
 
     const newTileset = useProjectStore.getState().tilesets.slice(-1)[0]
     if (newTileset) {
+      const nextTileId = applyFlipToTileId(newTileset.firstGid, tileFlipX, tileFlipY)
       setActiveTilesetId(newTileset.id)
-      setSelectedTileId(newTileset.firstGid)
+      setSelectedTileId(nextTileId)
       setTileStamp({
         width: 1,
         height: 1,
-        tiles: [[newTileset.firstGid]],
+        tiles: [[nextTileId]],
         tilesetId: newTileset.id,
       })
     }
-  }, [pendingImportPath, closeImportDialog, addTileset, setActiveTilesetId, setSelectedTileId])
+  }, [
+    pendingImportPath,
+    closeImportDialog,
+    addTileset,
+    tileFlipX,
+    tileFlipY,
+    setActiveTilesetId,
+    setSelectedTileId,
+  ])
 
   const handleRemoveTileset = useCallback(async (tilesetId: string) => {
     await removeTileset(tilesetId)
@@ -433,21 +481,23 @@ function App() {
       const nextTileset = getPreferredTileset(remaining)
       setActiveTilesetId(nextTileset?.id || null)
       if (nextTileset) {
-        setSelectedTileId(nextTileset.firstGid)
+        const nextTileId = applyFlipToTileId(nextTileset.firstGid, tileFlipX, tileFlipY)
+        setSelectedTileId(nextTileId)
         setTileStamp({
           width: 1,
           height: 1,
-          tiles: [[nextTileset.firstGid]],
+          tiles: [[nextTileId]],
           tilesetId: nextTileset.id,
         })
       }
     }
-  }, [activeTilesetId, removeTileset, setActiveTilesetId, setSelectedTileId])
+  }, [activeTilesetId, removeTileset, tileFlipX, tileFlipY, setActiveTilesetId, setSelectedTileId])
 
   const handleTileSelect = useCallback((globalTileId: number) => {
-    setSelectedTileId(globalTileId)
+    const flippedTileId = applyFlipToTileId(globalTileId, tileFlipX, tileFlipY)
+    setSelectedTileId(flippedTileId)
 
-    const resolved = resolveTileId(globalTileId, tilesets)
+    const resolved = resolveTileId(flippedTileId, tilesets)
     const nextTilesetId = resolved?.tileset.id ?? activeTilesetId
     if (nextTilesetId) {
       setActiveTilesetId(nextTilesetId)
@@ -456,17 +506,22 @@ function App() {
     setTileStamp({
       width: 1,
       height: 1,
-      tiles: [[globalTileId]],
+      tiles: [[flippedTileId]],
       tilesetId: nextTilesetId ?? null,
     })
-  }, [tilesets, activeTilesetId, setActiveTilesetId, setSelectedTileId])
+  }, [tilesets, activeTilesetId, tileFlipX, tileFlipY, setActiveTilesetId, setSelectedTileId])
 
   const handleStampSelect = useCallback((stamp: TileStamp) => {
-    setTileStamp(stamp)
-    if (stamp.tilesetId) {
-      setActiveTilesetId(stamp.tilesetId)
+    const nextStamp = applyFlipToStamp(stamp, tileFlipX, tileFlipY)
+    setTileStamp(nextStamp)
+    if (nextStamp.tilesetId) {
+      setActiveTilesetId(nextStamp.tilesetId)
     }
-  }, [setActiveTilesetId])
+    const firstTile = nextStamp.tiles[0]?.find((tileId) => stripTileFlipFlags(tileId) > 0) ?? null
+    if (firstTile !== null) {
+      setSelectedTileId(firstTile)
+    }
+  }, [tileFlipX, tileFlipY, setActiveTilesetId, setSelectedTileId])
 
   const handleSave = useCallback(async () => {
     await saveMap()
@@ -491,12 +546,13 @@ function App() {
     const nextTilesets = useProjectStore.getState().tilesets
     const nextDefaultTileset = getPreferredTileset(nextTilesets)
     if (nextDefaultTileset) {
+      const nextTileId = applyFlipToTileId(nextDefaultTileset.firstGid, tileFlipX, tileFlipY)
       setActiveTilesetId(nextDefaultTileset.id)
-      setSelectedTileId(nextDefaultTileset.firstGid)
+      setSelectedTileId(nextTileId)
       setTileStamp({
         width: 1,
         height: 1,
-        tiles: [[nextDefaultTileset.firstGid]],
+        tiles: [[nextTileId]],
         tilesetId: nextDefaultTileset.id,
       })
     }
@@ -507,10 +563,42 @@ function App() {
   }, [
     currentRoomPath,
     refreshCurrentRoomFromDisk,
+    tileFlipX,
+    tileFlipY,
     setActiveTilesetId,
     setSelectedEntityId,
     setSelectedTileId,
   ])
+
+  const handleToggleFlipX = useCallback(() => {
+    const nextFlipX = !tileFlipX
+    setTileFlipX(nextFlipX)
+    if (selectedTileId !== null) {
+      setSelectedTileId(applyFlipToTileId(selectedTileId, nextFlipX, tileFlipY))
+    }
+    setTileStamp((prev) => applyFlipToStamp(prev, nextFlipX, tileFlipY))
+  }, [tileFlipX, tileFlipY, selectedTileId, setTileFlipX, setSelectedTileId])
+
+  const handleToggleFlipY = useCallback(() => {
+    const nextFlipY = !tileFlipY
+    setTileFlipY(nextFlipY)
+    if (selectedTileId !== null) {
+      setSelectedTileId(applyFlipToTileId(selectedTileId, tileFlipX, nextFlipY))
+    }
+    setTileStamp((prev) => applyFlipToStamp(prev, tileFlipX, nextFlipY))
+  }, [tileFlipX, tileFlipY, selectedTileId, setTileFlipY, setSelectedTileId])
+
+  const handleLaunchBobTile = useCallback(async () => {
+    if (!window.electron?.tools?.launchBobTile) {
+      toast.error('BobTile launcher is unavailable in this build')
+      return
+    }
+
+    const launched = await window.electron.tools.launchBobTile()
+    if (launched) {
+      toast.success('BobTile launched')
+    }
+  }, [])
 
   const handleZoomIn = useCallback(() => {
     setZoom(zoom * 1.2)
@@ -694,12 +782,13 @@ function App() {
 
               const firstRoomTileset = importedTilesets[0]
               if (firstRoomTileset) {
+                const nextTileId = applyFlipToTileId(firstRoomTileset.firstGid, tileFlipX, tileFlipY)
                 setActiveTilesetId(firstRoomTileset.id)
-                setSelectedTileId(firstRoomTileset.firstGid)
+                setSelectedTileId(nextTileId)
                 setTileStamp({
                   width: 1,
                   height: 1,
-                  tiles: [[firstRoomTileset.firstGid]],
+                  tiles: [[nextTileId]],
                   tilesetId: firstRoomTileset.id,
                 })
               }
@@ -739,6 +828,8 @@ function App() {
     setHasUnsavedChanges,
     handleAgentToolCall,
     loadRoomTilesets,
+    tileFlipX,
+    tileFlipY,
     setActiveTilesetId,
     setSelectedTileId,
     loadProject,
@@ -822,6 +913,25 @@ function App() {
         <div className="pb-toolbar-divider" />
         <div className="pb-toolbar-group">
           <button
+            className={`pb-tool-btn pb-tool-btn-labeled ${tileFlipX ? 'active' : ''}`}
+            onClick={handleToggleFlipX}
+            title={`Flip Horizontal${tileFlipX ? ' (enabled)' : ''}`}
+          >
+            <FlipHorizontal2 size={16} />
+            <span>Flip X</span>
+          </button>
+          <button
+            className={`pb-tool-btn pb-tool-btn-labeled ${tileFlipY ? 'active' : ''}`}
+            onClick={handleToggleFlipY}
+            title={`Flip Vertical${tileFlipY ? ' (enabled)' : ''}`}
+          >
+            <FlipVertical2 size={16} />
+            <span>Flip Y</span>
+          </button>
+        </div>
+        <div className="pb-toolbar-divider" />
+        <div className="pb-toolbar-group">
+          <button
             className="pb-tool-btn pb-tool-btn-labeled"
             onClick={handleZoomOut}
             title="Zoom out"
@@ -844,6 +954,25 @@ function App() {
           >
             <Crosshair size={16} />
             <span>Origin</span>
+          </button>
+        </div>
+        <div className="pb-toolbar-divider" />
+        <div className="pb-toolbar-group">
+          <button
+            className="pb-tool-btn pb-tool-btn-labeled"
+            onClick={() => setIsRunTestOpen(true)}
+            title="Run/Test preview"
+          >
+            <Play size={16} />
+            <span>Test</span>
+          </button>
+          <button
+            className="pb-tool-btn pb-tool-btn-labeled"
+            onClick={() => { void handleLaunchBobTile() }}
+            title="Launch BobTile"
+          >
+            <ExternalLink size={16} />
+            <span>BobTile</span>
           </button>
         </div>
         {projectName && (
@@ -1051,7 +1180,8 @@ function App() {
           <span className="text-[var(--pb-text-muted)]">Zoom:</span> {Math.round(zoom * 100)}%
         </span>
         <span className="pb-statusbar-item">
-          <span className="text-[var(--pb-text-muted)]">Tile ID:</span> {effectiveTileId}
+          <span className="text-[var(--pb-text-muted)]">Tile ID:</span> {effectiveBaseTileId}
+          {(tileFlipX || tileFlipY) ? ` (${tileFlipX ? 'FlipX' : ''}${tileFlipX && tileFlipY ? ',' : ''}${tileFlipY ? 'FlipY' : ''})` : ''}
         </span>
         {tileStamp.width > 1 || tileStamp.height > 1 ? (
           <span className="pb-statusbar-item">
@@ -1069,6 +1199,12 @@ function App() {
 
       <ProjectSelector />
       <NewProjectWizard />
+      <RunTestOverlay
+        open={isRunTestOpen}
+        mapData={mapData}
+        tilesets={tilesets}
+        onClose={() => setIsRunTestOpen(false)}
+      />
     </div>
   )
 }

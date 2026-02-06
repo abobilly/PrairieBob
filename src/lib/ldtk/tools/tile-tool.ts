@@ -2,6 +2,7 @@ import type { Camera } from '../camera'
 import type { TileInstance, LayerInstance } from '../layer-instance'
 import { LayerTool } from './layer-tool'
 import type { ToolContext } from './tool'
+import { hasTileFlipXFlag, hasTileFlipYFlag, stripTileFlipFlags } from '../../tileset'
 
 type GridPoint = { x: number; y: number }
 
@@ -172,6 +173,7 @@ export class TileTool extends LayerTool {
     private setTileAt(layer: LayerInstance, gridX: number, gridY: number, tileId: number): void {
         if (gridX < 0 || gridY < 0 || gridX >= layer.__cWid || gridY >= layer.__cHei) return
 
+        const normalizedTileId = stripTileFlipFlags(tileId)
         const gridSize = layer.__gridSize || this.context.tileSize || 1
         const pxX = gridX * gridSize
         const pxY = gridY * gridSize
@@ -179,19 +181,20 @@ export class TileTool extends LayerTool {
             (tile) => tile.px[0] === pxX && tile.px[1] === pxY
         )
 
-        if (tileId <= 0) {
+        if (normalizedTileId <= 0) {
             if (index !== -1) {
                 layer.gridTiles.splice(index, 1)
             }
             return
         }
 
-        const resolvedSrc = this.context.resolveTileSource?.(tileId)
+        const resolvedSrc = this.context.resolveTileSource?.(normalizedTileId)
+        const flipFlags = (hasTileFlipXFlag(tileId) ? 1 : 0) | (hasTileFlipYFlag(tileId) ? 2 : 0)
         const nextTile: TileInstance = {
-            t: tileId,
+            t: normalizedTileId,
             px: [pxX, pxY],
             src: resolvedSrc ? [resolvedSrc.x, resolvedSrc.y] : [0, 0],
-            f: 0,
+            f: flipFlags,
             a: 1,
         }
 

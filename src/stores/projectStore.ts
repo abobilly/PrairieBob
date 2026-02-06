@@ -67,6 +67,50 @@ async function resolveSampleProjectPath(): Promise<string> {
 
 const MAX_HISTORY = 100
 
+function normalizeTileLayerData(data: number[] | undefined, width: number, height: number): number[] {
+  const expectedSize = Math.max(1, width * height)
+  if (!Array.isArray(data)) {
+    return new Array(expectedSize).fill(0)
+  }
+  if (data.length === expectedSize) {
+    return [...data]
+  }
+  if (data.length > expectedSize) {
+    return data.slice(0, expectedSize)
+  }
+  return [...data, ...new Array(expectedSize - data.length).fill(0)]
+}
+
+function ensureCollisionLayer(level: LevelData): LevelData {
+  const width = Math.max(1, level.width)
+  const height = Math.max(1, level.height)
+  const layers = [...level.layers]
+  const collisionLayerIndex = layers.findIndex(
+    (layer) => layer.type === 'tilelayer' && layer.name.trim().toLowerCase() === 'collision'
+  )
+
+  if (collisionLayerIndex === -1) {
+    layers.push({
+      name: 'Collision',
+      type: 'tilelayer',
+      visible: true,
+      locked: false,
+      opacity: 1,
+      data: new Array(width * height).fill(0),
+    })
+    return { ...level, layers }
+  }
+
+  const existing = layers[collisionLayerIndex]
+  const normalized = {
+    ...existing,
+    type: 'tilelayer' as const,
+    data: normalizeTileLayerData(existing.data, width, height),
+  }
+  layers[collisionLayerIndex] = normalized
+  return { ...level, layers }
+}
+
 interface ProjectConfig {
   name: string
   version: string
@@ -274,7 +318,7 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
           if (jsonFiles.length > 0) {
             mapPath = `${mapsPath}/${jsonFiles[0]}`
             const mapContent = await window.electron.fs.readFile(mapPath)
-            mapData = JSON.parse(mapContent)
+            mapData = ensureCollisionLayer(JSON.parse(mapContent))
           }
 
           set({
@@ -450,7 +494,7 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
         const mapPath = `${projectPath}/${projectConfig.paths.maps}/${mapId}.json`
         try {
           const content = await window.electron.fs.readFile(mapPath)
-          const mapData = JSON.parse(content)
+          const mapData = ensureCollisionLayer(JSON.parse(content))
           set({
             mapData,
             currentRoomPath: mapPath,
@@ -509,7 +553,7 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
           }
 
           set({
-            mapData: loaded.data,
+            mapData: ensureCollisionLayer(loaded.data),
             hasUnsavedChanges: false,
             past: [],
             future: [],
@@ -525,6 +569,7 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
 
       // Map operations
       setMapData: (data, recordHistory = true, description = 'Edit') => {
+        const normalizedData = ensureCollisionLayer(data)
         set((state) => {
           if (recordHistory) {
             // Push current state to past
@@ -535,7 +580,7 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
             // Clear future on new edit
             state.future = []
           }
-          state.mapData = data
+          state.mapData = normalizedData
           state.hasUnsavedChanges = true
           state.canUndo = state.past.length > 0
           state.canRedo = state.future.length > 0

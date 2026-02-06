@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Plus, X, Search } from 'lucide-react'
 import type { LoadedTileset, TileStamp } from '@/lib/types'
+import { stripTileFlipFlags } from '@/lib/tileset'
 import { useToolStore } from '@/stores/toolStore'
 
 interface TilesetPanelProps {
@@ -223,8 +224,9 @@ function TileGrid({
   // Check if a tile is within the current stamp selection
   const isTileInStamp = useCallback((globalId: number): boolean => {
     if (stamp.tilesetId !== tileset.id) return false
+    const normalizedGlobalId = stripTileFlipFlags(globalId)
     for (const row of stamp.tiles) {
-      if (row.includes(globalId)) return true
+      if (row.some((tileId) => stripTileFlipFlags(tileId) === normalizedGlobalId)) return true
     }
     return false
   }, [stamp, tileset.id])
@@ -345,8 +347,10 @@ function TileGrid({
   }, [highlightedTile, onTileSelect, onSelectedTileIdsChange])
 
   const resolvedSelectedTileIds = useMemo(() => {
-    if (selectedTileIds.length > 0) return selectedTileIds
-    return selectedGlobalTileId ? [selectedGlobalTileId] : []
+    if (selectedTileIds.length > 0) {
+      return selectedTileIds.map((tileId) => stripTileFlipFlags(tileId))
+    }
+    return selectedGlobalTileId ? [stripTileFlipFlags(selectedGlobalTileId)] : []
   }, [selectedTileIds, selectedGlobalTileId])
 
   return (

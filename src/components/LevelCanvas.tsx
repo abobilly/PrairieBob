@@ -21,7 +21,7 @@ import { useProjectStore } from '@/stores'
 import { useToolStore } from '@/stores/toolStore'
 import { useLdtkToolStore } from '@/stores/ldtkToolStore'
 import type { TileStamp } from '@/lib/types'
-import { resolveTileId } from '@/lib/tileset'
+import { resolveTileId, setTileFlipFlags } from '@/lib/tileset'
 
 const DEFAULT_BG_COLOR = '#1f2430'
 const DEFAULT_INTGRID_ALPHA = 0.35
@@ -63,7 +63,11 @@ const buildTileData = (layer: LayerInstance) => {
       const gridX = Math.floor(tile.px[0] / gridSize)
       const gridY = Math.floor(tile.px[1] / gridSize)
       if (gridX < 0 || gridY < 0 || gridX >= layer.__cWid || gridY >= layer.__cHei) continue
-      data[gridY * layer.__cWid + gridX] = tile.t
+      data[gridY * layer.__cWid + gridX] = setTileFlipFlags(
+        tile.t,
+        hasTileFlipX(tile),
+        hasTileFlipY(tile)
+      )
     }
   }
 
@@ -89,6 +93,8 @@ const mergeBounds = (target: Bounds | null, next: Bounds): Bounds => {
 }
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value))
+
+const isCollisionLayerIdentifier = (identifier: string) => identifier.trim().toLowerCase() === 'collision'
 
 async function loadImageCanvas(path: string): Promise<HTMLCanvasElement> {
   const img = new Image()
@@ -527,10 +533,32 @@ export function LevelCanvas({ level, tileStamp }: { level: Level; tileStamp: Til
     []
   )
 
+  const renderCollisionLayer = useCallback(
+    (ctx: CanvasRenderingContext2D, layer: LayerInstance) => {
+      const gridSize = layer.__gridSize || 1
+      const offsetX = layer.__pxTotalOffsetX
+      const offsetY = layer.__pxTotalOffsetY
+      const tiles = [...layer.autoLayerTiles, ...layer.gridTiles]
+
+      for (const tile of tiles) {
+        ctx.save()
+        ctx.globalAlpha = Math.max(0.15, Math.min(1, layer.__opacity)) * 0.55
+        ctx.fillStyle = 'rgba(244, 63, 94, 0.78)'
+        ctx.fillRect(tile.px[0] + offsetX, tile.px[1] + offsetY, gridSize, gridSize)
+        ctx.restore()
+      }
+    },
+    []
+  )
+
   const renderLayer = useCallback(
     (ctx: CanvasRenderingContext2D, layer: LayerInstance) => {
       if (!layer.visible) return
       if (isTileLayer(layer)) {
+        if (isCollisionLayerIdentifier(layer.__identifier)) {
+          renderCollisionLayer(ctx, layer)
+          return
+        }
         renderTiles(ctx, layer, layer.autoLayerTiles)
         renderTiles(ctx, layer, layer.gridTiles)
         return
@@ -540,7 +568,7 @@ export function LevelCanvas({ level, tileStamp }: { level: Level; tileStamp: Til
         renderIntGrid(ctx, layer, def?.intGridValues)
       }
     },
-    [layerDefs, renderTiles, renderIntGrid]
+    [layerDefs, renderTiles, renderIntGrid, renderCollisionLayer]
   )
 
   const renderEntities = useCallback(

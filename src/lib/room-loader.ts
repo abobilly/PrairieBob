@@ -508,7 +508,7 @@ async function parseTiledJson(
       const data = new Array(width * height).fill(0)
       if (Array.isArray(layer.data)) {
         for (let i = 0; i < Math.min(data.length, layer.data.length); i += 1) {
-          data[i] = stripTileFlags(toInt(layer.data[i], 0))
+          data[i] = toInt(layer.data[i], 0)
         }
       }
 
@@ -526,7 +526,7 @@ async function parseTiledJson(
               const mapY = chunkY + localY
               if (mapX < 0 || mapX >= width || mapY < 0 || mapY >= height) continue
               const sourceIndex = localY * chunkWidth + localX
-              data[mapY * width + mapX] = stripTileFlags(toInt(chunkData[sourceIndex], 0))
+              data[mapY * width + mapX] = toInt(chunkData[sourceIndex], 0)
             }
           }
         }
@@ -581,7 +581,7 @@ function parseCsvNumbers(raw: string): number[] {
     .split(',')
     .map((item) => item.trim())
     .filter((item) => item.length > 0)
-    .map((item) => stripTileFlags(toInt(item, 0)))
+    .map((item) => toInt(item, 0))
 }
 
 function createTilesetIdFromPath(sourcePath: string, fallbackPrefix: string, index: number): string {
@@ -837,7 +837,7 @@ async function parseTmx(
         let index = 0
         while (tileMatch && index < data.length) {
           const tileAttrs = parseXmlAttributes(tileMatch[1])
-          data[index] = stripTileFlags(toInt(tileAttrs.gid, 0))
+          data[index] = toInt(tileAttrs.gid, 0)
           index += 1
           tileMatch = tileRegex.exec(dataBody)
         }

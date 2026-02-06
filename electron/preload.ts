@@ -29,6 +29,10 @@ contextBridge.exposeInMainWorld('electron', {
         stop: () => ipcRenderer.invoke('watcher:stop'),
     },
 
+    tools: {
+        launchBobTile: () => ipcRenderer.invoke('tools:launchBobTile'),
+    },
+
     // ============== Dialogs ==============
     dialog: {
         openFile: (options?: Electron.OpenDialogOptions) => ipcRenderer.invoke('dialog:openFile', options),
@@ -178,6 +182,9 @@ declare global {
             watcher: {
                 start: (rootPath: string) => Promise<boolean>;
                 stop: () => Promise<boolean>;
+            };
+            tools: {
+                launchBobTile: () => Promise<boolean>;
             };
             dialog: {
                 openFile: (options?: Electron.OpenDialogOptions) => Promise<Electron.OpenDialogReturnValue>;

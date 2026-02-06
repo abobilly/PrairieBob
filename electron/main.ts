@@ -66,6 +66,12 @@ const WATCH_IGNORED_SEGMENTS = new Set([
     'release',
 ]);
 
+interface AppSettings {
+    bobTilePath?: string;
+}
+
+const SETTINGS_FILENAME = 'spudtile.settings.json';
+
 function createWindow() {
     mainWindow = new BrowserWindow({
         width: 1600,
@@ -190,6 +196,91 @@ function startProjectWatcher(rootPath: string): boolean {
     }
 }
 
+function getSettingsPath(): string {
+    return path.join(app.getPath('userData'), SETTINGS_FILENAME);
+}
+
+function readSettings(): AppSettings {
+    const settingsPath = getSettingsPath();
+    if (!fs.existsSync(settingsPath)) return {};
+    try {
+        const raw = fs.readFileSync(settingsPath, 'utf-8');
+        const parsed = JSON.parse(raw);
+        return typeof parsed === 'object' && parsed !== null ? parsed as AppSettings : {};
+    } catch {
+        return {};
+    }
+}
+
+function writeSettings(settings: AppSettings): void {
+    const settingsPath = getSettingsPath();
+    fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf-8');
+}
+
+function getBobTileCandidatePaths(): string[] {
+    const candidates = new Set<string>();
+    const settings = readSettings();
+    if (settings.bobTilePath) {
+        candidates.add(settings.bobTilePath);
+    }
+
+    const devPathFromCwd = path.resolve(process.cwd(), 'bobtile', 'publish', 'BobTile.exe');
+    candidates.add(devPathFromCwd);
+
+    const devPathFromBuild = path.resolve(__dirname, '../../bobtile/publish/BobTile.exe');
+    candidates.add(devPathFromBuild);
+
+    const packagedPath = path.join(process.resourcesPath, 'bobtile', 'BobTile.exe');
+    candidates.add(packagedPath);
+
+    const siblingReleasePath = path.resolve(process.cwd(), 'release', 'win-unpacked', 'BobTile.exe');
+    candidates.add(siblingReleasePath);
+
+    return [...candidates];
+}
+
+function findExistingBobTilePath(): string | null {
+    for (const candidate of getBobTileCandidatePaths()) {
+        if (fs.existsSync(candidate)) {
+            return candidate;
+        }
+    }
+    return null;
+}
+
+async function promptForBobTilePath(): Promise<string | null> {
+    const choice = await dialog.showMessageBox(mainWindow!, {
+        type: 'warning',
+        title: 'BobTile Not Found',
+        message: 'BobTile.exe was not found automatically.',
+        detail: 'Locate BobTile.exe once and SpudTile will remember it.',
+        buttons: ['Locate BobTile.exe', 'Cancel'],
+        defaultId: 0,
+        cancelId: 1,
+        noLink: true,
+    });
+
+    if (choice.response !== 0) {
+        return null;
+    }
+
+    const selected = await dialog.showOpenDialog(mainWindow!, {
+        title: 'Locate BobTile.exe',
+        filters: [{ name: 'BobTile Executable', extensions: ['exe'] }],
+        properties: ['openFile'],
+    });
+
+    if (selected.canceled || selected.filePaths.length === 0) {
+        return null;
+    }
+
+    const selectedPath = selected.filePaths[0];
+    const settings = readSettings();
+    settings.bobTilePath = selectedPath;
+    writeSettings(settings);
+    return selectedPath;
+}
+
 function buildMenu(): Menu {
     const template: Electron.MenuItemConstructorOptions[] = [
         {
@@ -301,7 +392,7 @@ function buildMenu(): Menu {
             submenu: [
                 {
                     label: 'Launch BobTile...',
-                    click: () => handleLaunchBobTile(),
+                    click: () => { void handleLaunchBobTile(); },
                 },
                 { type: 'separator' },
                 {
@@ -380,22 +471,28 @@ async function handleSaveAs() {
     }
 }
 
-function handleLaunchBobTile() {
-    // In packaged mode, BobTile is in resources/bobtile/
-    // In dev mode, it's in bobtile/publish/
-    let bobTilePath: string;
-    if (app.isPackaged) {
-        bobTilePath = path.join(process.resourcesPath, 'bobtile', 'BobTile.exe');
-    } else {
-        bobTilePath = path.resolve(__dirname, '../../bobtile/publish/BobTile.exe');
+async function handleLaunchBobTile(): Promise<boolean> {
+    let bobTilePath = findExistingBobTilePath();
+    if (!bobTilePath) {
+        bobTilePath = await promptForBobTilePath();
     }
 
-    if (fs.existsSync(bobTilePath)) {
+    if (!bobTilePath) {
+        return false;
+    }
+
+    try {
         const { spawn } = require('child_process');
         spawn(bobTilePath, [], { detached: true, stdio: 'ignore' }).unref();
-    } else {
-        dialog.showErrorBox('BobTile Not Found',
-            `Could not find BobTile at:\n${bobTilePath}\n\nBuild it first with: cd ../bobtile && .\\build.ps1 -Release`);
+        mainWindow?.webContents.send('tool:bobtile-launched', { path: bobTilePath });
+        return true;
+    } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        dialog.showErrorBox(
+            'Failed to Launch BobTile',
+            `SpudTile found BobTile but could not launch it.\n\nPath: ${bobTilePath}\n\nError: ${message}`
+        );
+        return false;
     }
 }
 
@@ -466,6 +563,10 @@ ipcMain.handle('watcher:start', async (_, rootPath: string) => {
 ipcMain.handle('watcher:stop', async () => {
     stopProjectWatcher();
     return true;
+});
+
+ipcMain.handle('tools:launchBobTile', async () => {
+    return handleLaunchBobTile();
 });
 
 ipcMain.handle('dialog:openFile', async (_, options) => {

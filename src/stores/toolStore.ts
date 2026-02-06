@@ -18,6 +18,8 @@ interface ToolState {
   activeLayer: string | null
   selectedTileId: number | null
   selectedTileIds: number[]
+  tileFlipX: boolean
+  tileFlipY: boolean
   selectedEntityDefUid: number | null
   selectedIntGridValue: number
   brushSize: number
@@ -31,6 +33,10 @@ interface ToolActions {
   setActiveLayer: (layer: string | null) => void
   setSelectedTileId: (tileId: number | null) => void
   setSelectedTileIds: (tileIds: number[]) => void
+  setTileFlipX: (enabled: boolean) => void
+  setTileFlipY: (enabled: boolean) => void
+  toggleTileFlipX: () => void
+  toggleTileFlipY: () => void
   setSelectedEntityDefUid: (uid: number | null) => void
   setSelectedIntGridValue: (value: number) => void
   setBrushSize: (size: number) => void
@@ -48,6 +54,8 @@ export const useToolStore = create<ToolState & ToolActions>()(
         activeLayer: null,
         selectedTileId: null,
         selectedTileIds: [],
+        tileFlipX: false,
+        tileFlipY: false,
         selectedEntityDefUid: null,
         selectedIntGridValue: 1,
         brushSize: DEFAULT_BRUSH_SIZE,
@@ -71,6 +79,22 @@ export const useToolStore = create<ToolState & ToolActions>()(
         setSelectedTileIds: (tileIds) => set((state) => {
           state.selectedTileIds = [...tileIds]
           state.selectedTileId = tileIds[0] ?? null
+        }),
+
+        setTileFlipX: (enabled) => set((state) => {
+          state.tileFlipX = enabled
+        }),
+
+        setTileFlipY: (enabled) => set((state) => {
+          state.tileFlipY = enabled
+        }),
+
+        toggleTileFlipX: () => set((state) => {
+          state.tileFlipX = !state.tileFlipX
+        }),
+
+        toggleTileFlipY: () => set((state) => {
+          state.tileFlipY = !state.tileFlipY
         }),
 
         setSelectedEntityDefUid: (uid) => set((state) => {
@@ -122,6 +146,8 @@ export const useToolStore = create<ToolState & ToolActions>()(
           brushSize: state.brushSize,
           selectedTileId: state.selectedTileId,
           selectedTileIds: state.selectedTileIds,
+          tileFlipX: state.tileFlipX,
+          tileFlipY: state.tileFlipY,
           selectedEntityDefUid: state.selectedEntityDefUid,
           selectedIntGridValue: state.selectedIntGridValue,
         }),
@@ -135,6 +161,8 @@ export const useActiveTool = () => useToolStore((s) => s.activeTool)
 export const useActiveLayer = () => useToolStore((s) => s.activeLayer)
 export const useBrushSize = () => useToolStore((s) => s.brushSize)
 export const useSelectedTileId = () => useToolStore((s) => s.selectedTileId)
+export const useTileFlipX = () => useToolStore((s) => s.tileFlipX)
+export const useTileFlipY = () => useToolStore((s) => s.tileFlipY)
 export const useSelectedEntityDefUid = () => useToolStore((s) => s.selectedEntityDefUid)
 export const useSelectedIntGridValue = () => useToolStore((s) => s.selectedIntGridValue)
 export const useViewportState = () => useToolStore((s) => ({

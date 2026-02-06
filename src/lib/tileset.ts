@@ -4,6 +4,13 @@ import { DEBUG_TILESET_ID } from './types'
 /** Default tile size for new projects (32px for kimbar) */
 export const DEFAULT_TILE_SIZE = 32
 
+/** TMX/Tiled global-ID transform flags */
+export const TILE_FLIP_HORIZONTAL_FLAG = 0x80000000
+export const TILE_FLIP_VERTICAL_FLAG = 0x40000000
+export const TILE_FLIP_DIAGONAL_FLAG = 0x20000000
+const TILE_ALL_TRANSFORM_FLAGS =
+  TILE_FLIP_HORIZONTAL_FLAG | TILE_FLIP_VERTICAL_FLAG | TILE_FLIP_DIAGONAL_FLAG
+
 /** Common tile sizes for the import dialog */
 export const COMMON_TILE_SIZES = [8, 16, 24, 32, 48, 64] as const
 
@@ -227,7 +234,8 @@ export function resolveTileId(
   globalTileId: number,
   tilesets: LoadedTileset[]
 ): { tileset: LoadedTileset; localTileId: number } | null {
-  if (globalTileId <= 0) return null
+  const normalizedTileId = stripTileFlipFlags(globalTileId)
+  if (normalizedTileId <= 0) return null
 
   // Sort by firstGid descending to find the right tileset
   const sorted = [...tilesets]
@@ -235,15 +243,51 @@ export function resolveTileId(
     .sort((a, b) => b.firstGid - a.firstGid)
 
   for (const ts of sorted) {
-    if (globalTileId >= ts.firstGid && globalTileId < ts.firstGid + ts.totalTiles) {
+    if (normalizedTileId >= ts.firstGid && normalizedTileId < ts.firstGid + ts.totalTiles) {
       return {
         tileset: ts,
-        localTileId: globalTileId - ts.firstGid,
+        localTileId: normalizedTileId - ts.firstGid,
       }
     }
   }
 
   return null
+}
+
+/**
+ * Remove TMX/Tiled transform flags from a global tile id.
+ */
+export function stripTileFlipFlags(globalTileId: number): number {
+  const value = globalTileId >>> 0
+  return (value & ~TILE_ALL_TRANSFORM_FLAGS) >>> 0
+}
+
+export function hasTileFlipXFlag(globalTileId: number): boolean {
+  return ((globalTileId >>> 0) & TILE_FLIP_HORIZONTAL_FLAG) !== 0
+}
+
+export function hasTileFlipYFlag(globalTileId: number): boolean {
+  return ((globalTileId >>> 0) & TILE_FLIP_VERTICAL_FLAG) !== 0
+}
+
+export function hasTileFlipDiagonalFlag(globalTileId: number): boolean {
+  return ((globalTileId >>> 0) & TILE_FLIP_DIAGONAL_FLAG) !== 0
+}
+
+/**
+ * Apply TMX/Tiled transform flags to a tile id while preserving its base gid.
+ */
+export function setTileFlipFlags(
+  globalTileId: number,
+  flipX: boolean,
+  flipY: boolean,
+  flipDiagonal = false
+): number {
+  let value = stripTileFlipFlags(globalTileId) >>> 0
+  if (flipX) value = (value | TILE_FLIP_HORIZONTAL_FLAG) >>> 0
+  if (flipY) value = (value | TILE_FLIP_VERTICAL_FLAG) >>> 0
+  if (flipDiagonal) value = (value | TILE_FLIP_DIAGONAL_FLAG) >>> 0
+  return value
 }
 
 /**
