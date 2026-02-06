@@ -24,6 +24,11 @@ contextBridge.exposeInMainWorld('electron', {
         getPaths: () => ipcRenderer.invoke('app:getPaths'),
     },
 
+    watcher: {
+        start: (rootPath: string) => ipcRenderer.invoke('watcher:start', rootPath),
+        stop: () => ipcRenderer.invoke('watcher:stop'),
+    },
+
     // ============== Dialogs ==============
     dialog: {
         openFile: (options?: Electron.OpenDialogOptions) => ipcRenderer.invoke('dialog:openFile', options),
@@ -108,6 +113,14 @@ contextBridge.exposeInMainWorld('electron', {
         ipcRenderer.on('room:saveAs', (_, path) => callback(path));
         return () => ipcRenderer.removeAllListeners('room:saveAs');
     },
+    onProjectFileChanged: (callback: (change: { path: string; eventType: 'change' | 'rename' }) => void) => {
+        const handler = (
+            _: Electron.IpcRendererEvent,
+            change: { path: string; eventType: 'change' | 'rename' },
+        ) => callback(change);
+        ipcRenderer.on('project:file-changed', handler);
+        return () => ipcRenderer.removeListener('project:file-changed', handler);
+    },
 
     // ============== Agent IPC ==============
     agent: {
@@ -162,6 +175,10 @@ declare global {
             app: {
                 getPaths: () => Promise<{ appPath: string; resourcesPath: string; isPackaged: boolean }>;
             };
+            watcher: {
+                start: (rootPath: string) => Promise<boolean>;
+                stop: () => Promise<boolean>;
+            };
             dialog: {
                 openFile: (options?: Electron.OpenDialogOptions) => Promise<Electron.OpenDialogReturnValue>;
                 saveFile: (options?: Electron.SaveDialogOptions) => Promise<Electron.SaveDialogReturnValue>;
@@ -195,6 +212,7 @@ declare global {
             onProjectOpened: (callback: (path: string) => void) => () => void;
             onRoomOpened: (callback: (data: { path: string; content: string }) => void) => () => void;
             onRoomSaveAs: (callback: (path: string) => void) => () => void;
+            onProjectFileChanged: (callback: (change: { path: string; eventType: 'change' | 'rename' }) => void) => () => void;
             onAgentMessage: (callback: (message: { role: string; content: string; timestamp: string; toolName?: string }) => void) => () => void;
             onAgentDelta: (callback: (delta: string) => void) => () => void;
             onAgentState: (callback: (state: 'idle' | 'thinking' | 'executing') => void) => () => void;

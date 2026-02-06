@@ -41,6 +41,30 @@ let mainWindow: BrowserWindow | null = null;
 let currentProjectPath: string | null = null;
 let currentRoomPath: string | null = null;
 let hasUnsavedChanges = false;
+let projectWatcher: fs.FSWatcher | null = null;
+let watchedRootPath: string | null = null;
+
+type FileChangeEventType = 'change' | 'rename';
+
+const WATCHED_EXTENSIONS = new Set([
+    '.json',
+    '.ldtk',
+    '.tmx',
+    '.tsx',
+    '.png',
+    '.jpg',
+    '.jpeg',
+    '.gif',
+    '.webp',
+]);
+
+const WATCH_IGNORED_SEGMENTS = new Set([
+    'node_modules',
+    '.git',
+    'dist',
+    'dist-electron',
+    'release',
+]);
 
 function createWindow() {
     mainWindow = new BrowserWindow({
@@ -78,6 +102,7 @@ function createWindow() {
     });
 
     mainWindow.on('closed', () => {
+        stopProjectWatcher();
         mainWindow = null;
     });
 
@@ -98,6 +123,71 @@ function updateWindowTitle() {
         title = `● ${title}`;
     }
     mainWindow.setTitle(title);
+}
+
+function normalizeWatchPath(filePath: string): string {
+    return filePath.replace(/\\/g, '/').toLowerCase();
+}
+
+function shouldEmitFileChange(filePath: string): boolean {
+    const normalized = normalizeWatchPath(filePath);
+    const segments = normalized.split('/');
+    if (segments.some((segment) => WATCH_IGNORED_SEGMENTS.has(segment))) {
+        return false;
+    }
+
+    const extension = path.extname(normalized);
+    return WATCHED_EXTENSIONS.has(extension);
+}
+
+function stopProjectWatcher() {
+    if (!projectWatcher) return;
+    projectWatcher.close();
+    projectWatcher = null;
+    watchedRootPath = null;
+}
+
+function startProjectWatcher(rootPath: string): boolean {
+    const resolvedRoot = path.resolve(rootPath);
+    if (!fs.existsSync(resolvedRoot) || !fs.statSync(resolvedRoot).isDirectory()) {
+        return false;
+    }
+
+    if (watchedRootPath === resolvedRoot && projectWatcher) {
+        return true;
+    }
+
+    stopProjectWatcher();
+
+    try {
+        projectWatcher = fs.watch(
+            resolvedRoot,
+            { recursive: true },
+            (eventType, filename) => {
+                if (!mainWindow || !filename) return;
+                const relativePath = filename.toString();
+                const changedPath = path.resolve(resolvedRoot, relativePath);
+                if (!shouldEmitFileChange(changedPath)) return;
+
+                const safeEventType: FileChangeEventType = eventType === 'rename' ? 'rename' : 'change';
+                mainWindow.webContents.send('project:file-changed', {
+                    path: changedPath,
+                    eventType: safeEventType,
+                });
+            },
+        );
+
+        projectWatcher.on('error', (err) => {
+            console.warn('[watcher] file watch error:', err);
+        });
+
+        watchedRootPath = resolvedRoot;
+        return true;
+    } catch (err) {
+        console.warn('[watcher] failed to start:', err);
+        stopProjectWatcher();
+        return false;
+    }
 }
 
 function buildMenu(): Menu {
@@ -366,6 +456,18 @@ ipcMain.handle('app:getPaths', async () => {
     };
 });
 
+ipcMain.handle('watcher:start', async (_, rootPath: string) => {
+    if (typeof rootPath !== 'string' || rootPath.trim().length === 0) {
+        return false;
+    }
+    return startProjectWatcher(rootPath);
+});
+
+ipcMain.handle('watcher:stop', async () => {
+    stopProjectWatcher();
+    return true;
+});
+
 ipcMain.handle('dialog:openFile', async (_, options) => {
     return dialog.showOpenDialog(mainWindow!, options);
 });
@@ -434,6 +536,7 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
+    stopProjectWatcher();
     if (process.platform !== 'darwin') {
         app.quit();
     }

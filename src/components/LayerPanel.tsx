@@ -134,8 +134,7 @@ export function LayerPanel({
                 return (
                   <div
                     key={index}
-                    draggable={!!onLayerReorder}
-                    onDragStart={(e) => handleDragStart(index, e)}
+                    draggable={false}
                     onDragOver={(e) => handleDragOver(index, e)}
                     onDrop={(e) => handleDrop(index, e)}
                     onDragEnd={handleDragEnd}
@@ -144,7 +143,14 @@ export function LayerPanel({
                   >
                     {/* Drag handle */}
                     {onLayerReorder && (
-                      <div className="cursor-grab opacity-40 hover:opacity-100" title="Drag to reorder">
+                      <div
+                        draggable
+                        onDragStart={(e) => handleDragStart(index, e)}
+                        onDragEnd={handleDragEnd}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        className="cursor-grab opacity-40 hover:opacity-100"
+                        title="Drag to reorder"
+                      >
                         <DotsSixVertical size={10} />
                       </div>
                     )}
@@ -175,13 +181,21 @@ export function LayerPanel({
 
                     {/* Compact opacity slider */}
                     {onLayerOpacityChange && (
-                      <div className="pb-opacity-slider" title={`${Math.round((layer.opacity ?? 1) * 100)}%`}>
+                      <div
+                        className="pb-opacity-slider"
+                        title={`${Math.round((layer.opacity ?? 1) * 100)}%`}
+                        onClick={(e) => e.stopPropagation()}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onPointerDown={(e) => e.stopPropagation()}
+                      >
                         <input
                           type="range"
                           title="Layer opacity"
                           value={Math.round((layer.opacity ?? 1) * 100)}
                           onChange={(e) => onLayerOpacityChange(index, Number(e.target.value) / 100)}
                           onClick={(e) => e.stopPropagation()}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          onPointerDown={(e) => e.stopPropagation()}
                           min={0}
                           max={100}
                           step={10}

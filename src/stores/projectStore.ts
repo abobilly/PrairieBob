@@ -23,7 +23,7 @@ import {
   getNextFirstGid,
   tilesetToConfig,
 } from '@/lib/tileset'
-import type { RoomTilesetReference } from '@/lib/room-loader'
+import { loadRoomDataFromFile, type RoomTilesetReference } from '@/lib/room-loader'
 import { toast } from 'sonner'
 
 const CONFIG_FILENAME = 'spudtile.config.json'
@@ -160,6 +160,7 @@ interface ProjectActions {
   setMapData: (data: LevelData, recordHistory?: boolean, description?: string) => void
   loadMap: (mapId: string) => Promise<void>
   saveMap: () => Promise<void>
+  refreshCurrentRoomFromDisk: () => Promise<boolean>
   setCurrentRoomPath: (path: string | null) => void
   setHasUnsavedChanges: (value: boolean) => void
 
@@ -489,6 +490,36 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
           await window.electron.fs.writeFile(savePath, JSON.stringify(updatedMap, null, 2))
           set({ mapData: updatedMap, currentRoomPath: savePath, hasUnsavedChanges: false })
           toast.success('Map saved!')
+        }
+      },
+
+      refreshCurrentRoomFromDisk: async () => {
+        const { currentRoomPath } = get()
+        if (!window.electron || !currentRoomPath) {
+          return false
+        }
+
+        try {
+          const loaded = await loadRoomDataFromFile(currentRoomPath, window.electron.fs.readFile)
+          if (loaded.tilesets.length > 0) {
+            await get().loadRoomTilesets(loaded.tilesets, {
+              replaceExisting: true,
+              persist: false,
+            })
+          }
+
+          set({
+            mapData: loaded.data,
+            hasUnsavedChanges: false,
+            past: [],
+            future: [],
+            canUndo: false,
+            canRedo: false,
+          })
+          return true
+        } catch (err) {
+          console.error('Failed to refresh room from disk:', err)
+          return false
         }
       },
 

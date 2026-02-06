@@ -44,6 +44,10 @@ export interface ElectronAPI {
     app: {
         getPaths: () => Promise<{ appPath: string; resourcesPath: string; isPackaged: boolean }>;
     };
+    watcher: {
+        start: (rootPath: string) => Promise<boolean>;
+        stop: () => Promise<boolean>;
+    };
     dialog: {
         openFile: (options: { title?: string; filters?: { name: string; extensions: string[] }[] }) => Promise<{ canceled: boolean; filePath?: string; content?: string }>;
         saveFile: (options: { title?: string; defaultPath?: string; filters?: { name: string; extensions: string[] }[] }) => Promise<{ canceled: boolean; filePath?: string }>;
@@ -72,8 +76,10 @@ export interface ElectronAPI {
     onMenuZoomOut: (callback: () => void) => () => void;
     onMenuZoomReset: (callback: () => void) => () => void;
     onMenuExport: (callback: () => void) => () => void;
+    onProjectOpened: (callback: (path: string) => void) => () => void;
     onRoomOpened: (callback: (data: { path: string; content: string }) => void) => () => void;
     onRoomSaveAs: (callback: (path: string) => void) => () => void;
+    onProjectFileChanged: (callback: (change: { path: string; eventType: 'change' | 'rename' }) => void) => () => void;
     // Agent event listeners
     onAgentMessage: (callback: (message: AgentMessage) => void) => () => void;
     onAgentDelta: (callback: (delta: string) => void) => () => void;

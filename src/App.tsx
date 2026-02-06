@@ -19,6 +19,7 @@ import {
   PanelLeftOpen,
   PanelRightClose,
   PanelRightOpen,
+  RefreshCw,
   Redo2,
   Save,
   SlidersHorizontal,
@@ -49,6 +50,7 @@ import { DialogContainer } from '@/components/Dialog'
 import { useEditorStore, useProjectStore, useUIStore } from '@/stores'
 import { useToolStore } from '@/stores/toolStore'
 import { useLdtkToolStore } from '@/stores/ldtkToolStore'
+import { useFileWatcher, type FileWatcherChange } from '@/hooks/useFileWatcher'
 
 // CSS for resize handles
 import './styles/panels.css'
@@ -193,6 +195,51 @@ function buildLdtkLevel(mapData: LevelData, tilesets: LoadedTileset[]): Level {
   }
 }
 
+function normalizePathForCompare(filePath: string): string {
+  return filePath.replace(/\\/g, '/').toLowerCase()
+}
+
+function getDirectoryFromPath(filePath: string | null): string | null {
+  if (!filePath) return null
+  const slashIndex = Math.max(filePath.lastIndexOf('/'), filePath.lastIndexOf('\\'))
+  if (slashIndex <= 0) return null
+  return filePath.slice(0, slashIndex)
+}
+
+function shouldRefreshForExternalChange(
+  changedPath: string,
+  currentRoomPath: string,
+  tilesets: LoadedTileset[]
+): boolean {
+  const normalizedChanged = normalizePathForCompare(changedPath)
+  const normalizedRoomPath = normalizePathForCompare(currentRoomPath)
+  if (normalizedChanged === normalizedRoomPath) return true
+
+  const watchedTilesetPaths = tilesets
+    .filter((tileset) => tileset.sourcePath !== 'procedural')
+    .map((tileset) => normalizePathForCompare(tileset.sourcePath))
+  if (watchedTilesetPaths.includes(normalizedChanged)) return true
+
+  if (
+    normalizedChanged.endsWith('/project.json') ||
+    normalizedChanged.endsWith('/spudtile.config.json') ||
+    normalizedChanged.endsWith('/prairiebob.config.json')
+  ) {
+    return true
+  }
+
+  const extensionMatch = /\.([a-z0-9]+)$/.exec(normalizedChanged)
+  const extension = extensionMatch?.[1] ?? ''
+  const isMapFile = extension === 'json' || extension === 'ldtk' || extension === 'tmx' || extension === 'tsx'
+  const isImageFile = extension === 'png' || extension === 'jpg' || extension === 'jpeg' || extension === 'gif' || extension === 'webp'
+
+  if (normalizedChanged.includes('/maps/') && isMapFile) return true
+  if (normalizedChanged.includes('/entities/') && extension === 'json') return true
+  if (normalizedChanged.includes('/tilesets/') && (isMapFile || isImageFile)) return true
+
+  return false
+}
+
 function App() {
   const [tileStamp, setTileStamp] = useState<TileStamp>(DEFAULT_STAMP)
 
@@ -206,6 +253,8 @@ function App() {
   } = useEditorStore()
 
   const {
+    projectPath,
+    currentRoomPath,
     mapData,
     hasUnsavedChanges,
     canUndo,
@@ -217,6 +266,7 @@ function App() {
     setMapData,
     setCurrentRoomPath,
     setHasUnsavedChanges,
+    refreshCurrentRoomFromDisk,
     toggleLayerVisible,
     toggleLayerLocked,
     setLayerOpacity,
@@ -234,6 +284,7 @@ function App() {
     loadRoomTilesets,
     removeTileset,
     saveMap,
+    loadProject,
   } = useProjectStore()
 
   const {
@@ -257,6 +308,8 @@ function App() {
   const setActiveLayer = useToolStore((s) => s.setActiveLayer)
 
   const activeToolId = useLdtkToolStore((state) => state.activeToolId)
+  const undoCount = useProjectStore((state) => state.past.length)
+  const redoCount = useProjectStore((state) => state.future.length)
 
   const fsAdapter = getFileSystemAdapter()
   const level = useMemo(() => buildLdtkLevel(mapData, tilesets), [mapData, tilesets])
@@ -269,6 +322,7 @@ function App() {
   // Guard against multiple initTilesets calls
   const tilesetsInitRef = useRef(false)
   const autoSelectedNonDebugTilesetRef = useRef(false)
+  const externalChangeNoticeShownRef = useRef(false)
 
   // Effect: Initialize tilesets if empty
   useEffect(() => {
@@ -322,10 +376,14 @@ function App() {
   }, [activeLayerName, setActiveLayer])
 
   useEffect(() => {
-    if (hasUnsavedChanges) {
-      fsAdapter.setUnsavedChanges(true)
-    }
+    fsAdapter.setUnsavedChanges(hasUnsavedChanges)
   }, [hasUnsavedChanges, fsAdapter])
+
+  useEffect(() => {
+    if (!hasUnsavedChanges) {
+      externalChangeNoticeShownRef.current = false
+    }
+  }, [hasUnsavedChanges])
 
   const handleAddTileset = useCallback(async () => {
     if (!window.electron) {
@@ -413,6 +471,46 @@ function App() {
   const handleSave = useCallback(async () => {
     await saveMap()
   }, [saveMap])
+
+  const handleRefreshFromDisk = useCallback(async (source: 'manual' | 'watch' = 'manual') => {
+    if (!currentRoomPath) {
+      if (source === 'manual') {
+        toast.info('Open a room first')
+      }
+      return
+    }
+
+    const refreshed = await refreshCurrentRoomFromDisk()
+    if (!refreshed) {
+      if (source === 'manual') {
+        toast.error('Failed to refresh from disk')
+      }
+      return
+    }
+
+    const nextTilesets = useProjectStore.getState().tilesets
+    const nextDefaultTileset = getPreferredTileset(nextTilesets)
+    if (nextDefaultTileset) {
+      setActiveTilesetId(nextDefaultTileset.id)
+      setSelectedTileId(nextDefaultTileset.firstGid)
+      setTileStamp({
+        width: 1,
+        height: 1,
+        tiles: [[nextDefaultTileset.firstGid]],
+        tilesetId: nextDefaultTileset.id,
+      })
+    }
+
+    setSelectedEntityId(null)
+    externalChangeNoticeShownRef.current = false
+    toast.success(source === 'watch' ? 'Project updated from disk' : 'Refreshed from disk')
+  }, [
+    currentRoomPath,
+    refreshCurrentRoomFromDisk,
+    setActiveTilesetId,
+    setSelectedEntityId,
+    setSelectedTileId,
+  ])
 
   const handleZoomIn = useCallback(() => {
     setZoom(zoom * 1.2)
@@ -543,6 +641,37 @@ function App() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [handleSave, undo, redo])
 
+  const fileWatchRoot = useMemo(
+    () => projectPath ?? getDirectoryFromPath(currentRoomPath),
+    [projectPath, currentRoomPath]
+  )
+
+  const handleWatchedFileChanges = useCallback((changes: FileWatcherChange[]) => {
+    if (!currentRoomPath) return
+
+    const shouldRefresh = changes.some((change) =>
+      shouldRefreshForExternalChange(change.path, currentRoomPath, tilesets)
+    )
+    if (!shouldRefresh) return
+
+    if (hasUnsavedChanges) {
+      if (!externalChangeNoticeShownRef.current) {
+        externalChangeNoticeShownRef.current = true
+        toast.info('External changes detected. Click Refresh to reload from disk.')
+      }
+      return
+    }
+
+    void handleRefreshFromDisk('watch')
+  }, [currentRoomPath, tilesets, hasUnsavedChanges, handleRefreshFromDisk])
+
+  useFileWatcher({
+    rootPath: fileWatchRoot,
+    onFilesChanged: handleWatchedFileChanges,
+    debounceMs: 300,
+    enabled: !!fileWatchRoot,
+  })
+
   useEffect(() => {
     if (!window.electron) return
 
@@ -550,6 +679,9 @@ function App() {
       window.electron.onMenuSave(() => handleSave()),
       window.electron.onMenuUndo(() => { undo(); toast.info('Undo') }),
       window.electron.onMenuRedo(() => { redo(); toast.info('Redo') }),
+      window.electron.onProjectOpened((path) => {
+        void loadProject(path)
+      }),
       window.electron.onRoomOpened(({ path, content }) => {
         void (async () => {
           try {
@@ -609,6 +741,7 @@ function App() {
     loadRoomTilesets,
     setActiveTilesetId,
     setSelectedTileId,
+    loadProject,
   ])
 
   const handleLayerToggle = useCallback((index: number, prop: 'visible' | 'locked') => {
@@ -655,13 +788,22 @@ function App() {
             <Save size={18} />
             <span>Save</span>
           </button>
+          <button
+            className="pb-tool-btn pb-tool-btn-labeled"
+            onClick={() => { void handleRefreshFromDisk('manual') }}
+            title={currentRoomPath ? 'Refresh from disk' : 'Open a room first'}
+            disabled={!currentRoomPath}
+          >
+            <RefreshCw size={16} />
+            <span>Refresh</span>
+          </button>
         </div>
         <div className="pb-toolbar-divider" />
         <div className="pb-toolbar-group">
           <button
             className="pb-tool-btn pb-tool-btn-labeled"
             onClick={() => { undo(); toast.info('Undo') }}
-            title="Undo"
+            title={`Undo (${undoCount} available)`}
             disabled={!canUndo}
           >
             <Undo2 size={18} />
@@ -670,7 +812,7 @@ function App() {
           <button
             className="pb-tool-btn pb-tool-btn-labeled"
             onClick={() => { redo(); toast.info('Redo') }}
-            title="Redo"
+            title={`Redo (${redoCount} available)`}
             disabled={!canRedo}
           >
             <Redo2 size={18} />
