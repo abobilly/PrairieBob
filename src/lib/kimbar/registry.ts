@@ -52,6 +52,29 @@ export function getKimbarRootPath(): string | null {
   return registryState.rootPath
 }
 
+function normalizePath(path: string): string {
+  return path.replace(/\\/g, '/').replace(/\/+$/, '')
+}
+
+function buildCandidateRoots(basePath: string): string[] {
+  const normalizedBase = normalizePath(basePath)
+  const candidates = new Set<string>([
+    normalizedBase,
+    'C:/Users/andre/lawchuck/artbob/kimbar',
+    'C:/Users/andre/lawchuck/badgey.org/kimbar',
+  ])
+
+  const parts = normalizedBase.split('/').filter(Boolean)
+  for (let i = parts.length; i >= 1; i -= 1) {
+    const parent = parts.slice(0, i).join('/')
+    candidates.add(`${parent}/kimbar`)
+    candidates.add(`${parent}/artbob/kimbar`)
+    candidates.add(`${parent}/badgey.org/kimbar`)
+  }
+
+  return Array.from(candidates).map(normalizePath)
+}
+
 /**
  * Attempt to auto-detect the Kimbar project root by checking
  * common sibling-directory locations relative to a base path.
@@ -59,17 +82,10 @@ export function getKimbarRootPath(): string | null {
 export async function detectKimbarRoot(basePath: string): Promise<string | null> {
   if (!window.electron?.fs) return null
 
-  const candidates = [
-    // Sibling of PrairieBob's parent
-    basePath.replace(/[\\/][^\\/]+[\\/][^\\/]+$/, '/badgey.org/kimbar'),
-    // Direct sibling
-    basePath.replace(/[\\/][^\\/]+$/, '/kimbar'),
-    // Known development location
-    'C:/Users/andre/lawchuck/badgey.org/kimbar',
-  ]
+  const candidates = buildCandidateRoots(basePath)
 
   for (const candidate of candidates) {
-    const normalized = candidate.replace(/\\/g, '/')
+    const normalized = normalizePath(candidate)
     const testPath = `${normalized}/public/generated/registry/characters.json`
     try {
       if (await window.electron.fs.exists(testPath)) {

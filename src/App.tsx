@@ -12,6 +12,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Bot,
   Crosshair,
+  Moon,
   ExternalLink,
   Eye,
   FlipHorizontal2,
@@ -30,6 +31,7 @@ import {
   Save,
   SlidersHorizontal,
   SwatchBook,
+  Sun,
   Undo2,
   ZoomIn,
   ZoomOut,
@@ -320,27 +322,31 @@ function App() {
     removeTileset,
     saveMap,
     loadProject,
-    layerGroups,
-    createLayerGroup,
-    deleteLayerGroup,
-    moveLayerToGroup,
-    toggleGroupVisibility,
-    toggleGroupLock,
-    toggleGroupCollapsed,
-    tileActionGroups,
-    addTileActionGroup,
-    updateTileActionGroup,
-    deleteTileActionGroup,
   } = useProjectStore()
+
+  // Keep these selectors separate to avoid runtime regressions from partial/stale store object destructuring.
+  const layerGroups = useProjectStore((state) => state.layerGroups)
+  const createLayerGroup = useProjectStore((state) => state.createLayerGroup)
+  const deleteLayerGroup = useProjectStore((state) => state.deleteLayerGroup)
+  const moveLayerToGroup = useProjectStore((state) => state.moveLayerToGroup)
+  const toggleGroupVisibility = useProjectStore((state) => state.toggleGroupVisibility)
+  const toggleGroupLock = useProjectStore((state) => state.toggleGroupLock)
+  const toggleGroupCollapsed = useProjectStore((state) => state.toggleGroupCollapsed)
+  const tileActionGroups = useProjectStore((state) => state.tileActionGroups)
+  const addTileActionGroup = useProjectStore((state) => state.addTileActionGroup)
+  const updateTileActionGroup = useProjectStore((state) => state.updateTileActionGroup)
+  const deleteTileActionGroup = useProjectStore((state) => state.deleteTileActionGroup)
 
   const {
     panels,
+    theme,
     tilesetZoom,
     importDialogOpen,
     pendingImportPath,
     openProjectSelector,
     openImportDialog,
     closeImportDialog,
+    setTheme,
     togglePanelCollapsed,
     setTilesetZoom,
   } = useUIStore()
@@ -370,6 +376,16 @@ function App() {
   const leftPanelOpen = !panels.left.collapsed
   const rightPanelOpen = !panels.right.collapsed
   const bottomPanelOpen = !panels.bottom.collapsed
+  const resolvedTheme = useMemo<'dark' | 'light'>(() => {
+    if (theme === 'light' || theme === 'dark') return theme
+    if (typeof window !== 'undefined' && window.matchMedia) {
+      return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
+    }
+    return 'dark'
+  }, [theme])
+  const handleToggleTheme = useCallback(() => {
+    setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')
+  }, [resolvedTheme, setTheme])
 
   // Guard against multiple initTilesets calls
   const tilesetsInitRef = useRef(false)
@@ -878,8 +894,8 @@ function App() {
     ?.objects?.find(entity => entity.id === selectedEntityId) || null
 
   return (
-    <div className="pb-app h-screen w-screen overflow-hidden flex flex-col">
-      <Toaster position="top-right" theme="dark" />
+    <div data-theme={resolvedTheme} className="pb-app h-screen w-screen overflow-hidden flex flex-col">
+      <Toaster position="top-right" theme={resolvedTheme} />
       <NotificationContainer />
       <DialogContainer />
 
@@ -1023,6 +1039,17 @@ function App() {
             <span>Bake</span>
           </button>
         </div>
+        <div className="pb-toolbar-divider" />
+        <div className="pb-toolbar-group">
+          <button
+            className="pb-tool-btn pb-tool-btn-labeled"
+            onClick={handleToggleTheme}
+            title={resolvedTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          >
+            {resolvedTheme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+            <span>{resolvedTheme === 'dark' ? 'Light' : 'Dark'}</span>
+          </button>
+        </div>
         {projectName && (
           <span className="pb-toolbar-chip">
             {projectName}
@@ -1043,9 +1070,10 @@ function App() {
             {leftPanelOpen ? (
               <Panel
                 id="left-sidebar"
-                defaultSize={24}
-                minSize={12}
-                maxSize={42}
+                defaultSize={31}
+                minSize={20}
+                maxSize={58}
+                style={{ minWidth: 300 }}
                 className="pb-panel pb-panel-palette border-r border-[var(--pb-border)]"
               >
                 <div className="pb-panel-header pb-panel-header-palette">
@@ -1118,9 +1146,10 @@ function App() {
             {rightPanelOpen ? (
               <Panel
                 id="right-sidebar"
-                defaultSize={24}
-                minSize={12}
-                maxSize={42}
+                defaultSize={31}
+                minSize={20}
+                maxSize={58}
+                style={{ minWidth: 300 }}
                 className="pb-panel pb-panel-inspector border-l border-[var(--pb-border)]"
               >
                 <div className="pb-panel-header pb-panel-header-inspector">
