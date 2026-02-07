@@ -65,7 +65,7 @@ import { BakeTilesetDialog } from '@/components/BakeTilesetDialog'
 import { WorldViewCanvas as SpudWorldViewCanvas } from '@/components/WorldViewCanvas'
 import { WorldMinimap } from '@/components/WorldMinimap'
 import { ToolContextBar } from '@/components/ToolContextBar'
-import { InspectorSection } from '@/components/InspectorSection'
+import { InspectorSection, type InspectorTab } from '@/components/InspectorSection'
 import { CollisionPanel } from '@/components/CollisionPanel'
 import { getFileSystemAdapter } from '@/lib/fs-adapter'
 import { deserializeBakedTileset } from '@/lib/tileset-baker'
@@ -352,6 +352,9 @@ function App() {
   const [inspectorActionsCollapsed, setInspectorActionsCollapsed] = useState(false)
   const [inspectorEntitiesCollapsed, setInspectorEntitiesCollapsed] = useState(false)
   const [inspectorCollisionCollapsed, setInspectorCollisionCollapsed] = useState(false)
+  const [propertiesTab, setPropertiesTab] = useState<InspectorTab>('quick')
+  const [collisionTab, setCollisionTab] = useState<InspectorTab>('quick')
+  const [actionsTab, setActionsTab] = useState<InspectorTab>('quick')
 
   const previewMode = useEditorStore((s) => s.previewMode)
   const enterPreview = useEditorStore((s) => s.enterPreview)
@@ -443,12 +446,20 @@ function App() {
   const selectedTileId = useToolStore((s) => s.selectedTileId)
   const tileFlipX = useToolStore((s) => s.tileFlipX)
   const tileFlipY = useToolStore((s) => s.tileFlipY)
+  const tileRotation = useToolStore((s) => s.tileRotation)
   const zoom = useToolStore((s) => s.zoom)
   const setZoom = useToolStore((s) => s.setZoom)
   const resetViewport = useToolStore((s) => s.resetViewport)
   const setSelectedTileId = useToolStore((s) => s.setSelectedTileId)
   const setTileFlipX = useToolStore((s) => s.setTileFlipX)
   const setTileFlipY = useToolStore((s) => s.setTileFlipY)
+  const rotateTileCW = useToolStore((s) => s.rotateTileCW)
+  const collisionPaintMode = useToolStore((s) => s.collisionPaintMode)
+  const setCollisionPaintMode = useToolStore((s) => s.setCollisionPaintMode)
+  const paletteSnap = useToolStore((s) => s.paletteSnap)
+  const togglePaletteSnap = useToolStore((s) => s.togglePaletteSnap)
+  const entityAnimPreview = useToolStore((s) => s.entityAnimPreview)
+  const toggleEntityAnimPreview = useToolStore((s) => s.toggleEntityAnimPreview)
   const setActiveLayer = useToolStore((s) => s.setActiveLayer)
   const setSelectedIntGridValue = useToolStore((s) => s.setSelectedIntGridValue)
 
@@ -865,6 +876,10 @@ function App() {
     }
     setTileStamp((prev) => applyFlipToStamp(prev, tileFlipX, nextFlipY))
   }, [tileFlipX, tileFlipY, selectedTileId, setTileFlipY, setSelectedTileId])
+
+  const handleRotateCW = useCallback(() => {
+    rotateTileCW()
+  }, [rotateTileCW])
 
   const handleLaunchBobTile = useCallback(async () => {
     if (!window.electron?.tools?.launchBobTile) {
@@ -1358,8 +1373,28 @@ function App() {
         hasSelectedTile={selectedTileId !== null}
         tileFlipX={tileFlipX}
         tileFlipY={tileFlipY}
+        tileRotation={tileRotation}
+        collisionPaintMode={collisionPaintMode}
+        paletteSnap={paletteSnap}
+        onTogglePaletteSnap={togglePaletteSnap}
+        tileActionGroups={tileActionGroups}
+        onAssignTileAction={(groupId) => {
+          if (selectedTileId === null) return
+          // Assign action group to the currently selected tile (placeholder — actual assignment logic depends on tile position context)
+          void groupId
+        }}
+        entityAnimPreview={entityAnimPreview}
+        onToggleEntityAnimPreview={toggleEntityAnimPreview}
+        selectedEntity={selectedEntity}
+        onEntityUpdate={(id, updates) => updateEntity(id, updates)}
+        layers={mapData.layers}
+        collisionLinkedLayers={collisionSourceConfig.linkedLayerNames}
+        collisionStrategy={collisionSourceConfig.strategy}
+        onSetSourceLayerEnabled={setCollisionSourceLayerEnabled}
         onToggleFlipX={handleToggleFlipX}
         onToggleFlipY={handleToggleFlipY}
+        onRotateCW={handleRotateCW}
+        onSetCollisionPaintMode={setCollisionPaintMode}
       />
 
       <PanelGroup orientation="vertical" className="flex-1 min-h-0">
@@ -1489,11 +1524,15 @@ function App() {
                     collapsed={inspectorPropertiesCollapsed}
                     onToggleCollapsed={() => setInspectorPropertiesCollapsed((prev) => !prev)}
                     accentClass="pb-inspector-accent-properties"
+                    tabs={['quick', 'advanced', 'bindings']}
+                    activeTab={propertiesTab}
+                    onTabChange={setPropertiesTab}
                   >
                     <PropertiesPanel
                       selectedEntity={selectedEntity}
                       onEntityUpdate={handleEntityUpdate}
                       onEntityDelete={handleEntityDelete}
+                      activeTab={propertiesTab}
                     />
                   </InspectorSection>
                   <InspectorSection
@@ -1528,6 +1567,9 @@ function App() {
                     collapsed={inspectorCollisionCollapsed}
                     onToggleCollapsed={() => setInspectorCollisionCollapsed((prev) => !prev)}
                     accentClass="pb-inspector-accent-collision"
+                    tabs={['quick', 'advanced']}
+                    activeTab={collisionTab}
+                    onTabChange={setCollisionTab}
                   >
                     <CollisionPanel
                       layers={mapData.layers}
@@ -1537,6 +1579,7 @@ function App() {
                       onSetStrategy={setCollisionStrategy}
                       onSetSourceLayerEnabled={setCollisionSourceLayerEnabled}
                       onSetDerivedOverlayVisible={setCollisionDerivedOverlayVisible}
+                      activeTab={collisionTab}
                     />
                   </InspectorSection>
                   {showTileActions && (
@@ -1546,6 +1589,9 @@ function App() {
                       collapsed={inspectorActionsCollapsed}
                       onToggleCollapsed={() => setInspectorActionsCollapsed((prev) => !prev)}
                       accentClass="pb-inspector-accent-actions"
+                      tabs={['quick', 'advanced']}
+                      activeTab={actionsTab}
+                      onTabChange={setActionsTab}
                     >
                       <TileActionsPanel
                         actionGroups={tileActionGroups}
@@ -1554,6 +1600,7 @@ function App() {
                         onAdd={addTileActionGroup}
                         onUpdate={updateTileActionGroup}
                         onDelete={deleteTileActionGroup}
+                        activeTab={actionsTab}
                       />
                     </InspectorSection>
                   )}

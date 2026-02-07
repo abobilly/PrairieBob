@@ -3,6 +3,7 @@ import { Eye, EyeOff, Shield } from 'lucide-react'
 import type { CollisionStrategy } from '@/lib/collision-model'
 import { isCollisionLayerName } from '@/lib/collision-model'
 import type { Layer } from '@/lib/types'
+import type { InspectorTab } from '@/components/InspectorSection'
 
 const STRATEGY_OPTIONS: { value: CollisionStrategy; label: string; description: string }[] = [
   { value: 'auto_walls', label: 'Walls+Furniture', description: 'Auto-link wall/furniture/block layers' },
@@ -18,6 +19,7 @@ interface CollisionPanelProps {
   onSetStrategy: (strategy: CollisionStrategy) => void
   onSetSourceLayerEnabled: (layerName: string, enabled: boolean) => void
   onSetDerivedOverlayVisible: (visible: boolean) => void
+  activeTab?: InspectorTab
 }
 
 export function CollisionPanel({
@@ -28,6 +30,7 @@ export function CollisionPanel({
   onSetStrategy,
   onSetSourceLayerEnabled,
   onSetDerivedOverlayVisible,
+  activeTab = 'quick',
 }: CollisionPanelProps) {
   const linkedSet = useMemo(() => new Set(linkedLayerNames), [linkedLayerNames])
   const candidates = useMemo(
@@ -41,64 +44,71 @@ export function CollisionPanel({
 
   return (
     <div className="flex flex-col gap-3 p-3">
-      {/* Status row */}
-      <div className="flex items-center gap-2 text-[10px]">
-        <Shield size={12} className="text-[var(--pb-text-secondary)] shrink-0" />
-        <span className="text-[var(--pb-text-secondary)]">
-          <span className="font-semibold text-[var(--pb-text-primary)]">{linkedLayerNames.length}</span> linked
-        </span>
-        <span className="text-[var(--pb-border)]">|</span>
-        <span className="text-[var(--pb-text-secondary)]">
-          Overlay {showDerivedOverlay ? 'on' : 'off'}
-        </span>
-        <span className="text-[var(--pb-border)]">|</span>
-        <span className="text-[var(--pb-text-accent)] font-medium">
-          {STRATEGY_OPTIONS.find((s) => s.value === strategy)?.label ?? strategy}
-        </span>
-      </div>
+      {/* ═══════════════ QUICK TAB ═══════════════ */}
+      {activeTab === 'quick' && (
+        <>
+          {/* Status row */}
+          <div className="flex items-center gap-2 text-[10px]">
+            <Shield size={12} className="text-[var(--pb-text-secondary)] shrink-0" />
+            <span className="text-[var(--pb-text-secondary)]">
+              <span className="font-semibold text-[var(--pb-text-primary)]">{linkedLayerNames.length}</span> linked
+            </span>
+            <span className="text-[var(--pb-border)]">|</span>
+            <span className="text-[var(--pb-text-secondary)]">
+              Overlay {showDerivedOverlay ? 'on' : 'off'}
+            </span>
+            <span className="text-[var(--pb-border)]">|</span>
+            <span className="text-[var(--pb-text-accent)] font-medium">
+              {STRATEGY_OPTIONS.find((s) => s.value === strategy)?.label ?? strategy}
+            </span>
+          </div>
 
-      {/* Strategy selector */}
-      <div>
-        <div className="mb-1.5 text-[9px] uppercase tracking-wide text-[var(--pb-text-muted)]">
-          Strategy
-        </div>
-        <div className="flex gap-1">
-          {STRATEGY_OPTIONS.map((opt) => (
-            <button
-              key={opt.value}
-              type="button"
-              className={`flex-1 rounded px-2 py-1.5 text-[10px] font-medium transition-colors border ${
-                strategy === opt.value
-                  ? 'border-[var(--pb-accent)] bg-[var(--pb-accent-glow)] text-[var(--pb-accent)]'
-                  : 'border-[var(--pb-border-subtle)] bg-[var(--pb-bg-panel)] text-[var(--pb-text-secondary)] hover:bg-[var(--pb-bg-hover)]'
-              }`}
-              onClick={() => onSetStrategy(opt.value)}
-              title={opt.description}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-      </div>
+          {/* Strategy selector */}
+          <div>
+            <div className="mb-1.5 text-[9px] uppercase tracking-wide text-[var(--pb-text-muted)]">
+              Strategy
+            </div>
+            <div className="flex gap-1">
+              {STRATEGY_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  className={`flex-1 rounded px-2 py-1.5 text-[10px] font-medium transition-colors border ${
+                    strategy === opt.value
+                      ? 'border-[var(--pb-accent)] bg-[var(--pb-accent-glow)] text-[var(--pb-accent)]'
+                      : 'border-[var(--pb-border-subtle)] bg-[var(--pb-bg-panel)] text-[var(--pb-text-secondary)] hover:bg-[var(--pb-bg-hover)]'
+                  }`}
+                  onClick={() => onSetStrategy(opt.value)}
+                  title={opt.description}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
 
-      {/* Derived overlay toggle — not shown for manual */}
-      {strategy !== 'manual' && (
-        <label className="flex cursor-pointer items-center justify-between gap-2 rounded px-1 py-1 text-[10px] text-[var(--pb-text-secondary)] hover:bg-[var(--pb-bg-hover)]">
-          <span className="flex items-center gap-1.5">
-            {showDerivedOverlay ? <Eye size={12} /> : <EyeOff size={12} />}
-            Show derived overlay on <span className="font-semibold text-[var(--pb-text-primary)]">{collisionLayerName}</span>
-          </span>
-          <input
-            type="checkbox"
-            checked={showDerivedOverlay}
-            onChange={(e) => onSetDerivedOverlayVisible(e.target.checked)}
-            className="h-3.5 w-3.5 accent-primary"
-          />
-        </label>
+          {strategy !== 'manual' && (
+            <label className="flex cursor-pointer items-center justify-between gap-2 rounded px-1 py-1 text-[10px] text-[var(--pb-text-secondary)] hover:bg-[var(--pb-bg-hover)]">
+              <span className="flex items-center gap-1.5">
+                {showDerivedOverlay ? <Eye size={12} /> : <EyeOff size={12} />}
+                Show derived overlay on <span className="font-semibold text-[var(--pb-text-primary)]">{collisionLayerName}</span>
+              </span>
+              <input
+                type="checkbox"
+                checked={showDerivedOverlay}
+                onChange={(e) => onSetDerivedOverlayVisible(e.target.checked)}
+                className="h-3.5 w-3.5 accent-primary"
+              />
+            </label>
+          )}
+        </>
       )}
 
-      {/* Source layer checklist — custom mode only */}
-      {strategy === 'custom' && candidates.length > 0 && (
+      {/* ═══════════════ ADVANCED TAB ═══════════════ */}
+      {activeTab === 'advanced' && (
+        <>
+          {/* Source layer checklist — custom mode only */}
+          {strategy === 'custom' && candidates.length > 0 && (
         <div>
           <div className="mb-1.5 text-[9px] uppercase tracking-wide text-[var(--pb-text-muted)]">
             Source Layers
@@ -152,11 +162,13 @@ export function CollisionPanel({
         </div>
       )}
 
-      {strategy === 'manual' && (
-        <div className="text-[10px] text-[var(--pb-text-muted)] leading-tight">
-          Paint collision directly on the <span className="font-semibold text-[var(--pb-text-secondary)]">{collisionLayerName}</span> layer.
-          No derived blockers.
-        </div>
+          {strategy === 'manual' && (
+            <div className="text-[10px] text-[var(--pb-text-muted)] leading-tight">
+              Paint collision directly on the <span className="font-semibold text-[var(--pb-text-secondary)]">{collisionLayerName}</span> layer.
+              No derived blockers.
+            </div>
+          )}
+        </>
       )}
     </div>
   )

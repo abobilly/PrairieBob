@@ -23,8 +23,9 @@ export class IntGridTool extends LayerTool {
         const grid = this.worldToGrid(world.x, world.y)
         if (!grid) return
 
-        // Shift+click uses flood fill, matching the bucket icon expectation.
-        if (e.shiftKey) {
+        // Fill mode via context bar toggle OR Shift+click (backward compat)
+        const mode = this.context.collisionPaintMode ?? 'paint'
+        if (mode === 'fill' || e.shiftKey) {
             this.floodFillAt(grid.x, grid.y)
             return
         }
@@ -32,14 +33,21 @@ export class IntGridTool extends LayerTool {
         super.onMouseDown(e)
     }
 
+    /** Returns the effective value to paint: 0 for erase mode, selectedValue otherwise */
+    private get effectiveValue(): number {
+        const mode = this.context.collisionPaintMode ?? 'paint'
+        return mode === 'erase' ? 0 : this.selectedValue
+    }
+
     paintAt(gridX: number, gridY: number): void {
         const layer = this.layerInstance
         if (!layer) return
+        const value = this.effectiveValue
         if (layer.__type !== 'IntGrid') {
-            this.setCollisionTileAt(layer, gridX, gridY, this.selectedValue)
+            this.setCollisionTileAt(layer, gridX, gridY, value)
             return
         }
-        setIntGridValue(layer, gridX, gridY, this.selectedValue)
+        setIntGridValue(layer, gridX, gridY, value)
     }
 
     onMouseMove(e: MouseEvent): void {

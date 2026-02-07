@@ -267,11 +267,13 @@ export class EllipseTool extends LayerTool {
 
         const resolvedSrc = this.context.resolveTileSource?.(normalizedTileId)
         const flipFlags = (hasTileFlipXFlag(tileId) ? 1 : 0) | (hasTileFlipYFlag(tileId) ? 2 : 0)
+        const rotation = this.context.tileRotation ?? 0
+        const rotBits = ((rotation / 90) & 3) << 2
         const nextTile: TileInstance = {
             t: normalizedTileId,
             px: [pxX, pxY],
             src: resolvedSrc ? [resolvedSrc.x, resolvedSrc.y] : [0, 0],
-            f: flipFlags,
+            f: flipFlags | rotBits,
             a: 1,
         }
 

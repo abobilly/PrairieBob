@@ -5,7 +5,7 @@
  * and bridges filesystem access to the React renderer.
  */
 
-import { app, BrowserWindow, ipcMain, dialog, Menu } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, Menu, nativeImage } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 // Use require for agent-main since we rename .js to .cjs after compilation
@@ -33,7 +33,29 @@ const isDev = !!process.env.VITE_DEV_SERVER_URL;
 const VITE_DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5173';
 
 // Icon path - SpudTile logo
-const iconPath = path.join(__dirname, '../public/icons/spudtile.ico');
+// In dev: public/icons/spudtile.ico relative to project root
+// In packaged: dist/icons/spudtile.ico inside the asar (Vite copies public/ → dist/)
+const iconPath = isDev
+  ? path.join(__dirname, '../public/icons/spudtile.ico')
+  : path.join(__dirname, '../dist/icons/spudtile.ico');
+
+// Pre-load native image for window/taskbar icon
+let appIcon: Electron.NativeImage | undefined;
+try {
+    appIcon = nativeImage.createFromPath(iconPath);
+    if (appIcon.isEmpty()) {
+        console.warn('[Icon] nativeImage is empty for path:', iconPath);
+        // Fallback: try PNG which Electron handles better cross-platform
+        const pngPath = iconPath.replace('.ico', '-256.png');
+        appIcon = nativeImage.createFromPath(pngPath);
+        if (appIcon.isEmpty()) {
+            console.warn('[Icon] PNG fallback also empty:', pngPath);
+            appIcon = undefined;
+        }
+    }
+} catch (err) {
+    console.warn('[Icon] Failed to load icon:', err);
+}
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -131,7 +153,7 @@ function createWindow() {
         minWidth: 1024,
         minHeight: 768,
         title: 'SpudTile',
-        icon: iconPath,
+        icon: appIcon || iconPath,
         backgroundColor: '#1a1a2e',
         webPreferences: {
             preload: path.join(__dirname, 'preload.cjs'),

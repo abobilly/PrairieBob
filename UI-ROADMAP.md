@@ -35,26 +35,29 @@ Stabilize layout and ship a scalable, tool-context editor UI so new features do 
 
 ---
 
-## TODO — Phase 2 (Context toolbar actions)
+## DONE — Phase 2 (Context toolbar actions)
 
 1. Tile context actions:
-   - Rotate 90° (button exists disabled in ToolContextBar, needs implementation)
-   - Palette snap controls
-   - Tile action assignment quick-pick
+   - ~~Rotate 90°~~ ✅ (tileRotation state in toolStore, rotation bits in f field, all tile tools + rendering)
+   - ~~Palette snap controls~~ ✅ (paletteSnap in toolStore, Grid3x3 toggle in ToolContextBar)
+   - ~~Tile action assignment quick-pick~~ ✅ (Zap icon select dropdown in tile context, fires onAssignTileAction)
 2. Entity context actions:
-   - Animation preview toggle
-   - State mapper quick switch (N/E/S/W + interact)
-   - Speed and zone quick controls
+   - ~~Animation preview toggle~~ ✅ (entityAnimPreview in toolStore, Play/Pause toggle in entity context)
+   - ~~State mapper quick switch (N/E/S/W + interact)~~ ✅ (ArrowUp/Right/Down/Left + MousePointerClick for direction types; state preset toggles for door/lock/switch)
+   - ~~Speed and zone quick controls~~ ✅ (native range slider for speed, native select for zone, NPC-only)
 3. Collision context actions:
-   - Paint/erase/fill mode toggle button (flood fill exists via Shift+click, no explicit toggle UI)
-   - Source layer linking shortcuts in context bar
+   - ~~Paint/erase/fill mode toggle button~~ ✅ (collisionPaintMode in toolStore, paint/erase/fill buttons in ToolContextBar, IntGridTool respects mode)
+   - ~~Source layer linking shortcuts in context bar~~ ✅ (chip-style layer toggles in collision context, custom strategy only, Link/Unlink icons)
 
-## TODO — Phase 3 (Inspector tabs)
+## DONE — Phase 3 (Inspector tabs)
 
-1. Inspector tabs standardized across tools:
-   - `Quick` / `Advanced` / `Bindings` / `Preview`
-2. Keep panel hierarchy stable while swapping tab contents by tool/entity type.
-3. Note: all 5 sections already use `InspectorSection` scaffold — tab system would add depth within each section.
+1. ~~Inspector tabs standardized across tools:~~
+   - ~~`Quick` / `Advanced` / `Bindings` / `Preview`~~ ✅ `InspectorTab` type in InspectorSection.tsx, tab bar CSS in ldtk-theme.css
+2. ~~Keep panel hierarchy stable while swapping tab contents by tool/entity type.~~ ✅ Tab state managed in App.tsx, passed to InspectorSection + child panels
+3. ~~Properties: Quick / Advanced / Bindings tabs~~ ✅ PropertiesPanel.tsx — Quick (ID/position/state/character), Advanced (movement/animations/speed/zones/triggers), Bindings (targetRoom/spawn/interactionId/entityDefId/storyKnot/zoneId)
+4. ~~Collision: Quick / Advanced tabs~~ ✅ CollisionPanel.tsx — Quick (status + strategy + overlay), Advanced (source layer configuration)
+5. ~~Tile Actions: Quick / Advanced tabs~~ ✅ TileActionsPanel.tsx — Quick (category overview, read-only), Advanced (full state/trigger/effect editors + add group)
+6. Layers and Entities sections remain tab-free (already compact)
 
 ## TODO — Phase 4 (Validation panel)
 

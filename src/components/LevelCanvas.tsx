@@ -17,6 +17,7 @@ import {
   type ToolLayer,
   hasTileFlipX,
   hasTileFlipY,
+  getTileRotation,
 } from '@/lib/ldtk'
 import { EntityRenderer } from '@/components/EntityRenderer'
 import { Rulers } from '@/components/Rulers'
@@ -205,6 +206,7 @@ export function LevelCanvas({
   const tilesetCache = useRef(new Map<string, HTMLCanvasElement>())
   const tilesetLoading = useRef(new Set<string>())
   const activeToolLayerRef = useRef<ToolLayer | null>(null)
+  const middleClickPanningRef = useRef(false)
 
   const project = useProjectStore((s) => s.project)
   const tilesets = useProjectStore((s) => s.tilesets)
@@ -220,6 +222,8 @@ export function LevelCanvas({
   const selectedTileIds = useToolStore((s) => s.selectedTileIds)
   const selectedEntityDefUid = useToolStore((s) => s.selectedEntityDefUid)
   const selectedIntGridValue = useToolStore((s) => s.selectedIntGridValue)
+  const tileRotation = useToolStore((s) => s.tileRotation)
+  const collisionPaintMode = useToolStore((s) => s.collisionPaintMode)
   const stampMode = useToolStore((s) => s.stampMode)
   const activeLayerKey = useToolStore((s) => s.activeLayer)
   const setActiveTool = useToolStore((s) => s.setActiveTool)
@@ -577,6 +581,8 @@ export function LevelCanvas({
     context.screenToWorld = screenToWorld
     context.worldToTile = worldToTile
     context.tileSize = gridSize
+    context.tileRotation = tileRotation
+    context.collisionPaintMode = collisionPaintMode
     context.getActiveLayer = () => activeToolLayerRef.current
     context.onPickTile = (tileId) => {
       if (tileId > 0) {
@@ -605,6 +611,8 @@ export function LevelCanvas({
     screenToWorld,
     worldToTile,
     gridSize,
+    tileRotation,
+    collisionPaintMode,
     onTilePicked,
     onEntityPicked,
     onIntGridPicked,
@@ -756,11 +764,20 @@ export function LevelCanvas({
         const alpha = Number.isFinite(tile.a) ? tile.a : 1
         const flipX = hasTileFlipX(tile)
         const flipY = hasTileFlipY(tile)
+        const rotation = getTileRotation(tile)
 
         ctx.save()
         ctx.globalAlpha = layer.__opacity * alpha
-        ctx.translate(x + (flipX ? gridSize : 0), y + (flipY ? gridSize : 0))
+
+        // Apply flip + rotation transforms around tile center
+        const cx = x + gridSize / 2
+        const cy = y + gridSize / 2
+        ctx.translate(cx, cy)
+        if (rotation !== 0) {
+          ctx.rotate((rotation * Math.PI) / 180)
+        }
         ctx.scale(flipX ? -1 : 1, flipY ? -1 : 1)
+        ctx.translate(-gridSize / 2, -gridSize / 2)
 
         if (tilesetCanvas) {
           ctx.drawImage(
@@ -1103,6 +1120,17 @@ export function LevelCanvas({
   }, [renderCanvas])
 
   const handleMouseDown = useCallback((event: React.MouseEvent<HTMLCanvasElement>) => {
+    // Middle-click (scroll wheel) always pans, regardless of active tool
+    if (event.button === 1) {
+      event.preventDefault()
+      const panTool = toolsRef.current?.pan
+      if (panTool) {
+        middleClickPanningRef.current = true
+        panTool.onMouseDown(event.nativeEvent)
+        setCursor('grabbing')
+      }
+      return
+    }
     const tool = getActiveTool()
     if (!tool) return
     tool.onMouseDown(event.nativeEvent)
@@ -1110,6 +1138,11 @@ export function LevelCanvas({
   }, [getActiveTool, updateCursor])
 
   const handleMouseMove = useCallback((event: React.MouseEvent<HTMLCanvasElement>) => {
+    // If middle-click panning, delegate to pan tool
+    if (middleClickPanningRef.current) {
+      toolsRef.current?.pan.onMouseMove(event.nativeEvent)
+      return
+    }
     const tool = getActiveTool()
     if (!tool) return
     const world = screenToWorld(event.clientX, event.clientY)
@@ -1119,6 +1152,13 @@ export function LevelCanvas({
   }, [getActiveTool, screenToWorld, updateCursor])
 
   const handleMouseUp = useCallback((event: React.MouseEvent<HTMLCanvasElement>) => {
+    // End middle-click pan
+    if (middleClickPanningRef.current) {
+      middleClickPanningRef.current = false
+      toolsRef.current?.pan.onMouseUp()
+      updateCursor()
+      return
+    }
     const tool = getActiveTool()
     if (!tool) return
     tool.onMouseUp()
@@ -1176,7 +1216,13 @@ export function LevelCanvas({
     const canvas = canvasRef.current
     if (!canvas) return
     canvas.addEventListener('wheel', handleWheel, { passive: false })
-    return () => canvas.removeEventListener('wheel', handleWheel)
+    // Prevent default middle-click auto-scroll behavior
+    const preventMiddleClick = (e: MouseEvent) => { if (e.button === 1) e.preventDefault() }
+    canvas.addEventListener('mousedown', preventMiddleClick)
+    return () => {
+      canvas.removeEventListener('wheel', handleWheel)
+      canvas.removeEventListener('mousedown', preventMiddleClick)
+    }
   }, [handleWheel])
 
   return (

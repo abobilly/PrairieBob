@@ -22,11 +22,13 @@ export interface ToolContext {
     lastMouseWorld?: { x: number; y: number }
     worldToTile?: (worldX: number, worldY: number) => { x: number; y: number }
     tileSize?: number
+    tileRotation?: 0 | 90 | 180 | 270
     getActiveLayer?: () => ToolLayer | null
     resolveTileSource?: (tileId: number) => { x: number; y: number } | null
     onPickTile?: (tileId: number) => void
     onPickEntity?: (entityId: string) => void
     onPickIntGrid?: (value: number) => void
+    collisionPaintMode?: 'paint' | 'erase' | 'fill'
 }
 
 export abstract class Tool {

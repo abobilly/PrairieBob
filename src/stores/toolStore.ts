@@ -20,9 +20,13 @@ interface ToolState {
   selectedTileIds: number[]
   tileFlipX: boolean
   tileFlipY: boolean
+  tileRotation: 0 | 90 | 180 | 270
   selectedEntityDefUid: number | null
   selectedIntGridValue: number
+  collisionPaintMode: 'paint' | 'erase' | 'fill'
   stampMode: 'single' | 'rectangle' | 'random'
+  paletteSnap: boolean
+  entityAnimPreview: boolean
   brushSize: number
   zoom: number
   panX: number
@@ -38,9 +42,16 @@ interface ToolActions {
   setTileFlipY: (enabled: boolean) => void
   toggleTileFlipX: () => void
   toggleTileFlipY: () => void
+  rotateTileCW: () => void
+  setTileRotation: (rotation: 0 | 90 | 180 | 270) => void
   setSelectedEntityDefUid: (uid: number | null) => void
   setSelectedIntGridValue: (value: number) => void
+  setCollisionPaintMode: (mode: 'paint' | 'erase' | 'fill') => void
   setStampMode: (mode: 'single' | 'rectangle' | 'random') => void
+  setPaletteSnap: (enabled: boolean) => void
+  togglePaletteSnap: () => void
+  setEntityAnimPreview: (enabled: boolean) => void
+  toggleEntityAnimPreview: () => void
   setBrushSize: (size: number) => void
   setZoom: (zoom: number) => void
   setPan: (x: number, y: number) => void
@@ -58,9 +69,13 @@ export const useToolStore = create<ToolState & ToolActions>()(
         selectedTileIds: [],
         tileFlipX: false,
         tileFlipY: false,
+        tileRotation: 0 as 0 | 90 | 180 | 270,
         selectedEntityDefUid: null,
         selectedIntGridValue: 1,
+        collisionPaintMode: 'paint' as 'paint' | 'erase' | 'fill',
         stampMode: 'single' as const,
+        paletteSnap: true,
+        entityAnimPreview: false,
         brushSize: DEFAULT_BRUSH_SIZE,
         zoom: 1,
         panX: 0,
@@ -100,6 +115,15 @@ export const useToolStore = create<ToolState & ToolActions>()(
           state.tileFlipY = !state.tileFlipY
         }),
 
+        rotateTileCW: () => set((state) => {
+          const next = { 0: 90, 90: 180, 180: 270, 270: 0 } as const
+          state.tileRotation = next[state.tileRotation]
+        }),
+
+        setTileRotation: (rotation) => set((state) => {
+          state.tileRotation = rotation
+        }),
+
         setSelectedEntityDefUid: (uid) => set((state) => {
           state.selectedEntityDefUid = uid
         }),
@@ -108,8 +132,28 @@ export const useToolStore = create<ToolState & ToolActions>()(
           state.selectedIntGridValue = Math.max(0, Math.floor(value))
         }),
 
+        setCollisionPaintMode: (mode) => set((state) => {
+          state.collisionPaintMode = mode
+        }),
+
         setStampMode: (mode) => set((state) => {
           state.stampMode = mode
+        }),
+
+        setPaletteSnap: (enabled) => set((state) => {
+          state.paletteSnap = enabled
+        }),
+
+        togglePaletteSnap: () => set((state) => {
+          state.paletteSnap = !state.paletteSnap
+        }),
+
+        setEntityAnimPreview: (enabled) => set((state) => {
+          state.entityAnimPreview = enabled
+        }),
+
+        toggleEntityAnimPreview: () => set((state) => {
+          state.entityAnimPreview = !state.entityAnimPreview
         }),
 
         setBrushSize: (size) => set((state) => {
@@ -155,9 +199,13 @@ export const useToolStore = create<ToolState & ToolActions>()(
           selectedTileIds: state.selectedTileIds,
           tileFlipX: state.tileFlipX,
           tileFlipY: state.tileFlipY,
+          tileRotation: state.tileRotation,
           selectedEntityDefUid: state.selectedEntityDefUid,
           selectedIntGridValue: state.selectedIntGridValue,
+          collisionPaintMode: state.collisionPaintMode,
           stampMode: state.stampMode,
+          paletteSnap: state.paletteSnap,
+          entityAnimPreview: state.entityAnimPreview,
         }),
       }
     ),
@@ -173,7 +221,10 @@ export const useTileFlipX = () => useToolStore((s) => s.tileFlipX)
 export const useTileFlipY = () => useToolStore((s) => s.tileFlipY)
 export const useSelectedEntityDefUid = () => useToolStore((s) => s.selectedEntityDefUid)
 export const useSelectedIntGridValue = () => useToolStore((s) => s.selectedIntGridValue)
+export const useCollisionPaintMode = () => useToolStore((s) => s.collisionPaintMode)
 export const useStampMode = () => useToolStore((s) => s.stampMode)
+export const usePaletteSnap = () => useToolStore((s) => s.paletteSnap)
+export const useEntityAnimPreview = () => useToolStore((s) => s.entityAnimPreview)
 export const useViewportState = () => useToolStore((s) => ({
   zoom: s.zoom,
   panX: s.panX,

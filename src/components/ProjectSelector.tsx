@@ -12,9 +12,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     Dialog,
     DialogContent,
-    DialogHeader,
-    DialogTitle,
-    DialogDescription,
 } from './ui/dialog';
 import { Button } from './ui/button';
 import { ScrollArea } from './ui/scroll-area';
@@ -25,13 +22,13 @@ import {
     Zap,
     Clock,
     Trash2,
-    MapIcon,
     Link,
     Loader2,
 } from 'lucide-react';
 import { useUIStore, useProjectStore } from '@/stores';
 import { detectKimbarRoot } from '@/lib/kimbar/registry';
 import { toast } from 'sonner';
+import spudtileLogo from '/icons/spudtile-256.png';
 
 export function ProjectSelector() {
     const {
@@ -44,8 +41,6 @@ export function ProjectSelector() {
     } = useUIStore();
 
     const { loadProject, loadKimbarProject, loadSampleProject } = useProjectStore();
-    const autoLoadKimbar = useUIStore((s) => s.autoLoadKimbar);
-    const setAutoLoadKimbar = useUIStore((s) => s.setAutoLoadKimbar);
     const [kimbarPath, setKimbarPath] = useState<string | null>(null);
     const [kimbarSearching, setKimbarSearching] = useState(false);
     const resolvedTheme = useMemo<'dark' | 'light'>(() => {
@@ -120,38 +115,36 @@ export function ProjectSelector() {
         await loadKimbarProject(kimbarPath);
     }, [kimbarPath, loadKimbarProject]);
 
-    const handleLocateKimbar = useCallback(async () => {
-        if (!window.electron) {
-            toast.error('Requires Electron environment');
-            return;
-        }
-
-        const result = await window.electron.dialog.openDirectory();
-        if (!result.canceled && result.filePath) {
-            closeProjectSelector();
-            await loadProject(result.filePath);
-        }
-    }, [closeProjectSelector, loadProject]);
-
     const handleRemoveRecent = useCallback((e: React.MouseEvent, path: string) => {
         e.stopPropagation();
         removeRecentProject(path);
     }, [removeRecentProject]);
 
     return (
-        <Dialog open={showProjectSelector} onOpenChange={(open) => !open && closeProjectSelector()}>
-            <DialogContent className={`w-[min(94vw,760px)] max-h-[88vh] overflow-y-auto sm:max-w-[760px] ${isLight ? 'bg-[#f4f8ff] border-[#b8c7df] text-[#10203b]' : 'bg-[#1a1a2e] border-[#2a2a4a] text-white'}`}>
-                <DialogHeader>
-                    <DialogTitle className="flex items-center gap-2 text-xl">
-                        <MapIcon className="h-6 w-6 text-[#f97316]" />
-                        SpudTile
-                    </DialogTitle>
-                    <DialogDescription className={isLight ? 'text-[#425a80]' : 'text-gray-400'}>
+        <Dialog open={showProjectSelector} onOpenChange={() => { /* prevent any dismiss — user must pick an action */ }}>
+            <DialogContent
+                className={`w-[min(94vw,760px)] max-h-[88vh] overflow-y-auto sm:max-w-[760px] ${isLight ? 'bg-[#f4f8ff] border-[#b8c7df] text-[#10203b]' : 'bg-[#1a1a2e] border-[#2a2a4a] text-white'}`}
+                onInteractOutside={(e) => e.preventDefault()}
+                onEscapeKeyDown={(e) => e.preventDefault()}
+                hideCloseButton
+            >
+                {/* Hero welcome splash */}
+                <div
+                    className="flex flex-col items-center gap-3 pt-4 pb-2 select-none"
+                >
+                    <img
+                        src={spudtileLogo}
+                        alt="SpudTile"
+                        className="h-28 w-28 drop-shadow-lg"
+                        draggable={false}
+                    />
+                    <h1 className="text-2xl font-bold tracking-tight">SpudTile</h1>
+                    <p className={`text-sm ${isLight ? 'text-[#425a80]' : 'text-gray-400'}`}>
                         AI-assisted tile editor for pixel art games
-                    </DialogDescription>
-                </DialogHeader>
+                    </p>
+                </div>
 
-                <div className="grid gap-4 py-4 min-w-0">
+                <div className="grid gap-4 py-2 min-w-0">
                     {/* Action Buttons */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 min-w-0">
                         <Button
@@ -180,49 +173,23 @@ export function ProjectSelector() {
                         Quick Start with Sample Project
                     </Button>
 
-                    <Button
-                        variant="outline"
-                        className={`w-full min-w-0 h-12 justify-start gap-2 overflow-hidden ${isLight ? 'bg-[#ffffff] border-[#b8c7df] hover:bg-[#e9f1ff] hover:border-[#0ea5e9]' : 'bg-[#12121f] border-[#2a2a4a] hover:bg-[#2a2a4a] hover:border-[#0ea5e9]'}`}
-                        onClick={handleLocateKimbar}
-                    >
-                        <Link className="h-5 w-5 text-[#0ea5e9]" />
-                        <span className="truncate">Locate Kimbar Project Folder</span>
-                    </Button>
-
                     {kimbarPath && (
-                        <div className="space-y-1">
-                            <Button
-                                variant="outline"
-                                className={`w-full min-w-0 h-12 justify-start gap-2 overflow-hidden ${isLight ? 'bg-[#ffffff] border-[#b8c7df] hover:bg-[#e9f1ff] hover:border-[#22c55e]' : 'bg-[#12121f] border-[#2a2a4a] hover:bg-[#2a2a4a] hover:border-[#22c55e]'}`}
-                                onClick={handleOpenKimbar}
-                                title={kimbarPath}
-                            >
-                                <Link className="h-5 w-5 text-[#22c55e]" />
-                                <span className="flex-1 min-w-0 text-left truncate">Open Kimbar Linked Project</span>
-                                <span className={`hidden sm:inline text-xs truncate max-w-[220px] shrink-0 ${isLight ? 'text-[#55698d]' : 'text-gray-500'}`}>{kimbarPath}</span>
-                            </Button>
-                            <label className={`flex items-center gap-2 px-2 text-xs cursor-pointer ${isLight ? 'text-[#55698d]' : 'text-gray-500'}`}>
-                                <input
-                                    type="checkbox"
-                                    checked={autoLoadKimbar}
-                                    onChange={(e) => setAutoLoadKimbar(e.target.checked)}
-                                    className="accent-[#22c55e]"
-                                />
-                                Auto-open Kimbar at startup
-                            </label>
-                        </div>
+                        <Button
+                            variant="outline"
+                            className={`w-full min-w-0 h-12 justify-start gap-2 overflow-hidden ${isLight ? 'bg-[#ffffff] border-[#b8c7df] hover:bg-[#e9f1ff] hover:border-[#22c55e]' : 'bg-[#12121f] border-[#2a2a4a] hover:bg-[#2a2a4a] hover:border-[#22c55e]'}`}
+                            onClick={handleOpenKimbar}
+                            title={kimbarPath}
+                        >
+                            <Link className="h-5 w-5 text-[#22c55e]" />
+                            <span className="flex-1 min-w-0 text-left truncate">Open Kimbar Project</span>
+                            <span className={`hidden sm:inline text-xs truncate max-w-[220px] shrink-0 ${isLight ? 'text-[#55698d]' : 'text-gray-500'}`}>{kimbarPath}</span>
+                        </Button>
                     )}
 
                     {kimbarSearching && (
                         <div className={`flex items-center gap-2 text-xs ${isLight ? 'text-[#5a7297]' : 'text-gray-500'}`}>
                             <Loader2 className="h-3.5 w-3.5 animate-spin" />
                             Searching for Kimbar linked project...
-                        </div>
-                    )}
-
-                    {!kimbarSearching && !kimbarPath && (
-                        <div className={`text-xs ${isLight ? 'text-[#637da2]' : 'text-gray-500'}`}>
-                            Auto-detect did not find Kimbar. Use "Locate Kimbar Project Folder".
                         </div>
                     )}
 

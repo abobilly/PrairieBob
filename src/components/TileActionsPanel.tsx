@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/select'
 import type { TileActionGroup, TileState, TileTrigger, TileEffect, TriggerType, EffectType, EntityDefinitionFile, InteractionDefinitionFile } from '@/lib/types'
 import { createEmptyActionGroup, inferBehaviorCategory, validateBehaviorMappings, BEHAVIOR_CATEGORY_META, type BehaviorCategory, type BehaviorValidationWarning } from '@/lib/tile-actions'
+import type { InspectorTab } from '@/components/InspectorSection'
 
 const TRIGGER_TYPES: { value: TriggerType; label: string }[] = [
   { value: 'on_interact', label: 'On Interact' },
@@ -80,6 +81,7 @@ interface TileActionsPanelProps {
   onAdd: (group: TileActionGroup) => void
   onUpdate: (id: string, updates: Partial<TileActionGroup>) => void
   onDelete: (id: string) => void
+  activeTab?: InspectorTab
 }
 
 export function TileActionsPanel({
@@ -89,6 +91,7 @@ export function TileActionsPanel({
   onAdd,
   onUpdate,
   onDelete,
+  activeTab = 'quick',
 }: TileActionsPanelProps) {
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
   const [collapsedCategories, setCollapsedCategories] = useState<Set<BehaviorCategory>>(new Set())
@@ -173,16 +176,18 @@ export function TileActionsPanel({
 
   return (
     <div className="flex flex-col gap-2 p-2">
-      {/* Add custom group button */}
-      <button
-        type="button"
-        className="flex items-center gap-1.5 rounded px-2 py-1 text-[10px] text-[var(--pb-text-secondary)] border border-dashed border-[var(--pb-border-subtle)] hover:bg-[var(--pb-bg-hover)] hover:text-[var(--pb-text-primary)] transition-colors"
-        onClick={handleAddGroup}
-        title="Add custom action group"
-      >
-        <Plus size={10} />
-        Add Custom Group
-      </button>
+      {/* Add custom group button — Advanced tab only */}
+      {activeTab === 'advanced' && (
+        <button
+          type="button"
+          className="flex items-center gap-1.5 rounded px-2 py-1 text-[10px] text-[var(--pb-text-secondary)] border border-dashed border-[var(--pb-border-subtle)] hover:bg-[var(--pb-bg-hover)] hover:text-[var(--pb-text-primary)] transition-colors"
+          onClick={handleAddGroup}
+          title="Add custom action group"
+        >
+          <Plus size={10} />
+          Add Custom Group
+        </button>
+      )}
 
       {/* Category cards */}
       {CATEGORY_ORDER.map((category) => {
@@ -227,7 +232,7 @@ export function TileActionsPanel({
                       {/* Group header */}
                       <div
                         className="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-[var(--pb-bg-hover)] transition-colors"
-                        onClick={() => toggleExpanded(group.id)}
+                        onClick={() => activeTab === 'advanced' ? toggleExpanded(group.id) : undefined}
                       >
                         {isExpanded ? <CaretDown size={10} /> : <CaretRight size={10} />}
                         <span className="flex-1 text-[10px] font-medium truncate text-[var(--pb-text-primary)]">
@@ -265,8 +270,8 @@ export function TileActionsPanel({
                         )}
                       </div>
 
-                      {/* Expanded editor */}
-                      {isExpanded && (
+                      {/* Expanded editor — Advanced tab only */}
+                      {isExpanded && activeTab === 'advanced' && (
                         <div className="px-2 pb-2 flex flex-col gap-2 border-t border-[var(--pb-border-subtle)]">
                           {/* Name */}
                           <div className="flex items-center gap-2 pt-1">

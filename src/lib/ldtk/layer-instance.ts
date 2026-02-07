@@ -167,3 +167,23 @@ export function hasTileFlipX(tile: TileInstance): boolean {
 export function hasTileFlipY(tile: TileInstance): boolean {
     return (tile.f & 2) !== 0
 }
+
+/**
+ * Get tile rotation in degrees (0, 90, 180, 270).
+ * Stored in bits 2-3 of tile.f: 0=0°, 1=90°, 2=180°, 3=270°
+ */
+export function getTileRotation(tile: TileInstance): 0 | 90 | 180 | 270 {
+    const rotBits = (tile.f >> 2) & 3
+    return (rotBits * 90) as 0 | 90 | 180 | 270
+}
+
+/**
+ * Build the tile.f value from flip and rotation state.
+ */
+export function buildTileFlags(flipX: boolean, flipY: boolean, rotation: 0 | 90 | 180 | 270 = 0): number {
+    let f = 0
+    if (flipX) f |= 1
+    if (flipY) f |= 2
+    f |= ((rotation / 90) & 3) << 2
+    return f
+}

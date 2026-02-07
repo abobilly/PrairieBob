@@ -1311,6 +1311,41 @@
     overflow-y: auto;
 }
 
+/* ── Inspector tab bar ───────────────────────── */
+.pb-inspector-tab-bar {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid var(--pb-border-subtle);
+    background: var(--pb-bg-header);
+    flex-shrink: 0;
+}
+
+.pb-inspector-tab {
+    flex: 1;
+    padding: 4px 6px;
+    border: none;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    color: var(--pb-text-muted);
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    cursor: pointer;
+    transition: color 0.1s ease, border-color 0.15s ease, background 0.1s ease;
+    text-align: center;
+}
+
+.pb-inspector-tab:hover {
+    color: var(--pb-text-secondary);
+    background: var(--pb-bg-hover);
+}
+
+.pb-inspector-tab-active {
+    color: var(--pb-accent);
+    border-bottom-color: var(--pb-accent);
+}
+
 .pb-inspector-section-body::-webkit-scrollbar {
     width: 5px;
 }

@@ -1,12 +1,12 @@
 /**
- * Generate app icons from SpudTileLogo.png
+ * Generate app icons from SPUDTILE_LOGO_NEW-spud.png (640x640 new logo)
  */
 const sharp = require('sharp');
-const pngToIco = require('png-to-ico');
+const pngToIco = require('png-to-ico').default;
 const fs = require('fs');
 const path = require('path');
 
-const inputPath = path.join(__dirname, '../SpudTileLogo.png');
+const inputPath = path.join(__dirname, '../legacy/SPUDTILE_LOGO_NEW-spud.png');
 const iconsDir = path.join(__dirname, '../public/icons');
 
 async function main() {
