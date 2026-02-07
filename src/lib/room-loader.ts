@@ -54,7 +54,8 @@ export async function loadRoomDataFromContent(
     throw new Error('TSX is a tileset definition file. Open a TMX/LDTK/JSON map file instead.')
   }
 
-  if (extension === 'tmx' || looksLikeXml(trimmed)) {
+  // Parse as XML TMX only when content is actually XML (some .tmx files may contain JSON)
+  if (looksLikeXml(trimmed) || (extension === 'tmx' && !trimmed.startsWith('{'))) {
     const parsed = await parseTmx(path, trimmed, readFile)
     return {
       data: parsed.data,

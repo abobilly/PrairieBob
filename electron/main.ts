@@ -175,6 +175,13 @@ function createWindow() {
         mainWindow.webContents.openDevTools();
     }
 
+    // Forward renderer console messages to main process stdout for diagnostics
+    mainWindow.webContents.on('console-message', (_event, level, message, line, sourceId) => {
+        const prefix = ['LOG', 'WARN', 'ERR'][level] ?? 'LOG';
+        const shortSource = sourceId ? sourceId.split('/').pop() : '';
+        console.log(`[renderer:${prefix}] ${message} (${shortSource}:${line})`);
+    });
+
     // Update title when project changes
     mainWindow.on('page-title-updated', (e) => {
         e.preventDefault();
