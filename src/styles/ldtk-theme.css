@@ -86,6 +86,7 @@
     --pb-compact-entities-bg: linear-gradient(180deg, rgba(22, 38, 33, 0.94), rgba(19, 33, 29, 0.94));
     --pb-compact-properties-border: #f1c76a;
     --pb-compact-properties-bg: linear-gradient(180deg, rgba(43, 35, 24, 0.94), rgba(37, 30, 22, 0.94));
+    --pb-compact-collision-border: #f44336;
 }
 
 .pb-app[data-theme="light"] {
@@ -146,6 +147,7 @@
     --pb-compact-entities-bg: linear-gradient(180deg, rgba(229, 245, 236, 0.98), rgba(220, 238, 228, 0.98));
     --pb-compact-properties-border: #b6852f;
     --pb-compact-properties-bg: linear-gradient(180deg, rgba(248, 241, 227, 0.98), rgba(243, 234, 218, 0.98));
+    --pb-compact-collision-border: #c62828;
 }
 
 /* ===== Global App Container ===== */
@@ -1337,4 +1339,8 @@
 
 .pb-inspector-accent-entities {
     border-left: 2px solid var(--pb-compact-entities-border);
+}
+
+.pb-inspector-accent-collision {
+    border-left: 2px solid var(--pb-compact-collision-border);
 }

@@ -74,6 +74,7 @@ export interface LevelData {
     collision?: {
       linkedLayerNames?: string[]
       showDerivedOverlay?: boolean
+      strategy?: 'auto_walls' | 'custom' | 'manual'
     }
   }
 }

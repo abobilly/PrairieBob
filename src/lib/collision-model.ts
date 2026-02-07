@@ -10,15 +10,19 @@ function stripTileFlipFlags(tileId: number): number {
   return (value & ~TILE_ALL_TRANSFORM_FLAGS) >>> 0
 }
 
+export type CollisionStrategy = 'auto_walls' | 'custom' | 'manual'
+
 export interface CollisionSourceConfig {
   linkedLayerNames: string[]
   showDerivedOverlay: boolean
+  strategy: CollisionStrategy
 }
 
 interface CollisionMetadataShape {
   collision?: {
     linkedLayerNames?: unknown
     showDerivedOverlay?: unknown
+    strategy?: unknown
   }
 }
 
@@ -40,6 +44,15 @@ function normalizeTileData(layer: Layer, width: number, height: number): number[
   return [...layer.data, ...new Array(expectedSize - layer.data.length).fill(0)]
 }
 
+const AUTO_WALLS_PATTERN = /(wall|walls|furniture|boundary|block|solid)/i
+
+export function getAutoWallsLinkedLayers(level: LevelData): string[] {
+  return level.layers
+    .filter((layer) => isTileLayer(layer) && !isCollisionLayerName(layer.name))
+    .filter((layer) => AUTO_WALLS_PATTERN.test(layer.name))
+    .map((layer) => layer.name)
+}
+
 function getDefaultLinkedLayers(level: LevelData): string[] {
   return level.layers
     .filter((layer) => isTileLayer(layer) && !isCollisionLayerName(layer.name))
@@ -47,15 +60,31 @@ function getDefaultLinkedLayers(level: LevelData): string[] {
     .map((layer) => layer.name)
 }
 
+function isValidStrategy(value: unknown): value is CollisionStrategy {
+  return value === 'auto_walls' || value === 'custom' || value === 'manual'
+}
+
 export function resolveCollisionSourcesFromMetadata(level: LevelData): CollisionSourceConfig {
   const metadata = (level.metadata ?? {}) as CollisionMetadataShape
   const collisionMeta = metadata.collision
   const hasExplicitLinked = Boolean(collisionMeta && Array.isArray(collisionMeta.linkedLayerNames))
-  const linkedLayerNames = (hasExplicitLinked
-    ? (collisionMeta?.linkedLayerNames as unknown[])
-    : getDefaultLinkedLayers(level))
-    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
-    .filter((name) => !isCollisionLayerName(name))
+
+  const strategy: CollisionStrategy = isValidStrategy(collisionMeta?.strategy)
+    ? collisionMeta.strategy
+    : hasExplicitLinked ? 'custom' : 'auto_walls'
+
+  let linkedLayerNames: string[]
+  if (strategy === 'manual') {
+    linkedLayerNames = []
+  } else if (strategy === 'auto_walls') {
+    linkedLayerNames = getAutoWallsLinkedLayers(level)
+  } else {
+    linkedLayerNames = (hasExplicitLinked
+      ? (collisionMeta?.linkedLayerNames as unknown[])
+      : getDefaultLinkedLayers(level))
+      .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+      .filter((name) => !isCollisionLayerName(name))
+  }
 
   const allowedNames = new Set(
     level.layers.filter((layer) => isTileLayer(layer) && !isCollisionLayerName(layer.name)).map((layer) => layer.name)
@@ -65,13 +94,16 @@ export function resolveCollisionSourcesFromMetadata(level: LevelData): Collision
     .filter((name) => allowedNames.has(name))
     .sort((a, b) => a.localeCompare(b))
 
-  const showDerivedOverlay = typeof collisionMeta?.showDerivedOverlay === 'boolean'
-    ? collisionMeta.showDerivedOverlay
-    : true
+  const showDerivedOverlay = strategy === 'manual'
+    ? false
+    : typeof collisionMeta?.showDerivedOverlay === 'boolean'
+      ? collisionMeta.showDerivedOverlay
+      : true
 
   return {
     linkedLayerNames: deduped,
     showDerivedOverlay,
+    strategy,
   }
 }
 
@@ -83,6 +115,7 @@ export function withCollisionSourceConfig(level: LevelData, config: CollisionSou
       collision: {
         linkedLayerNames: [...config.linkedLayerNames],
         showDerivedOverlay: config.showDerivedOverlay,
+        strategy: config.strategy,
       },
     },
   }

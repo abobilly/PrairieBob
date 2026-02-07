@@ -66,6 +66,7 @@ import { WorldViewCanvas as SpudWorldViewCanvas } from '@/components/WorldViewCa
 import { WorldMinimap } from '@/components/WorldMinimap'
 import { ToolContextBar } from '@/components/ToolContextBar'
 import { InspectorSection } from '@/components/InspectorSection'
+import { CollisionPanel } from '@/components/CollisionPanel'
 import { getFileSystemAdapter } from '@/lib/fs-adapter'
 import { deserializeBakedTileset } from '@/lib/tileset-baker'
 import { Toaster, toast } from 'sonner'
@@ -350,6 +351,7 @@ function App() {
   const [inspectorLayersCollapsed, setInspectorLayersCollapsed] = useState(false)
   const [inspectorActionsCollapsed, setInspectorActionsCollapsed] = useState(false)
   const [inspectorEntitiesCollapsed, setInspectorEntitiesCollapsed] = useState(false)
+  const [inspectorCollisionCollapsed, setInspectorCollisionCollapsed] = useState(false)
 
   const previewMode = useEditorStore((s) => s.previewMode)
   const enterPreview = useEditorStore((s) => s.enterPreview)
@@ -392,6 +394,7 @@ function App() {
     renameLayer,
     setCollisionSourceLayerEnabled,
     setCollisionDerivedOverlayVisible,
+    setCollisionStrategy,
     paintTiles,
     fillArea,
     placeEntity,
@@ -1515,10 +1518,23 @@ function App() {
                       onToggleGroupLock={toggleGroupLock}
                       onToggleGroupCollapsed={toggleGroupCollapsed}
                       onMoveLayerToGroup={moveLayerToGroup}
-                      collisionSourceLayerNames={collisionSourceConfig.linkedLayerNames}
-                      collisionDerivedOverlayVisible={collisionSourceConfig.showDerivedOverlay}
-                      onSetCollisionSourceLayerEnabled={setCollisionSourceLayerEnabled}
-                      onSetCollisionDerivedOverlayVisible={setCollisionDerivedOverlayVisible}
+                    />
+                  </InspectorSection>
+                  <InspectorSection
+                    title="Collision"
+                    badge={`${collisionSourceConfig.strategy === 'manual' ? 'manual' : `${collisionSourceConfig.linkedLayerNames.length} linked`}`}
+                    collapsed={inspectorCollisionCollapsed}
+                    onToggleCollapsed={() => setInspectorCollisionCollapsed((prev) => !prev)}
+                    accentClass="pb-inspector-accent-collision"
+                  >
+                    <CollisionPanel
+                      layers={mapData.layers}
+                      strategy={collisionSourceConfig.strategy}
+                      linkedLayerNames={collisionSourceConfig.linkedLayerNames}
+                      showDerivedOverlay={collisionSourceConfig.showDerivedOverlay}
+                      onSetStrategy={setCollisionStrategy}
+                      onSetSourceLayerEnabled={setCollisionSourceLayerEnabled}
+                      onSetDerivedOverlayVisible={setCollisionDerivedOverlayVisible}
                     />
                   </InspectorSection>
                   {showTileActions && (

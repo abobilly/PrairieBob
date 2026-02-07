@@ -34,6 +34,8 @@ import {
   isCollisionLayerName,
   resolveCollisionSourcesFromMetadata,
   withCollisionSourceConfig,
+  getAutoWallsLinkedLayers,
+  type CollisionStrategy,
 } from '@/lib/collision-model'
 import {
   type WorldLayout,
@@ -353,6 +355,7 @@ interface ProjectActions {
   renameLayer: (index: number, name: string) => void
   setCollisionSourceLayerEnabled: (layerName: string, enabled: boolean) => void
   setCollisionDerivedOverlayVisible: (visible: boolean) => void
+  setCollisionStrategy: (strategy: CollisionStrategy) => void
 
   // Entity operations
   placeEntity: (entity: EntityData) => void
@@ -1855,6 +1858,30 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
           state.mapData = withCollisionSourceConfig(state.mapData, {
             ...config,
             showDerivedOverlay: visible,
+          })
+          state.hasUnsavedChanges = true
+        })
+      },
+
+      setCollisionStrategy: (strategy) => {
+        set((state) => {
+          const config = resolveCollisionSourcesFromMetadata(state.mapData)
+          let linkedLayerNames: string[]
+          let showDerivedOverlay: boolean
+          if (strategy === 'manual') {
+            linkedLayerNames = []
+            showDerivedOverlay = false
+          } else if (strategy === 'auto_walls') {
+            linkedLayerNames = getAutoWallsLinkedLayers(state.mapData)
+            showDerivedOverlay = true
+          } else {
+            linkedLayerNames = config.linkedLayerNames
+            showDerivedOverlay = config.showDerivedOverlay
+          }
+          state.mapData = withCollisionSourceConfig(state.mapData, {
+            linkedLayerNames,
+            showDerivedOverlay,
+            strategy,
           })
           state.hasUnsavedChanges = true
         })

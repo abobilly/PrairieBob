@@ -37,10 +37,6 @@ interface LayerPanelProps {
   onToggleGroupLock?: (id: string) => void
   onToggleGroupCollapsed?: (id: string) => void
   onMoveLayerToGroup?: (layerName: string, groupId: string | null) => void
-  collisionSourceLayerNames?: string[]
-  collisionDerivedOverlayVisible?: boolean
-  onSetCollisionSourceLayerEnabled?: (layerName: string, enabled: boolean) => void
-  onSetCollisionDerivedOverlayVisible?: (visible: boolean) => void
 }
 
 type LayerEntry = { layer: Layer; index: number }
@@ -73,10 +69,6 @@ export function LayerPanel({
   onToggleGroupLock,
   onToggleGroupCollapsed,
   onMoveLayerToGroup,
-  collisionSourceLayerNames = [],
-  collisionDerivedOverlayVisible = true,
-  onSetCollisionSourceLayerEnabled,
-  onSetCollisionDerivedOverlayVisible,
 }: LayerPanelProps) {
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [newLayerName, setNewLayerName] = useState('')
@@ -87,7 +79,6 @@ export function LayerPanel({
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
   const [addGroupDialogOpen, setAddGroupDialogOpen] = useState(false)
   const [newGroupName, setNewGroupName] = useState('')
-  const [collisionSourcesCollapsed, setCollisionSourcesCollapsed] = useState(false)
   const suppressNextRowSelectionRef = useRef(false)
   const layerEntries = useMemo<LayerEntry[]>(
     () => [...layers].reverse().map((layer, reverseIndex) => ({
@@ -104,19 +95,6 @@ export function LayerPanel({
     () => layerEntries.filter(({ layer }) => !isGameplayLayer(layer)),
     [layerEntries]
   )
-  const collisionSourceLayerSet = useMemo(
-    () => new Set(collisionSourceLayerNames),
-    [collisionSourceLayerNames]
-  )
-  const collisionCandidates = useMemo(
-    () => layers.filter((layer) => layer.type === 'tilelayer' && !isCollisionLayer(layer)),
-    [layers]
-  )
-  const collisionLayer = useMemo(
-    () => layers.find((layer) => isCollisionLayer(layer)) ?? null,
-    [layers]
-  )
-
   // Handle add layer dialog
   const handleAddLayer = useCallback(() => {
     if (onLayerAdd && newLayerName.trim()) {
@@ -391,60 +369,6 @@ export function LayerPanel({
 
         {/* Layer list */}
         <div className="flex-1 overflow-y-auto p-1 min-h-[140px]">
-          {onSetCollisionSourceLayerEnabled && collisionCandidates.length > 0 && (
-            <div className="mb-2 rounded border border-[var(--pb-border-subtle)] bg-[var(--pb-bg-input)] p-2">
-              <button
-                className="mb-1 flex w-full items-center gap-1 rounded px-1 py-0.5 text-left hover:bg-[var(--pb-bg-hover)]"
-                onClick={() => setCollisionSourcesCollapsed((prev) => !prev)}
-                title={collisionSourcesCollapsed ? 'Expand collision source controls' : 'Collapse collision source controls'}
-              >
-                {collisionSourcesCollapsed ? <CaretRight size={10} /> : <CaretDown size={10} />}
-                <span className="text-[9px] uppercase tracking-wide text-[var(--pb-text-muted)]">
-                  Collision Inputs
-                </span>
-                <span className="ml-auto text-[9px] text-[var(--pb-text-secondary)]">
-                  {collisionSourceLayerNames.length} linked
-                </span>
-              </button>
-              {!collisionSourcesCollapsed && (
-                <>
-                  <div className="mb-2 text-[9px] leading-tight text-[var(--pb-text-muted)]">
-                    Source art layers feed derived blockers into <span className="font-semibold text-[var(--pb-text-secondary)]">{collisionLayer?.name ?? 'Collision'}</span>.
-                  </div>
-                  {onSetCollisionDerivedOverlayVisible && (
-                    <label className="mb-2 flex cursor-pointer items-center justify-between gap-2 rounded px-1 py-0.5 text-[10px] text-[var(--pb-text-secondary)] hover:bg-[var(--pb-bg-hover)]">
-                      <span>Show derived overlay</span>
-                      <input
-                        type="checkbox"
-                        checked={collisionDerivedOverlayVisible}
-                        onChange={(event) => onSetCollisionDerivedOverlayVisible(event.target.checked)}
-                        className="h-3.5 w-3.5 accent-primary"
-                      />
-                    </label>
-                  )}
-                  <div className="flex flex-col gap-1">
-                    {collisionCandidates.map((layer) => {
-                      const linked = collisionSourceLayerSet.has(layer.name)
-                      return (
-                        <label
-                          key={layer.name}
-                          className="flex cursor-pointer items-center justify-between gap-2 rounded px-1 py-0.5 text-[10px] hover:bg-[var(--pb-bg-hover)]"
-                        >
-                          <span className="truncate">{layer.name}</span>
-                          <input
-                            type="checkbox"
-                            checked={linked}
-                            onChange={(event) => onSetCollisionSourceLayerEnabled(layer.name, event.target.checked)}
-                            className="h-3.5 w-3.5 accent-primary"
-                          />
-                        </label>
-                      )
-                    })}
-                  </div>
-                </>
-              )}
-            </div>
-          )}
           {layers.length === 0 ? (
             <div className="text-[10px] text-muted-foreground p-2">No layers</div>
           ) : (
