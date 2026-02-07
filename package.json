@@ -9,6 +9,7 @@
         "dev": "npx concurrently -k \"npx vite\" \"npx electron .\"",
         "dev:web": "vite",
         "build": "tsc -b && vite build",
+        "check:copilot-policy": "node scripts/check-copilot-policy.mjs",
         "lint": "eslint .",
         "preview": "vite preview",
         "upgrade": "npx npm-check-updates -u && npm install",

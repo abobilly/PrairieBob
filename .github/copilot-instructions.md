@@ -34,6 +34,13 @@ SpudTile is an LDtk-compatible tile map editor built with React + TypeScript + V
 
 When operating as an implementation agent via SDK sessions:
 
+### Policy Precedence (Do Not Drift)
+
+- Authoritative policy for this repository lives in this file.
+- `.copilot/skills/Copilot-Expert/*` is supplemental reference material, not policy authority.
+- If any skill/reference text conflicts with this file, follow this file.
+- SpudTile in-app runtime behavior is defined by `electron/agent-main.ts`, `electron/preload.ts`, and `src/components/AgentPanel.tsx`.
+
 ### Role
 
 You are an implementation agent. Execute assigned tasks, stream progress, and verify results.

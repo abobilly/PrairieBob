@@ -420,6 +420,8 @@ function App() {
   const addTileActionGroup = useProjectStore((state) => state.addTileActionGroup)
   const updateTileActionGroup = useProjectStore((state) => state.updateTileActionGroup)
   const deleteTileActionGroup = useProjectStore((state) => state.deleteTileActionGroup)
+  const entityDefinitions = useProjectStore((state) => state.entityDefinitions)
+  const interactionDefinitions = useProjectStore((state) => state.interactionDefinitions)
 
   const {
     panels,
@@ -1547,6 +1549,8 @@ function App() {
                     >
                       <TileActionsPanel
                         actionGroups={tileActionGroups}
+                        entityDefinitions={entityDefinitions}
+                        interactionDefinitions={interactionDefinitions}
                         onAdd={addTileActionGroup}
                         onUpdate={updateTileActionGroup}
                         onDelete={deleteTileActionGroup}

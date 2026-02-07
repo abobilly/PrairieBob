@@ -5,7 +5,90 @@
  * Allows tiles to have interactive behaviors: doors, switches, pressure plates, etc.
  */
 
-import type { TileActionGroup, TileState, TileTrigger, TileEffect } from './types'
+import type { TileActionGroup, TileState, TileTrigger, TileEffect, EntityDefinitionFile, InteractionDefinitionFile } from './types'
+
+// ============== Behavior Categories ==============
+
+export type BehaviorCategory = 'doors' | 'npc' | 'player' | 'props' | 'custom'
+
+const DOOR_TYPES = new Set(['door', 'portal', 'stairs', 'ladder'])
+const NPC_TYPES = new Set(['npc'])
+const PLAYER_TYPES = new Set(['spawn_point'])
+const PROP_TYPES = new Set(['prop', 'trigger'])
+
+export const BEHAVIOR_CATEGORY_META: Record<BehaviorCategory, { label: string; color: string }> = {
+  doors: { label: 'Doors', color: '#f59e0b' },
+  npc: { label: 'NPC', color: '#8b5cf6' },
+  player: { label: 'Player', color: '#22c55e' },
+  props: { label: 'Props', color: '#3b82f6' },
+  custom: { label: 'Custom', color: '#6b7280' },
+}
+
+export function inferBehaviorCategory(
+  group: TileActionGroup,
+  entityDefs?: Record<string, EntityDefinitionFile>,
+  interactionDefs?: Record<string, InteractionDefinitionFile>,
+): BehaviorCategory {
+  if (group.id.startsWith('interaction:')) {
+    const id = group.id.slice('interaction:'.length)
+    const type = interactionDefs?.[id]?.type
+    if (type && DOOR_TYPES.has(type)) return 'doors'
+    if (type && NPC_TYPES.has(type)) return 'npc'
+    return 'props'
+  }
+  if (group.id.startsWith('entity:')) {
+    const id = group.id.slice('entity:'.length)
+    const type = entityDefs?.[id]?.type
+    if (type && DOOR_TYPES.has(type)) return 'doors'
+    if (type && NPC_TYPES.has(type)) return 'npc'
+    if (type && PLAYER_TYPES.has(type)) return 'player'
+    if (type && PROP_TYPES.has(type)) return 'props'
+    return 'props'
+  }
+  const name = group.name.toLowerCase()
+  if (/(door|portal|stair|ladder)/.test(name)) return 'doors'
+  if (/(npc|enemy|mob)/.test(name)) return 'npc'
+  if (/(player|spawn)/.test(name)) return 'player'
+  return 'custom'
+}
+
+export interface BehaviorValidationWarning {
+  entityId: string
+  entityType: string
+  message: string
+}
+
+export function validateBehaviorMappings(
+  entityDefs: Record<string, EntityDefinitionFile>,
+  actionGroups: TileActionGroup[],
+): BehaviorValidationWarning[] {
+  const warnings: BehaviorValidationWarning[] = []
+  const groupEntityIds = new Set(
+    actionGroups
+      .filter((g) => g.id.startsWith('entity:'))
+      .map((g) => g.id.slice('entity:'.length)),
+  )
+
+  for (const [id, def] of Object.entries(entityDefs)) {
+    const type = def.type ?? ''
+    if (NPC_TYPES.has(type) && !groupEntityIds.has(id)) {
+      const stateCount = def.states ? Object.keys(def.states).length : 0
+      if (stateCount === 0) {
+        warnings.push({ entityId: id, entityType: type, message: `NPC "${def.displayName || id}" has no action states` })
+      }
+    }
+    if (PLAYER_TYPES.has(type) && !groupEntityIds.has(id)) {
+      warnings.push({ entityId: id, entityType: type, message: `Spawn "${def.displayName || id}" has no action group` })
+    }
+    if (DOOR_TYPES.has(type)) {
+      const stateCount = def.states ? Object.keys(def.states).length : 0
+      if (stateCount < 2) {
+        warnings.push({ entityId: id, entityType: type, message: `Door "${def.displayName || id}" needs at least 2 states` })
+      }
+    }
+  }
+  return warnings
+}
 
 /**
  * Central registry for tile action groups.
