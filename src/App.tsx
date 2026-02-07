@@ -1655,6 +1655,19 @@ function App() {
                       roomRegistry={roomRegistry}
                       collisionConfig={collisionSourceConfig}
                       mapData={mapData}
+                      onJumpToEntity={(entityId) => {
+                        setSelectedEntityId(entityId)
+                        // Expand properties panel and switch to bindings tab
+                        setInspectorPropertiesCollapsed(false)
+                        setPropertiesTab('bindings')
+                      }}
+                      onFixMapping={(entityId) => {
+                        // Expand Tile Actions section to address the mapping
+                        setInspectorActionsCollapsed(false)
+                        setActionsTab('quick')
+                        // Also select the entity so user sees context
+                        setSelectedEntityId(entityId)
+                      }}
                     />
                   </InspectorSection>
                 </div>

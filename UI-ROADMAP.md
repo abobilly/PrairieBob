@@ -85,10 +85,10 @@ Stabilize layout and ship a scalable, tool-context editor UI so new features do 
 3. ~~TMX/Kimbar load path and fallback behavior~~ ✅ `src/lib/__tests__/room-loader.test.ts` — 15 tests covering TMX CSV + XML tile elements + object groups, Tiled JSON maps + object layers, SpudTile JSON normalization, LDtk project parsing, and 6 error/fallback cases (invalid content, unrecognized JSON, TSX rejection, missing map root, empty string, array input)
 4. Test infrastructure: vitest 4.x added (`vitest.config.ts`, `npm test` script in package.json)
 
-## TODO — Phase 7 remaining
+## DONE — Phase 7 remaining
 
-1. Visual state previews: frame/row thumbnails next to state names in behavior cards
-2. Quick-jump from validation warnings to entity/action mapping editor
+1. ~~Visual state previews~~ ✅ `TileIdBadge` in `TileActionsPanel.tsx` now renders actual tile thumbnails from loaded tilesets using canvas rendering (16x16 with `imageSmoothingEnabled: false`), with numeric fallback when no tileset match exists. Finds tileset by firstGid/totalTiles range, extracts local tile via col/row math.
+2. ~~Quick-jump from validation warnings~~ ✅ `ValidationPanel.tsx` — issue rows now clickable with `ArrowSquareOut` icon for jumpable issues. `onJumpToEntity` callback selects entity + uncollaps Properties panel + switches to bindings tab. `onFixMapping` callback expands Tile Actions section + selects entity for context.
 
 ## DONE — Phase 7.3 (Definition merge dedup)
 
@@ -104,9 +104,9 @@ Stabilize layout and ship a scalable, tool-context editor UI so new features do 
 
 1. ~~Save/load roundtrip preserves merged mappings without regenerating duplicates~~ ✅ Load path: persisted groups filtered by `!isDefinitionBackedGroupId()` before merge. Save path: `customTileActionGroups` filtered to exclude definition-backed groups before serialization. Combined via `combineTileActionGroups()` with Map-based dedup. Definition-backed group state synced back to definition files via `syncInteractionDefinitionFromActionGroup()`/`syncEntityDefinitionFromActionGroup()`, so re-derivation on load preserves edits.
 
-## TODO — Phase 8 remaining (Behavior authoring polish)
+## DONE — Phase 8.1 (Action buttons in validation warnings)
 
-1. "Open Entity" / "Fix Mapping" action buttons in warnings
+1. ~~"Open Entity" / "Fix Mapping" action buttons in warnings~~ ✅ `ValidationIssue` now has `actionType?: 'open-entity' | 'fix-mapping'` field. `ValidationPanel.tsx` renders contextual action buttons: "Open" (PencilSimple icon) for entity binding issues → jumps to entity + opens Properties/bindings tab. "Fix" (Wrench icon) for mapping issues → expands Tile Actions section + selects entity. Buttons styled with `bg-[var(--pb-bg-active)]` + accent hover.
 
 ---
 

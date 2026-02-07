@@ -6,7 +6,7 @@
  * Surfaces validation warnings for missing entity/action mappings.
  */
 
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import { Plus, Trash, CaretDown, CaretRight, Lightning, Door, User, Cube, WarningCircle, Funnel } from '@phosphor-icons/react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -20,6 +20,7 @@ import {
 import type { TileActionGroup, TileState, TileTrigger, TileEffect, TriggerType, EffectType, EntityDefinitionFile, InteractionDefinitionFile } from '@/lib/types'
 import { createEmptyActionGroup, inferBehaviorCategory, validateBehaviorMappings, BEHAVIOR_CATEGORY_META, type BehaviorCategory, type BehaviorValidationWarning } from '@/lib/tile-actions'
 import type { InspectorTab } from '@/components/InspectorSection'
+import { useProjectStore } from '@/stores/projectStore'
 
 const TRIGGER_TYPES: { value: TriggerType; label: string }[] = [
   { value: 'on_interact', label: 'On Interact' },
@@ -64,16 +65,75 @@ function CategoryIcon({ category, size = 12 }: { category: BehaviorCategory; siz
 }
 
 function TileIdBadge({ tileId, isDefault }: { tileId: number; isDefault: boolean }) {
+  const tilesets = useProjectStore((s) => s.tilesets)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const PREVIEW_SIZE = 16
+
+  // Find the tileset containing this tileId and render the tile thumbnail
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas || tileId <= 0) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    // Find which tileset contains this tileId
+    let matchedTileset = null
+    for (const ts of tilesets) {
+      if (ts.status !== 'ready') continue
+      if (tileId >= ts.firstGid && tileId < ts.firstGid + ts.totalTiles) {
+        matchedTileset = ts
+        break
+      }
+    }
+
+    if (!matchedTileset) {
+      ctx.clearRect(0, 0, PREVIEW_SIZE, PREVIEW_SIZE)
+      return
+    }
+
+    const localId = tileId - matchedTileset.firstGid
+    const col = localId % matchedTileset.tilesPerRow
+    const row = Math.floor(localId / matchedTileset.tilesPerRow)
+    const ts = matchedTileset.tileSize
+
+    ctx.clearRect(0, 0, PREVIEW_SIZE, PREVIEW_SIZE)
+    ctx.imageSmoothingEnabled = false
+    ctx.drawImage(
+      matchedTileset.canvas,
+      col * ts, row * ts, ts, ts,
+      0, 0, PREVIEW_SIZE, PREVIEW_SIZE
+    )
+  }, [tileId, tilesets])
+
+  // If we have tilesets and a valid tileId, render a visual preview
+  const hasVisual = tileId > 0 && tilesets.some((ts) => ts.status === 'ready' && tileId >= ts.firstGid && tileId < ts.firstGid + ts.totalTiles)
+
   return (
     <span
-      className={`inline-flex items-center justify-center rounded px-1 min-w-[22px] h-[16px] text-[9px] font-mono font-medium ${
+      className={`inline-flex items-center justify-center rounded min-w-[18px] h-[18px] ${
         isDefault
-          ? 'bg-[var(--pb-accent-glow)] text-[var(--pb-accent)] border border-[var(--pb-accent-dim)]'
-          : 'bg-[var(--pb-bg-hover)] text-[var(--pb-text-secondary)] border border-[var(--pb-border-subtle)]'
+          ? 'border-2 border-[var(--pb-accent)]'
+          : 'border border-[var(--pb-border-subtle)]'
       }`}
       title={`Tile ID ${tileId}${isDefault ? ' (default)' : ''}`}
     >
-      {tileId}
+      {hasVisual ? (
+        <canvas
+          ref={canvasRef}
+          width={PREVIEW_SIZE}
+          height={PREVIEW_SIZE}
+          className="rounded-sm"
+          style={{ imageRendering: 'pixelated', width: PREVIEW_SIZE, height: PREVIEW_SIZE }}
+        />
+      ) : (
+        <span className={`px-0.5 text-[9px] font-mono font-medium ${
+          isDefault
+            ? 'text-[var(--pb-accent)]'
+            : 'text-[var(--pb-text-secondary)]'
+        }`}>
+          {tileId}
+        </span>
+      )}
     </span>
   )
 }

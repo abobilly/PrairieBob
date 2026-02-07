@@ -6,7 +6,7 @@
  */
 
 import { useMemo, useState } from 'react'
-import { WarningCircle, XCircle, Info, CaretDown, CaretRight, FunnelSimple } from '@phosphor-icons/react'
+import { WarningCircle, XCircle, Info, CaretDown, CaretRight, FunnelSimple, ArrowSquareOut, PencilSimple, Wrench } from '@phosphor-icons/react'
 import type { EntityData, EntityDefinitionFile, InteractionDefinitionFile, LevelData, TileActionGroup } from '@/lib/types'
 import type { CollisionSourceConfig } from '@/lib/collision-model'
 import type { RoomFileEntry } from '@/stores/projectStore'
@@ -50,6 +50,10 @@ interface ValidationPanelProps {
   roomRegistry: RoomFileEntry[]
   collisionConfig: CollisionSourceConfig
   mapData: LevelData
+  /** Called when user clicks an issue with a subjectId (entity jump). */
+  onJumpToEntity?: (entityId: string) => void
+  /** Called when user clicks "Fix Mapping" on a mapping issue. */
+  onFixMapping?: (entityId: string) => void
 }
 
 // ─── Component ───────────────────────────────────────────────────────
@@ -62,6 +66,8 @@ export function ValidationPanel({
   roomRegistry,
   collisionConfig,
   mapData,
+  onJumpToEntity,
+  onFixMapping,
 }: ValidationPanelProps) {
   const [collapsedCategories, setCollapsedCategories] = useState<Set<ValidationCategory>>(new Set())
   const [filterSeverity, setFilterSeverity] = useState<ValidationSeverity | 'all'>('all')
@@ -174,17 +180,57 @@ export function ValidationPanel({
             {/* Issue list */}
             {!isCollapsed && (
               <div className="flex flex-col">
-                {catIssues.map((issue) => (
-                  <div
-                    key={issue.id}
-                    className="flex items-start gap-1.5 px-2 py-1 border-t border-[var(--pb-border-subtle)] text-[10px] leading-tight"
-                  >
-                    <span className="mt-px shrink-0">
-                      <SeverityIcon severity={issue.severity} size={11} />
-                    </span>
-                    <span className="text-[var(--pb-text-secondary)]">{issue.message}</span>
-                  </div>
-                ))}
+                {catIssues.map((issue) => {
+                  const canJump = !!issue.subjectId && !!onJumpToEntity
+                  const canFixMapping = issue.actionType === 'fix-mapping' && !!issue.subjectId && !!onFixMapping
+                  const canOpenEntity = issue.actionType === 'open-entity' && !!issue.subjectId && !!onJumpToEntity
+                  const hasAction = canJump || canFixMapping || canOpenEntity
+                  return (
+                    <div
+                      key={issue.id}
+                      className={`flex items-start gap-1.5 px-2 py-1 border-t border-[var(--pb-border-subtle)] text-[10px] leading-tight ${
+                        hasAction ? 'cursor-pointer hover:bg-[var(--pb-bg-hover)] transition-colors' : ''
+                      }`}
+                    >
+                      <span className="mt-px shrink-0">
+                        <SeverityIcon severity={issue.severity} size={11} />
+                      </span>
+                      <span className="text-[var(--pb-text-secondary)] flex-1">{issue.message}</span>
+                      {/* Action buttons */}
+                      <span className="ml-auto flex items-center gap-1 shrink-0">
+                        {canOpenEntity && (
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-0.5 px-1 py-px rounded text-[8px] font-medium bg-[var(--pb-bg-active)] hover:bg-[var(--pb-accent)] hover:text-white transition-colors text-[var(--pb-text-secondary)]"
+                            onClick={() => onJumpToEntity!(issue.subjectId!)}
+                            title={`Open entity "${issue.subjectLabel ?? issue.subjectId}"`}
+                          >
+                            <PencilSimple size={8} />
+                            Open
+                          </button>
+                        )}
+                        {canFixMapping && (
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-0.5 px-1 py-px rounded text-[8px] font-medium bg-[var(--pb-bg-active)] hover:bg-[var(--pb-accent)] hover:text-white transition-colors text-[var(--pb-text-secondary)]"
+                            onClick={() => onFixMapping!(issue.subjectId!)}
+                            title={`Fix mapping for "${issue.subjectLabel ?? issue.subjectId}"`}
+                          >
+                            <Wrench size={8} />
+                            Fix
+                          </button>
+                        )}
+                        {canJump && !canOpenEntity && (
+                          <ArrowSquareOut
+                            size={9}
+                            className="mt-0.5 text-[var(--pb-text-muted)] cursor-pointer"
+                            onClick={() => onJumpToEntity!(issue.subjectId!)}
+                          />
+                        )}
+                      </span>
+                    </div>
+                  )
+                })}
               </div>
             )}
           </div>

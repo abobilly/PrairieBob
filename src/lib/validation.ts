@@ -26,6 +26,8 @@ export type ValidationCategory =
   | 'collision'  // Collision source conflicts
   | 'entity'     // Door/NPC binding diagnostics
 
+export type ValidationAction = 'open-entity' | 'fix-mapping'
+
 export interface ValidationIssue {
   id: string
   severity: ValidationSeverity
@@ -34,6 +36,8 @@ export interface ValidationIssue {
   /** Which entity/group/layer the issue refers to. */
   subjectId?: string
   subjectLabel?: string
+  /** Quick-fix action type shown as a button on the issue row. */
+  actionType?: ValidationAction
 }
 
 // ─── Checks ─────────────────────────────────────────────────────────
@@ -70,6 +74,7 @@ function checkMappings(
           message: `NPC "${label}" has no action states`,
           subjectId: id,
           subjectLabel: label,
+          actionType: 'fix-mapping',
         })
       }
     }
@@ -82,6 +87,7 @@ function checkMappings(
         message: `Spawn "${label}" has no action group`,
         subjectId: id,
         subjectLabel: label,
+        actionType: 'fix-mapping',
       })
     }
 
@@ -95,6 +101,7 @@ function checkMappings(
           message: `Door "${label}" needs at least 2 states (has ${stateCount})`,
           subjectId: id,
           subjectLabel: label,
+          actionType: 'fix-mapping',
         })
       }
     }
@@ -185,8 +192,7 @@ function checkEntityBindings(
           category: 'entity',
           message: `Door "${entity.id}" has no interaction or entity definition binding`,
           subjectId: entity.id,
-          subjectLabel: entity.id,
-        })
+          subjectLabel: entity.id,          actionType: 'open-entity',        })
       } else {
         // Check the binding actually exists
         if (intId && intId.trim() && !interactionDefIds.has(intId.trim())) {
@@ -197,6 +203,7 @@ function checkEntityBindings(
             message: `Door "${entity.id}" references unknown interaction "${intId}"`,
             subjectId: entity.id,
             subjectLabel: entity.id,
+            actionType: 'open-entity',
           })
         }
         if (entId && entId.trim() && !entityDefIds.has(entId.trim())) {
@@ -206,8 +213,7 @@ function checkEntityBindings(
             category: 'entity',
             message: `Door "${entity.id}" references unknown entity definition "${entId}"`,
             subjectId: entity.id,
-            subjectLabel: entity.id,
-          })
+            subjectLabel: entity.id,            actionType: 'open-entity',          })
         }
       }
     }
@@ -223,6 +229,7 @@ function checkEntityBindings(
           message: `NPC "${entity.id}" has no entity definition binding`,
           subjectId: entity.id,
           subjectLabel: entity.id,
+          actionType: 'open-entity',
         })
       } else if (!entityDefIds.has(entId.trim())) {
         issues.push({
@@ -231,8 +238,7 @@ function checkEntityBindings(
           category: 'entity',
           message: `NPC "${entity.id}" references unknown entity definition "${entId}"`,
           subjectId: entity.id,
-          subjectLabel: entity.id,
-        })
+          subjectLabel: entity.id,          actionType: 'open-entity',        })
       }
     }
   }
