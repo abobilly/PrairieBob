@@ -579,9 +579,16 @@ function App() {
   const autoSelectedNonDebugTilesetRef = useRef(false)
   const externalChangeNoticeShownRef = useRef(false)
 
-  // Effect: Initialize tilesets if empty
+  // Effect: Initialize tilesets if empty (skip when Kimbar auto-load will handle it)
   useEffect(() => {
     if (tilesets.length === 0 && !tilesetsInitRef.current) {
+      const { autoLoadKimbar } = useUIStore.getState()
+      if (autoLoadKimbar) {
+        // Kimbar auto-load sets its own tilesets — skip initTilesets to avoid race
+        console.log('[App] Skipping initTilesets — Kimbar auto-load will handle tilesets')
+        tilesetsInitRef.current = true
+        return
+      }
       tilesetsInitRef.current = true
       initTilesets()
     }
@@ -595,17 +602,24 @@ function App() {
     if (!autoLoadKimbar) return
     kimbarAutoLoadAttemptedRef.current = true
 
-    const { loadKimbarProject } = useProjectStore.getState()
+    const { loadKimbarProject, initTilesets: fallbackInitTilesets } = useProjectStore.getState()
     void (async () => {
+      let loaded = false
       try {
         if (!window.electron?.app?.getPaths) return
         const paths = await window.electron.app.getPaths()
         const kimbarRoot = await detectKimbarRoot(paths.appPath) ?? await detectKimbarRoot(paths.resourcesPath)
         if (kimbarRoot) {
           await loadKimbarProject(kimbarRoot)
+          loaded = true
         }
       } catch (err) {
         console.warn('[App] Kimbar auto-load failed:', err)
+      }
+      // Fallback: if Kimbar detection/load failed, init default tilesets so we aren't stuck empty
+      if (!loaded && useProjectStore.getState().tilesets.length === 0) {
+        console.log('[App] Kimbar auto-load did not succeed — falling back to initTilesets')
+        await fallbackInitTilesets()
       }
     })()
   }, [])
@@ -1046,6 +1060,8 @@ function App() {
           handleSave()
           break
         case 'z':
+          // In Electron, menu accelerator handles Ctrl+Z/Shift+Z via IPC — skip to avoid double-undo
+          if (window.electron) break
           e.preventDefault()
           if (e.shiftKey) {
             redo()
@@ -1056,6 +1072,8 @@ function App() {
           }
           break
         case 'y':
+          // In Electron, menu accelerator handles Ctrl+Y via IPC — skip to avoid double-redo
+          if (window.electron) break
           e.preventDefault()
           redo()
           toast.info('Redo')
