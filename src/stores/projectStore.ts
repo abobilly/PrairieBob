@@ -1072,97 +1072,102 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
           return
         }
 
+        console.log(`[projectStore] loadKimbarProject starting: ${kimbarRoot}`)
+
+        let config: Awaited<ReturnType<typeof buildKimbarProjectConfig>>
         try {
-          const config = await buildKimbarProjectConfig(kimbarRoot)
+          config = await buildKimbarProjectConfig(kimbarRoot)
+          console.log(`[projectStore] Kimbar config built: ${config.tilesets.length} tilesets`)
+        } catch (err) {
+          console.error('[projectStore] Failed to build Kimbar project config:', err)
+          toast.error(`Kimbar config error: ${err instanceof Error ? err.message : String(err)}`)
+          return
+        }
 
-          // Load tilesets from config
-          const loadedTilesets: LoadedTileset[] = []
-          for (const tilesetRef of config.tilesets) {
-            const tilesetPath = `${kimbarRoot}/${tilesetRef.file}`
-            try {
-              const loaded = await loadTilesetFromPath(
-                {
-                  id: tilesetRef.id,
-                  name: tilesetRef.id,
-                  sourcePath: tilesetPath,
-                  tileSize: tilesetRef.tileSize,
-                  firstGid: getNextFirstGid(loadedTilesets),
-                },
-                window.electron.fs.readFileBase64
-              )
-              loadedTilesets.push(loaded)
-              console.log(`[projectStore] Kimbar tileset loaded: ${tilesetRef.id}`)
-            } catch (err) {
-              console.warn(`[projectStore] Failed to load Kimbar tileset ${tilesetRef.id}:`, err)
-            }
-          }
-
-          // Load megalevel TMX
-          const megalevelPath = getMegalevelPath(kimbarRoot)
-          let mapData = DEFAULT_MAP
-          let mapPath: string | null = null
-          let effectiveTilesets = loadedTilesets
-
-          // Check if megalevel file actually exists before attempting to read
-          let megalevelExists = false
+        // Load tilesets from config (non-fatal — continue even if all fail)
+        const loadedTilesets: LoadedTileset[] = []
+        for (const tilesetRef of config.tilesets) {
+          const tilesetPath = `${kimbarRoot}/${tilesetRef.file}`
           try {
-            megalevelExists = await window.electron.fs.exists(megalevelPath)
-          } catch {
-            // exists() not available — try reading anyway
-            megalevelExists = true
+            const loaded = await loadTilesetFromPath(
+              {
+                id: tilesetRef.id,
+                name: tilesetRef.id,
+                sourcePath: tilesetPath,
+                tileSize: tilesetRef.tileSize,
+                firstGid: getNextFirstGid(loadedTilesets),
+              },
+              window.electron.fs.readFileBase64
+            )
+            loadedTilesets.push(loaded)
+            console.log(`[projectStore] Kimbar tileset loaded: ${tilesetRef.id}`)
+          } catch (err) {
+            console.warn(`[projectStore] Failed to load Kimbar tileset ${tilesetRef.id}:`, err)
           }
+        }
 
-          if (megalevelExists) {
-            try {
-              const loaded = await loadRoomDataFromFile(megalevelPath, window.electron.fs.readFile)
-              mapData = ensureCollisionLayer(loaded.data)
-              mapPath = megalevelPath
+        // Load megalevel TMX (non-fatal — falls back to blank map)
+        const megalevelPath = getMegalevelPath(kimbarRoot)
+        let mapData = DEFAULT_MAP
+        let mapPath: string | null = null
+        let effectiveTilesets = loadedTilesets
 
-              // Force all tile layers visible (megalevel.tmx has Floor visible="0")
-              mapData = {
-                ...mapData,
-                layers: mapData.layers.map(layer =>
-                  layer.type === 'tilelayer' ? { ...layer, visible: true } : layer
-                ),
-              }
+        let megalevelExists = false
+        try {
+          megalevelExists = await window.electron.fs.exists(megalevelPath)
+        } catch {
+          megalevelExists = true
+        }
 
-              // Use TMX tileset references if available (preserves correct firstGid mapping)
-              if (loaded.tilesets.length > 0) {
-                const sortedRoomTilesets = [...loaded.tilesets].sort((a, b) => a.firstGid - b.firstGid)
-                const loadedRoomTilesets: LoadedTileset[] = []
-                for (const ref of sortedRoomTilesets) {
-                  try {
-                    const ts = await loadTilesetFromPath(
-                      {
-                        id: ref.id,
-                        name: ref.name,
-                        sourcePath: ref.sourcePath,
-                        tileSize: ref.tileSize,
-                        firstGid: ref.firstGid,
-                      },
-                      window.electron.fs.readFileBase64
-                    )
-                    loadedRoomTilesets.push(ts)
-                  } catch (err) {
-                    console.warn(`[projectStore] Failed to load Kimbar room tileset "${ref.name}":`, err)
-                  }
-                }
-                if (loadedRoomTilesets.length > 0) {
-                  effectiveTilesets = loadedRoomTilesets
-                }
-              }
+        if (megalevelExists) {
+          try {
+            const loaded = await loadRoomDataFromFile(megalevelPath, window.electron.fs.readFile)
+            mapData = ensureCollisionLayer(loaded.data)
+            mapPath = megalevelPath
 
-              console.log(`[projectStore] Kimbar megalevel loaded (${loaded.sourceFormat})`)
-            } catch (err) {
-              console.warn('[projectStore] Failed to load Kimbar megalevel TMX:', err)
-              toast.warning(`Megalevel TMX could not be loaded — opening with blank map. Use File > Open Room to load a specific room.`)
-              // Continue with DEFAULT_MAP instead of blocking the project
+            mapData = {
+              ...mapData,
+              layers: mapData.layers.map(layer =>
+                layer.type === 'tilelayer' ? { ...layer, visible: true } : layer
+              ),
             }
-          } else {
-            console.log(`[projectStore] Kimbar megalevel not found at ${megalevelPath} — using blank map`)
-            toast.warning('Megalevel TMX not found — opening with blank map. Use Room Browser to load a room.')
-          }
 
+            if (loaded.tilesets.length > 0) {
+              const sortedRoomTilesets = [...loaded.tilesets].sort((a, b) => a.firstGid - b.firstGid)
+              const loadedRoomTilesets: LoadedTileset[] = []
+              for (const ref of sortedRoomTilesets) {
+                try {
+                  const ts = await loadTilesetFromPath(
+                    {
+                      id: ref.id,
+                      name: ref.name,
+                      sourcePath: ref.sourcePath,
+                      tileSize: ref.tileSize,
+                      firstGid: ref.firstGid,
+                    },
+                    window.electron.fs.readFileBase64
+                  )
+                  loadedRoomTilesets.push(ts)
+                } catch (err) {
+                  console.warn(`[projectStore] Failed to load Kimbar room tileset "${ref.name}":`, err)
+                }
+              }
+              if (loadedRoomTilesets.length > 0) {
+                effectiveTilesets = loadedRoomTilesets
+              }
+            }
+
+            console.log(`[projectStore] Kimbar megalevel loaded (${loaded.sourceFormat})`)
+          } catch (err) {
+            console.warn('[projectStore] Failed to load Kimbar megalevel TMX:', err)
+            toast.warning(`Megalevel TMX could not be loaded — opening with blank map.`)
+          }
+        } else {
+          console.log(`[projectStore] Kimbar megalevel not found at ${megalevelPath} — using blank map`)
+          toast.warning('Megalevel TMX not found — opening with blank map. Use Room Browser to load a room.')
+        }
+
+        try {
           set({
             projectPath: kimbarRoot,
             projectName: config.name,
@@ -1189,31 +1194,40 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
             canUndo: false,
             canRedo: false,
           })
+        } catch (err) {
+          console.error('[projectStore] Failed to set Kimbar project state:', err)
+          toast.error(`Kimbar state error: ${err instanceof Error ? err.message : String(err)}`)
+          return
+        }
 
-          console.log('[projectStore] Kimbar project loaded')
-          console.log('[projectStore] Tilesets:', effectiveTilesets.length)
+        console.log('[projectStore] Kimbar project loaded')
+        console.log('[projectStore] Tilesets:', effectiveTilesets.length)
 
-          // Track in recent projects and close selector
+        // Track in recent projects and close selector
+        try {
           const { addRecentProject, closeProjectSelector } = await import('./uiStore').then(m => m.useUIStore.getState())
           addRecentProject(kimbarRoot, 'Kimbar')
           closeProjectSelector()
-
-          toast.success('Loaded Kimbar project')
-
-          // Initialize character sprite registry
-          await initKimbarLinkedProjectAtRoot(kimbarRoot)
-
-          // Scan room files and load world layout
-          const store = get()
-          void Promise.all([
-            store.scanRoomFiles(),
-            store.loadWorldLayoutFromDisk(),
-          ]).then(() => store.autoImportTiledWorlds())
-            .then(() => store.syncDoorConnections())
         } catch (err) {
-          console.error('[projectStore] Failed to load Kimbar project:', err)
-          toast.error('Failed to load Kimbar project')
+          console.warn('[projectStore] Failed to update recent projects:', err)
         }
+
+        toast.success('Loaded Kimbar project')
+
+        // Initialize character sprite registry (non-fatal)
+        try {
+          await initKimbarLinkedProjectAtRoot(kimbarRoot)
+        } catch (err) {
+          console.warn('[projectStore] Kimbar character registry init failed:', err)
+        }
+
+        // Scan room files and load world layout (non-fatal, async)
+        const store = get()
+        void Promise.all([
+          store.scanRoomFiles().catch(e => console.warn('[projectStore] scanRoomFiles failed:', e)),
+          store.loadWorldLayoutFromDisk().catch(e => console.warn('[projectStore] loadWorldLayout failed:', e)),
+        ]).then(() => store.autoImportTiledWorlds().catch(e => console.warn('[projectStore] autoImportTiledWorlds failed:', e)))
+          .then(() => store.syncDoorConnections().catch(e => console.warn('[projectStore] syncDoorConnections failed:', e)))
       },
 
       // Load the sample project
