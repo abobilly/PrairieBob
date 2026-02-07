@@ -48,12 +48,18 @@ npx electron-builder --win            # Creates NSIS installer in release/
 
 ## Features
 
-- **Tile painting** — Brush, fill, rectangle, eraser tools
+- **Tile painting** — Brush, fill, rectangle, eraser tools with rotation and palette snap
 - **Layer management** — Floor, Walls, Trim, Overlays, Collision, Entities
-- **Entity placement** — NPCs, doors, spawn points with properties
+- **Entity placement** — NPCs, doors, spawn points with properties and definition bindings
+- **Behavior editor** — State graphs, movement timelines, trigger scripting, direction sets
+- **Tile actions** — Grouped behavior cards with filter modes, definition merge/dedup, tile thumbnails
+- **Validation panel** — Project-wide diagnostics (mappings, room links, collisions, entity bindings) with quick-jump and action buttons
+- **Collision system** — Strategy presets (auto-walls, custom, manual), source layer linking, derived overlay
+- **Inspector tabs** — Quick / Advanced / Bindings / Preview across all tool contexts
 - **LDtk data model** — Native LDtk format support
 - **Export** — JSON format compatible with Tiled/LDtk
 - **Embedded AI Agent** — Chat or terminal interface powered by Copilot SDK
+- **Tests** — vitest suite: UI store persistence, project selector layout, room loader formats
 
 ---
 

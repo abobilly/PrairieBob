@@ -80,3 +80,12 @@ User
 - Use `copilot` CLI only for local auth/status flows when required by the app
 - Make file changes and run verification commands to complete the task
 - Run `npm run build` before finishing
+
+### Layout Rules
+
+- Side panels must never render below usable width
+- Global controls stay in top toolbar only
+- Tool-specific controls only in context toolbar + inspector
+- Agent/terminal controls stay bottom panel only
+- Radix `SelectItem` values must never be empty string; use sentinel values for "None"
+- Inspector section headers must be `shrink-0` to avoid clipped/cropped controls
