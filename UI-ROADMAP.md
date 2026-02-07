@@ -59,39 +59,54 @@ Stabilize layout and ship a scalable, tool-context editor UI so new features do 
 5. ~~Tile Actions: Quick / Advanced tabs~~ ✅ TileActionsPanel.tsx — Quick (category overview, read-only), Advanced (full state/trigger/effect editors + add group)
 6. Layers and Entities sections remain tab-free (already compact)
 
-## TODO — Phase 4 (Validation panel)
+## DONE — Phase 4 (Validation panel)
 
-1. Standalone validation panel (currently warnings are inline in TileActionsPanel only):
-   - Missing animation/state mappings
-   - Invalid room links
-   - Collision source conflicts
-2. World+entity integration:
-   - Door/NPC link diagnostics
-   - Room graph health checks
+1. ~~Standalone validation panel~~ ✅ `ValidationPanel.tsx` — aggregated project-wide diagnostics as new InspectorSection (collapsed by default, orange accent)
+   - ~~Missing animation/state mappings~~ ✅ NPC no-states, spawn no-group, door few-states checks
+   - ~~Invalid room links~~ ✅ Entity targetRoom → roomRegistry lookup
+   - ~~Collision source conflicts~~ ✅ Custom strategy with 0 layers, auto_walls with no matching layers
+2. ~~World+entity integration~~ ✅
+   - ~~Door/NPC link diagnostics~~ ✅ Unbound door (no interactionId/entityDefId), unbound NPC, bad references to missing definitions
+   - ~~Room graph health checks~~ ✅ Invalid room references detected per-entity
+3. Validation engine: `src/lib/validation.ts` — `validateProject()` aggregates 4 check categories, `groupByCategory()` for display
+4. Severity filter (All/Errors/Warnings/Info) + collapsible category groups + issue count badge
 
-## TODO — Phase 5 (Entity behavior editor)
+## DONE — Phase 5 (Entity behavior editor)
 
-1. Movement timelines and state transitions
-2. On-load and on-interact behavior scripting controls
-3. Per-state timing, direction sets, and previewable state graphs
+1. ~~Movement timelines and state transitions~~ ✅ `BehaviorEditor.tsx` — `MovementSection` renders mode/speed/direction-change-interval, `StateDetailsSection` shows state nodes with tile IDs and collision flags
+2. ~~On-load and on-interact behavior scripting controls~~ ✅ `TriggerSection` renders onLoad/onInteract triggers with resolved animation badges
+3. ~~Per-state timing, direction sets, and previewable state graphs~~ ✅ `StateGraph.tsx` SVG state machine visualization (auto-layout, bidirectional edge curves, default/collision indicators), `DirectionSetSection` classifies direction-based animation groups, `behavior-graph.ts` model (~311 lines) with `buildEntityGraph()`, `buildInteractionGraph()`, `extractMovementTimeline()`, `extractBehaviorTriggers()`, `classifyDirectionSets()`
+4. Wired into `PropertiesPanel.tsx` "preview" tab via `BehaviorEditor` component, resolves entityDefId/interactionId from entity properties
 
-## TODO — Phase 6 (Regression tests)
+## DONE — Phase 6 (Regression tests)
 
-1. Panel sizing and resize persistence
-2. Startup modal layout and overflow behavior
-3. TMX/Kimbar load path and fallback behavior
+1. ~~Panel sizing and resize persistence~~ ✅ `src/lib/__tests__/ui-store-persistence.test.ts` — 7 tests covering persist merge, migrate, corrupted/legacy data recovery, runtime normalization, collapsed state roundtrip
+2. ~~Startup modal layout and overflow behavior~~ ✅ `src/lib/__tests__/project-selector-layout.test.ts` — 7 structural tests verifying min() width cap, max-height overflow, responsive grid-cols-1→sm:grid-cols-2, min-w-0 flex guards, dismiss blocking, truncation, and bounded scroll height
+3. ~~TMX/Kimbar load path and fallback behavior~~ ✅ `src/lib/__tests__/room-loader.test.ts` — 15 tests covering TMX CSV + XML tile elements + object groups, Tiled JSON maps + object layers, SpudTile JSON normalization, LDtk project parsing, and 6 error/fallback cases (invalid content, unrecognized JSON, TSX rejection, missing map root, empty string, array input)
+4. Test infrastructure: vitest 4.x added (`vitest.config.ts`, `npm test` script in package.json)
 
 ## TODO — Phase 7 remaining
 
 1. Visual state previews: frame/row thumbnails next to state names in behavior cards
 2. Quick-jump from validation warnings to entity/action mapping editor
-3. Definition merge: canonical ID strategy to prevent duplicate door groups on save/load
 
-## TODO — Phase 8 (Behavior authoring polish)
+## DONE — Phase 7.3 (Definition merge dedup)
+
+1. ~~Definition merge: canonical ID strategy to prevent duplicate door groups on save/load~~ ✅ `combineTileActionGroups()` in `projectStore.ts` refactored to use `Map<id, group>` for guaranteed uniqueness — definition-backed groups (entity:/interaction:) always take precedence, custom groups only appear if their ID doesn't collide
+2. ~~Save path safety filter~~ ✅ `saveMap()` now filters `customTileActionGroups` through `isDefinitionBackedGroupId()` before serialization — prevents stale definition-backed groups from leaking into project.json
+3. Tests: `src/lib/__tests__/tile-action-dedup.test.ts` — 10 tests covering dedup, precedence, collisions, roundtrip serialization, and edge cases
+
+## DONE — Phase 8.2 (Filter modes for TileActionsPanel)
+
+1. ~~Filter modes: All, Missing mappings, Definition-backed, Custom~~ ✅ `TileActionsPanel.tsx` — filter bar with Funnel icon + 4 chip-style toggle buttons above category cards, `useState<FilterMode>` local to panel, `filteredGroups` memo using `inferBehaviorCategory()` + `validateBehaviorMappings()` from `tile-actions.ts`, counter badge shows filtered/total when active, empty state message is filter-aware
+
+## DONE — Phase 8.3 (Save/load roundtrip preservation)
+
+1. ~~Save/load roundtrip preserves merged mappings without regenerating duplicates~~ ✅ Load path: persisted groups filtered by `!isDefinitionBackedGroupId()` before merge. Save path: `customTileActionGroups` filtered to exclude definition-backed groups before serialization. Combined via `combineTileActionGroups()` with Map-based dedup. Definition-backed group state synced back to definition files via `syncInteractionDefinitionFromActionGroup()`/`syncEntityDefinitionFromActionGroup()`, so re-derivation on load preserves edits.
+
+## TODO — Phase 8 remaining (Behavior authoring polish)
 
 1. "Open Entity" / "Fix Mapping" action buttons in warnings
-2. Filter modes: All, Missing mappings, Definition-backed, Custom
-3. Save/load roundtrip preserves merged mappings without regenerating duplicates
 
 ---
 

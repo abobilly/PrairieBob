@@ -7,7 +7,7 @@
  */
 
 import { useState, useCallback, useMemo } from 'react'
-import { Plus, Trash, CaretDown, CaretRight, Lightning, Door, User, Cube, WarningCircle } from '@phosphor-icons/react'
+import { Plus, Trash, CaretDown, CaretRight, Lightning, Door, User, Cube, WarningCircle, Funnel } from '@phosphor-icons/react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -43,6 +43,15 @@ const EFFECT_TYPES: { value: EffectType; label: string }[] = [
 ]
 
 const CATEGORY_ORDER: BehaviorCategory[] = ['doors', 'npc', 'player', 'props', 'custom']
+
+type FilterMode = 'all' | 'missing' | 'definition' | 'custom'
+
+const FILTER_MODES: { value: FilterMode; label: string }[] = [
+  { value: 'all', label: 'All' },
+  { value: 'missing', label: 'Missing' },
+  { value: 'definition', label: 'Def' },
+  { value: 'custom', label: 'Custom' },
+]
 
 function CategoryIcon({ category, size = 12 }: { category: BehaviorCategory; size?: number }) {
   switch (category) {
@@ -95,21 +104,52 @@ export function TileActionsPanel({
 }: TileActionsPanelProps) {
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
   const [collapsedCategories, setCollapsedCategories] = useState<Set<BehaviorCategory>>(new Set())
-
-  const categorized = useMemo(() => {
-    const map = new Map<BehaviorCategory, TileActionGroup[]>()
-    for (const cat of CATEGORY_ORDER) map.set(cat, [])
-    for (const group of actionGroups) {
-      const cat = inferBehaviorCategory(group, entityDefinitions, interactionDefinitions)
-      map.get(cat)!.push(group)
-    }
-    return map
-  }, [actionGroups, entityDefinitions, interactionDefinitions])
+  const [filterMode, setFilterMode] = useState<FilterMode>('all')
 
   const warnings = useMemo<BehaviorValidationWarning[]>(
     () => entityDefinitions ? validateBehaviorMappings(entityDefinitions, actionGroups) : [],
     [entityDefinitions, actionGroups],
   )
+
+  // Apply filter to the action groups before categorizing
+  const filteredGroups = useMemo(() => {
+    if (filterMode === 'all') return actionGroups
+
+    const missingEntityIds = new Set(warnings.map((w) => w.entityId))
+
+    return actionGroups.filter((group) => {
+      const isDef = group.id.startsWith('interaction:') || group.id.startsWith('entity:')
+      switch (filterMode) {
+        case 'missing': {
+          // Show groups whose backing entity has a validation warning
+          if (group.id.startsWith('entity:')) {
+            return missingEntityIds.has(group.id.slice('entity:'.length))
+          }
+          if (group.id.startsWith('interaction:')) {
+            return missingEntityIds.has(group.id.slice('interaction:'.length))
+          }
+          // Custom groups with no states or no triggers are also "missing"
+          return group.states.length === 0 || group.triggers.length === 0
+        }
+        case 'definition':
+          return isDef
+        case 'custom':
+          return !isDef
+        default:
+          return true
+      }
+    })
+  }, [actionGroups, filterMode, warnings])
+
+  const categorized = useMemo(() => {
+    const map = new Map<BehaviorCategory, TileActionGroup[]>()
+    for (const cat of CATEGORY_ORDER) map.set(cat, [])
+    for (const group of filteredGroups) {
+      const cat = inferBehaviorCategory(group, entityDefinitions, interactionDefinitions)
+      map.get(cat)!.push(group)
+    }
+    return map
+  }, [filteredGroups, entityDefinitions, interactionDefinitions])
 
   const toggleExpanded = useCallback((id: string) => {
     setExpandedGroups((prev) => {
@@ -176,6 +216,31 @@ export function TileActionsPanel({
 
   return (
     <div className="flex flex-col gap-2 p-2">
+      {/* Filter mode bar */}
+      <div className="flex items-center gap-1">
+        <Funnel size={10} className="text-[var(--pb-text-muted)] shrink-0" />
+        {FILTER_MODES.map((mode) => (
+          <button
+            key={mode.value}
+            type="button"
+            className={`rounded px-1.5 py-0.5 text-[9px] font-medium transition-colors ${
+              filterMode === mode.value
+                ? 'bg-[var(--pb-accent-glow)] text-[var(--pb-accent)] border border-[var(--pb-accent-dim)]'
+                : 'text-[var(--pb-text-muted)] border border-transparent hover:bg-[var(--pb-bg-hover)] hover:text-[var(--pb-text-secondary)]'
+            }`}
+            onClick={() => setFilterMode(mode.value)}
+            title={`Filter: ${mode.label}`}
+          >
+            {mode.label}
+          </button>
+        ))}
+        {filterMode !== 'all' && (
+          <span className="ml-auto text-[8px] text-[var(--pb-text-muted)]">
+            {filteredGroups.length}/{actionGroups.length}
+          </span>
+        )}
+      </div>
+
       {/* Add custom group button — Advanced tab only */}
       {activeTab === 'advanced' && (
         <button
@@ -426,9 +491,11 @@ export function TileActionsPanel({
       })}
 
       {/* Empty state */}
-      {actionGroups.length === 0 && warnings.length === 0 && (
+      {filteredGroups.length === 0 && (
         <div className="text-[10px] text-[var(--pb-text-muted)] px-1 leading-tight">
-          No action groups. Add entity or interaction definitions, or create a custom group.
+          {filterMode !== 'all'
+            ? `No groups match the "${FILTER_MODES.find((m) => m.value === filterMode)?.label}" filter.`
+            : 'No action groups. Add entity or interaction definitions, or create a custom group.'}
         </div>
       )}
 

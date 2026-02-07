@@ -61,6 +61,8 @@ import { ProjectSelector } from '@/components/ProjectSelector'
 import { NewProjectWizard } from '@/components/NewProjectWizard'
 import { GamePreview } from '@/components/GamePreview'
 import { TileActionsPanel } from '@/components/TileActionsPanel'
+import { ValidationPanel } from '@/components/ValidationPanel'
+import { validateProject } from '@/lib/validation'
 import { BakeTilesetDialog } from '@/components/BakeTilesetDialog'
 import { WorldViewCanvas as SpudWorldViewCanvas } from '@/components/WorldViewCanvas'
 import { WorldMinimap } from '@/components/WorldMinimap'
@@ -352,6 +354,7 @@ function App() {
   const [inspectorActionsCollapsed, setInspectorActionsCollapsed] = useState(false)
   const [inspectorEntitiesCollapsed, setInspectorEntitiesCollapsed] = useState(false)
   const [inspectorCollisionCollapsed, setInspectorCollisionCollapsed] = useState(false)
+  const [inspectorValidationCollapsed, setInspectorValidationCollapsed] = useState(true)
   const [propertiesTab, setPropertiesTab] = useState<InspectorTab>('quick')
   const [collisionTab, setCollisionTab] = useState<InspectorTab>('quick')
   const [actionsTab, setActionsTab] = useState<InspectorTab>('quick')
@@ -480,6 +483,27 @@ function App() {
     () => resolveCollisionSourcesFromMetadata(mapData),
     [mapData]
   )
+
+  // Gather all placed entities across object-group layers for validation
+  const allEntities = useMemo(
+    () => mapData.layers
+      .filter((layer) => layer.type === 'objectgroup')
+      .flatMap((layer) => layer.objects ?? []),
+    [mapData.layers],
+  )
+
+  // Pre-compute issue count for the badge
+  const validationIssueCount = useMemo(() => {
+    return validateProject({
+      entityDefs: entityDefinitions ?? {},
+      interactionDefs: interactionDefinitions ?? {},
+      actionGroups: tileActionGroups,
+      entities: allEntities,
+      roomRegistry,
+      collisionConfig: collisionSourceConfig,
+      mapData,
+    }).length
+  }, [entityDefinitions, interactionDefinitions, tileActionGroups, allEntities, roomRegistry, collisionSourceConfig, mapData])
 
   const LEFT_MIN = 24
   const LEFT_MAX = 60
@@ -1524,7 +1548,7 @@ function App() {
                     collapsed={inspectorPropertiesCollapsed}
                     onToggleCollapsed={() => setInspectorPropertiesCollapsed((prev) => !prev)}
                     accentClass="pb-inspector-accent-properties"
-                    tabs={['quick', 'advanced', 'bindings']}
+                    tabs={['quick', 'advanced', 'bindings', 'preview']}
                     activeTab={propertiesTab}
                     onTabChange={setPropertiesTab}
                   >
@@ -1533,6 +1557,8 @@ function App() {
                       onEntityUpdate={handleEntityUpdate}
                       onEntityDelete={handleEntityDelete}
                       activeTab={propertiesTab}
+                      entityDefinitions={entityDefinitions ?? undefined}
+                      interactionDefinitions={interactionDefinitions ?? undefined}
                     />
                   </InspectorSection>
                   <InspectorSection
@@ -1614,6 +1640,23 @@ function App() {
                       <EntityPalette />
                     </InspectorSection>
                   )}
+                  <InspectorSection
+                    title="Validation"
+                    badge={`${validationIssueCount} issues`}
+                    collapsed={inspectorValidationCollapsed}
+                    onToggleCollapsed={() => setInspectorValidationCollapsed((prev) => !prev)}
+                    accentClass="pb-inspector-accent-validation"
+                  >
+                    <ValidationPanel
+                      entityDefs={entityDefinitions ?? {}}
+                      interactionDefs={interactionDefinitions ?? {}}
+                      actionGroups={tileActionGroups}
+                      entities={allEntities}
+                      roomRegistry={roomRegistry}
+                      collisionConfig={collisionSourceConfig}
+                      mapData={mapData}
+                    />
+                  </InspectorSection>
                 </div>
               </Panel>
             ) : (

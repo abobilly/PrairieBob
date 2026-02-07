@@ -87,6 +87,8 @@
     --pb-compact-properties-border: #f1c76a;
     --pb-compact-properties-bg: linear-gradient(180deg, rgba(43, 35, 24, 0.94), rgba(37, 30, 22, 0.94));
     --pb-compact-collision-border: #f44336;
+    --pb-compact-validation-border: #fb923c;
+    --pb-error: #ef4444;
 }
 
 .pb-app[data-theme="light"] {
@@ -148,6 +150,8 @@
     --pb-compact-properties-border: #b6852f;
     --pb-compact-properties-bg: linear-gradient(180deg, rgba(248, 241, 227, 0.98), rgba(243, 234, 218, 0.98));
     --pb-compact-collision-border: #c62828;
+    --pb-compact-validation-border: #ea580c;
+    --pb-error: #dc2626;
 }
 
 /* ===== Global App Container ===== */
@@ -1378,4 +1382,8 @@
 
 .pb-inspector-accent-collision {
     border-left: 2px solid var(--pb-compact-collision-border);
+}
+
+.pb-inspector-accent-validation {
+    border-left: 2px solid var(--pb-compact-validation-border);
 }

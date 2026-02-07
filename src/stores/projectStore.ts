@@ -616,9 +616,17 @@ function combineTileActionGroups(
     return derived
   }
 
-  const derivedIds = new Set(derived.map((group) => group.id))
-  const uniqueCustom = customTileActionGroups.filter((group) => !derivedIds.has(group.id))
-  return [...derived, ...uniqueCustom]
+  // Dedup: definition-backed groups take precedence; custom groups only
+  // appear if no derived group shares the same ID.  Using a Map
+  // guarantees every ID appears exactly once in the result.
+  const byId = new Map<string, TileActionGroup>()
+  for (const group of derived) byId.set(group.id, group)
+  for (const group of customTileActionGroups) {
+    if (!byId.has(group.id) && !isDefinitionBackedGroupId(group.id)) {
+      byId.set(group.id, group)
+    }
+  }
+  return Array.from(byId.values())
 }
 
 function syncInteractionDefinitionFromActionGroup(
@@ -1095,50 +1103,64 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
           let mapPath: string | null = null
           let effectiveTilesets = loadedTilesets
 
+          // Check if megalevel file actually exists before attempting to read
+          let megalevelExists = false
           try {
-            const loaded = await loadRoomDataFromFile(megalevelPath, window.electron.fs.readFile)
-            mapData = ensureCollisionLayer(loaded.data)
-            mapPath = megalevelPath
+            megalevelExists = await window.electron.fs.exists(megalevelPath)
+          } catch {
+            // exists() not available — try reading anyway
+            megalevelExists = true
+          }
 
-            // Force all tile layers visible (megalevel.tmx has Floor visible="0")
-            mapData = {
-              ...mapData,
-              layers: mapData.layers.map(layer =>
-                layer.type === 'tilelayer' ? { ...layer, visible: true } : layer
-              ),
-            }
+          if (megalevelExists) {
+            try {
+              const loaded = await loadRoomDataFromFile(megalevelPath, window.electron.fs.readFile)
+              mapData = ensureCollisionLayer(loaded.data)
+              mapPath = megalevelPath
 
-            // Use TMX tileset references if available (preserves correct firstGid mapping)
-            if (loaded.tilesets.length > 0) {
-              const sortedRoomTilesets = [...loaded.tilesets].sort((a, b) => a.firstGid - b.firstGid)
-              const loadedRoomTilesets: LoadedTileset[] = []
-              for (const ref of sortedRoomTilesets) {
-                try {
-                  const ts = await loadTilesetFromPath(
-                    {
-                      id: ref.id,
-                      name: ref.name,
-                      sourcePath: ref.sourcePath,
-                      tileSize: ref.tileSize,
-                      firstGid: ref.firstGid,
-                    },
-                    window.electron.fs.readFileBase64
-                  )
-                  loadedRoomTilesets.push(ts)
-                } catch (err) {
-                  console.warn(`[projectStore] Failed to load Kimbar room tileset "${ref.name}":`, err)
+              // Force all tile layers visible (megalevel.tmx has Floor visible="0")
+              mapData = {
+                ...mapData,
+                layers: mapData.layers.map(layer =>
+                  layer.type === 'tilelayer' ? { ...layer, visible: true } : layer
+                ),
+              }
+
+              // Use TMX tileset references if available (preserves correct firstGid mapping)
+              if (loaded.tilesets.length > 0) {
+                const sortedRoomTilesets = [...loaded.tilesets].sort((a, b) => a.firstGid - b.firstGid)
+                const loadedRoomTilesets: LoadedTileset[] = []
+                for (const ref of sortedRoomTilesets) {
+                  try {
+                    const ts = await loadTilesetFromPath(
+                      {
+                        id: ref.id,
+                        name: ref.name,
+                        sourcePath: ref.sourcePath,
+                        tileSize: ref.tileSize,
+                        firstGid: ref.firstGid,
+                      },
+                      window.electron.fs.readFileBase64
+                    )
+                    loadedRoomTilesets.push(ts)
+                  } catch (err) {
+                    console.warn(`[projectStore] Failed to load Kimbar room tileset "${ref.name}":`, err)
+                  }
+                }
+                if (loadedRoomTilesets.length > 0) {
+                  effectiveTilesets = loadedRoomTilesets
                 }
               }
-              if (loadedRoomTilesets.length > 0) {
-                effectiveTilesets = loadedRoomTilesets
-              }
-            }
 
-            console.log(`[projectStore] Kimbar megalevel loaded (${loaded.sourceFormat})`)
-          } catch (err) {
-            console.warn('[projectStore] Failed to load Kimbar megalevel:', err)
-            toast.error('Failed to load Kimbar megalevel TMX')
-            return
+              console.log(`[projectStore] Kimbar megalevel loaded (${loaded.sourceFormat})`)
+            } catch (err) {
+              console.warn('[projectStore] Failed to load Kimbar megalevel TMX:', err)
+              toast.warning(`Megalevel TMX could not be loaded — opening with blank map. Use File > Open Room to load a specific room.`)
+              // Continue with DEFAULT_MAP instead of blocking the project
+            }
+          } else {
+            console.log(`[projectStore] Kimbar megalevel not found at ${megalevelPath} — using blank map`)
+            toast.warning('Megalevel TMX not found — opening with blank map. Use Room Browser to load a room.')
           }
 
           set({
@@ -1452,9 +1474,15 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
                     nextProjectConfig = JSON.parse(rawConfig) as ProjectConfig
                   }
                   if (customTileActionGroupsDirty) {
+                    // Only persist custom (non-definition-backed) groups.
+                    // Definition-backed groups are re-derived from entity/interaction
+                    // definition files on load — persisting them would cause duplicates.
+                    const persistable = customTileActionGroups.filter(
+                      (g) => !isDefinitionBackedGroupId(g.id),
+                    )
                     nextProjectConfig = {
                       ...nextProjectConfig,
-                      tileActionGroups: serializeActionGroups(customTileActionGroups),
+                      tileActionGroups: serializeActionGroups(persistable),
                     }
                   }
                   if (layerGroupsDirty) {
@@ -1615,10 +1643,13 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
           if (state.past.length === 0) return
 
           const entry = state.past.pop()!
-          state.future.unshift({ mapData: state.mapData, description: 'Undo' })
-          state.mapData = entry.mapData
+          // Deep clone current state before saving to future
+          state.future.unshift({ mapData: JSON.parse(JSON.stringify(state.mapData)), description: 'Undo' })
+          // Deep clone the entry when restoring
+          state.mapData = JSON.parse(JSON.stringify(entry.mapData))
           state.canUndo = state.past.length > 0
           state.canRedo = state.future.length > 0
+          state.hasUnsavedChanges = true
         })
       },
 
@@ -1627,10 +1658,13 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
           if (state.future.length === 0) return
 
           const entry = state.future.shift()!
-          state.past.push({ mapData: state.mapData, description: 'Redo' })
-          state.mapData = entry.mapData
+          // Deep clone current state before saving to past
+          state.past.push({ mapData: JSON.parse(JSON.stringify(state.mapData)), description: 'Redo' })
+          // Deep clone the entry when restoring
+          state.mapData = JSON.parse(JSON.stringify(entry.mapData))
           state.canUndo = state.past.length > 0
           state.canRedo = state.future.length > 0
+          state.hasUnsavedChanges = true
         })
       },
 

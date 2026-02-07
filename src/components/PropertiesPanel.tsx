@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { EntityData, EntityType } from '@/lib/types'
+import { EntityData, EntityType, EntityDefinitionFile, InteractionDefinitionFile } from '@/lib/types'
 import { getAvailableCharacters } from '@/lib/data'
 import { useProjectStore } from '@/stores/projectStore'
 import { Label } from '@/components/ui/label'
@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Door, DoorOpen, Lock, LockOpen, ToggleLeft, ToggleRight, Trash } from '@phosphor-icons/react'
 
 import type { InspectorTab } from '@/components/InspectorSection'
+import { BehaviorEditor } from '@/components/BehaviorEditor'
 
 const SELECT_NONE = '__none__'
 
@@ -50,6 +51,8 @@ interface PropertiesPanelProps {
   onEntityUpdate: (id: string, updates: Partial<EntityData>) => void
   onEntityDelete: (id: string) => void
   activeTab?: InspectorTab
+  entityDefinitions?: Record<string, EntityDefinitionFile>
+  interactionDefinitions?: Record<string, InteractionDefinitionFile>
 }
 
 export function PropertiesPanel({
@@ -57,6 +60,8 @@ export function PropertiesPanel({
   onEntityUpdate,
   onEntityDelete,
   activeTab = 'quick',
+  entityDefinitions,
+  interactionDefinitions,
 }: PropertiesPanelProps) {
   const isNpcEntity = selectedEntity?.type === 'npc'
   const isSpawnEntity = selectedEntity?.type === 'spawn_point'
@@ -623,6 +628,15 @@ export function PropertiesPanel({
             <div className="text-[10px] text-[var(--pb-text-muted)]">No bindings for {selectedEntity.type} entities.</div>
           )}
         </>
+      )}
+
+      {/* ═══════════════ PREVIEW TAB ═══════════════ */}
+      {activeTab === 'preview' && (
+        <BehaviorEditor
+          selectedEntity={selectedEntity}
+          entityDefinitions={entityDefinitions}
+          interactionDefinitions={interactionDefinitions}
+        />
       )}
     </div>
   )
